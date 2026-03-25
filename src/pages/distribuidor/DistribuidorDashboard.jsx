@@ -95,15 +95,18 @@ export default function DistribuidorDashboard({ slug }) {
     );
   }
 
-  const isAdmin = role === "admin";
+  const isAdmin    = role === "admin";
+  const modoPrecio = distribuidor?.modo_precio || "venta";
 
   // Cálculos
   const totalStock    = inventario.reduce((s, i) => s + i.cantidad, 0);
   const totalVendidas = inventario.reduce((s, i) => s + (i.vendidas || 0), 0);
-  const totalVentas   = inventario.reduce((s, i) => s + (i.precio_venta * (i.vendidas || 0)), 0);
   const mayoreoSet    = inventario.some(i => (i.precio_mayoreo || 0) > 0);
   const totalDebo     = inventario.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0);
-  const totalGanancia = totalVentas - totalDebo;
+  // Ventas y ganancia solo si hay precio_venta registrado
+  const tienePrecio   = inventario.some(i => (i.precio_venta || 0) > 0);
+  const totalVentas   = tienePrecio ? inventario.reduce((s, i) => s + ((i.precio_venta || 0) * (i.vendidas || 0)), 0) : null;
+  const totalGanancia = totalVentas !== null ? totalVentas - totalDebo : null;
 
   return (
     <div className="dist-wrap">
@@ -133,10 +136,13 @@ export default function DistribuidorDashboard({ slug }) {
           <div className="corte-card">
             <p className="corte-title">📊 Mi Corte</p>
 
-            <div className="corte-row">
-              <span className="corte-label">Total ventas</span>
-              <span className="corte-val">{fmt(totalVentas)}</span>
-            </div>
+            {/* Total ventas — solo si el distribuidor registró su precio de venta */}
+            {totalVentas !== null && (
+              <div className="corte-row">
+                <span className="corte-label">Total ventas</span>
+                <span className="corte-val">{fmt(totalVentas)}</span>
+              </div>
+            )}
 
             {mayoreoSet ? (
               <>
@@ -144,14 +150,16 @@ export default function DistribuidorDashboard({ slug }) {
                   <span className="corte-label">Saldo al proveedor</span>
                   <span className="corte-val red">{fmt(totalDebo)}</span>
                 </div>
-                <div className="corte-row">
-                  <span className="corte-label">Mi ganancia neta</span>
-                  <span className="corte-val green">{fmt(totalGanancia)}</span>
-                </div>
+                {totalGanancia !== null && (
+                  <div className="corte-row">
+                    <span className="corte-label">Mi ganancia neta</span>
+                    <span className="corte-val green">{fmt(totalGanancia)}</span>
+                  </div>
+                )}
               </>
             ) : (
               <div className="corte-row">
-                <span className="corte-pending">El proveedor aún no ha configurado tu precio. Pronto verás tu ganancia aquí.</span>
+                <span className="corte-pending">El proveedor aún no ha configurado tu precio. Pronto verás tu saldo aquí.</span>
               </div>
             )}
           </div>
@@ -170,7 +178,7 @@ export default function DistribuidorDashboard({ slug }) {
 
         {/* Upload Form */}
         <div style={{ marginBottom: 28 }}>
-          <UploadForm slug={slug} onSuccess={fetchInventario} />
+          <UploadForm slug={slug} onSuccess={fetchInventario} modoPrecio={modoPrecio} />
         </div>
 
         {/* Inventario */}
@@ -184,6 +192,7 @@ export default function DistribuidorDashboard({ slug }) {
             <InventarioTable
               items={inventario}
               isAdmin={isAdmin}
+              modoPrecio={modoPrecio}
               onItemDeleted={fetchInventario}
               onItemSold={fetchInventario}
             />

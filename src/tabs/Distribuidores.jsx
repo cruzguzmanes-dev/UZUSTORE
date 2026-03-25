@@ -11,9 +11,10 @@ const fmtFecha = (iso) =>
   });
 
 export default function Distribuidores() {
-  const [data,   setData]   = useState({ gaticueva: [], friki: [] });
-  const [pagos,  setPagos]  = useState({ gaticueva: [], friki: [] });
-  const [lotes,  setLotes]  = useState([]);
+  const [data,         setData]         = useState({ gaticueva: [], friki: [] });
+  const [pagos,        setPagos]        = useState({ gaticueva: [], friki: [] });
+  const [lotes,        setLotes]        = useState([]);
+  const [distSettings, setDistSettings] = useState({ gaticueva: { modo_precio: "venta" }, friki: { modo_precio: "venta" } });
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [tab,     setTab]     = useState("gaticueva");
@@ -22,21 +23,44 @@ export default function Distribuidores() {
     setLoading(true);
     setError("");
     try {
-      const [results, lotesData, pagosGati, pagosFriki] = await Promise.all([
+      const [results, lotesData, pagosGati, pagosFriki, settingsGati, settingsFriki] = await Promise.all([
         Promise.all(
           SLUGS.map(s => fetch(`/api/distribuidor/inventario?distribuidor=${s}`).then(r => r.ok ? r.json() : []))
         ),
         sb("lotes?select=id,titulo,sku,costo_unitario&order=titulo.asc").catch(() => []),
         fetch("/api/distribuidor/pagos?slug=gaticueva").then(r => r.ok ? r.json() : []),
         fetch("/api/distribuidor/pagos?slug=friki").then(r => r.ok ? r.json() : []),
+        fetch("/api/distribuidor/settings?slug=gaticueva").then(r => r.ok ? r.json() : {}),
+        fetch("/api/distribuidor/settings?slug=friki").then(r => r.ok ? r.json() : {}),
       ]);
       setData({ gaticueva: results[0] || [], friki: results[1] || [] });
       setLotes(lotesData || []);
       setPagos({ gaticueva: pagosGati || [], friki: pagosFriki || [] });
+      setDistSettings({
+        gaticueva: { modo_precio: settingsGati?.modo_precio || "venta" },
+        friki:     { modo_precio: settingsFriki?.modo_precio || "venta" },
+      });
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateModoPrecio = async (slug, modo) => {
+    // Optimistic update
+    setDistSettings(prev => ({ ...prev, [slug]: { ...prev[slug], modo_precio: modo } }));
+    try {
+      const res = await fetch("/api/distribuidor/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, modo_precio: modo }),
+      });
+      if (!res.ok) throw new Error("Error actualizando");
+    } catch (e) {
+      // Revert on error
+      setDistSettings(prev => ({ ...prev, [slug]: { ...prev[slug], modo_precio: modo === "venta" ? "mayoreo" : "venta" } }));
+      alert("Error: " + e.message);
     }
   };
 
@@ -154,16 +178,43 @@ export default function Distribuidores() {
           color={COLORS[tab]}
           lotes={lotes}
           pagos={pagos[tab] || []}
+          modoPrecio={distSettings[tab]?.modo_precio || "venta"}
           onSetMayoreo={setMayoreo}
           onRegistrarPago={registrarPago}
+          onUpdateModoPrecio={updateModoPrecio}
         />
       )}
     </div>
   );
 }
 
+/* ─── Toggle switch ─── */
+function Toggle({ checked, onChange, color = "#FFE000" }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      style={{
+        width: 44, height: 24, borderRadius: 12, border: "none",
+        background: checked ? color : "#2a2a2a",
+        cursor: "pointer", position: "relative", flexShrink: 0,
+        transition: "background 0.2s",
+      }}
+    >
+      <div style={{
+        position: "absolute",
+        top: 3, left: checked ? 23 : 3,
+        width: 18, height: 18,
+        borderRadius: "50%",
+        background: checked ? "#000" : "#555",
+        transition: "left 0.2s",
+      }} />
+    </button>
+  );
+}
+
 /* ─────────────────────────────────────────── */
-function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, onSetMayoreo, onRegistrarPago }) {
+function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, modoPrecio = "venta", onSetMayoreo, onRegistrarPago, onUpdateModoPrecio }) {
   const [pagoSheet,    setPagoSheet]    = useState(null); // null | 'completo' | 'parcial' | 'historial'
   const [parcialMonto, setParcialMonto] = useState("");
   const [parcialNotas, setParcialNotas] = useState("");
@@ -362,6 +413,39 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, onSetM
         </div>
       )}
 
+      {/* ─── Modo de inventario (toggle) ─── */}
+      <div style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: 12, padding: "12px 16px",
+        marginBottom: 16,
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+      }}>
+        <div>
+          <p style={{ margin: "0 0 2px 0", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", color: "#fff" }}>
+            Modo de inventario
+          </p>
+          <p style={{ margin: 0, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#666" }}>
+            {modoPrecio === "venta"
+              ? "Registra su propio precio de venta"
+              : "Usa el precio que le asigné (mayoreo)"}
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: modoPrecio === "venta" ? color : "#444" }}>
+            Su precio
+          </span>
+          <Toggle
+            checked={modoPrecio === "mayoreo"}
+            onChange={(v) => onUpdateModoPrecio(slug, v ? "mayoreo" : "venta")}
+            color={color}
+          />
+          <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: modoPrecio === "mayoreo" ? color : "#444" }}>
+            Mi precio
+          </span>
+        </div>
+      </div>
+
       {/* ─── Corte del distribuidor ─── */}
       <div style={{
         background: "rgba(255,255,255,0.03)", border: `1px solid ${color}33`,
@@ -486,7 +570,10 @@ function ItemRow({ item, color, lotes, onSetMayoreo }) {
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
-          <span style={{ color }}>Precio: {fmt(item.precio_venta)}</span>
+          {item.precio_venta > 0
+            ? <span style={{ color }}>Precio: {fmt(item.precio_venta)}</span>
+            : <span style={{ color: "#444", fontStyle: "italic" }}>Precio privado</span>
+          }
           <span style={{ color: "#888" }}>Stock: {item.cantidad}</span>
           <span style={{ color: "#aaa" }}>Vendidas: {vendidas}</span>
         </div>

@@ -74,8 +74,8 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const { distribuidor, nombre, foto_url, precio_venta, cantidad } = req.body;
 
-      if (!distribuidor || !precio_venta) {
-        return res.status(400).json({ error: "Faltan campos requeridos" });
+      if (!distribuidor) {
+        return res.status(400).json({ error: "Falta el campo 'distribuidor'" });
       }
 
       // Obtener ID del distribuidor
@@ -110,7 +110,7 @@ export default async function handler(req, res) {
             distribuidor_id,
             nombre,
             foto_url,
-            precio_venta: parseFloat(precio_venta),
+            ...(precio_venta != null && precio_venta !== "" && { precio_venta: parseFloat(precio_venta) }),
             cantidad: parseInt(cantidad) || 1,
           }),
         }

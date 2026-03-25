@@ -43,36 +43,28 @@ export default async function handler(req, res) {
 
     const distribuidor = data[0];
 
+    const base = {
+      distribuidor_id: distribuidor.id,
+      nombre:          distribuidor.nombre,
+      slug:            distribuidor.slug,
+      modo_precio:     distribuidor.modo_precio || "venta",
+    };
+
     // Si no se proporciona código, solo retornar info básica (usado internamente)
     if (!code) {
-      return res.status(200).json({
-        distribuidor_id: distribuidor.id,
-        nombre: distribuidor.nombre,
-        slug: distribuidor.slug,
-        role: null,
-      });
+      return res.status(200).json({ ...base, role: null });
     }
 
     const trimmedCode = code.trim();
 
     // 1. Verificar código admin (acceso completo: corte, ganancias, saldos)
     if (distribuidor.acceso_admin && distribuidor.acceso_admin === trimmedCode) {
-      return res.status(200).json({
-        distribuidor_id: distribuidor.id,
-        nombre: distribuidor.nombre,
-        slug: distribuidor.slug,
-        role: "admin",
-      });
+      return res.status(200).json({ ...base, role: "admin" });
     }
 
     // 2. Verificar código básico (solo inventario y marcar vendidos)
     if (distribuidor.acceso_code && distribuidor.acceso_code === trimmedCode) {
-      return res.status(200).json({
-        distribuidor_id: distribuidor.id,
-        nombre: distribuidor.nombre,
-        slug: distribuidor.slug,
-        role: "basic",
-      });
+      return res.status(200).json({ ...base, role: "basic" });
     }
 
     // Ninguno coincide

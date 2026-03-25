@@ -138,7 +138,7 @@ const CSS = `
   .hist-cant { font-family: 'Space Mono', monospace; font-size: 11px; color: #aaa; }
 `;
 
-export default function InventarioTable({ items, isAdmin = false, onItemDeleted, onItemSold }) {
+export default function InventarioTable({ items, isAdmin = false, modoPrecio = "venta", onItemDeleted, onItemSold }) {
   const [deletingId, setDeletingId]       = useState(null);
   const [sellingId, setSellingId]         = useState(null);
   const [restockingId, setRestockingId]   = useState(null);
@@ -258,7 +258,6 @@ export default function InventarioTable({ items, isAdmin = false, onItemDeleted,
   };
 
   const handleSaveEdit = async () => {
-    if (!editPrecio) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/distribuidor/inventario?id=${editItem.id}`, {
@@ -266,7 +265,7 @@ export default function InventarioTable({ items, isAdmin = false, onItemDeleted,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nombre: editNombre || null,
-          precio_venta: parseFloat(editPrecio),
+          ...(editPrecio && { precio_venta: parseFloat(editPrecio) }),
         }),
       });
       if (!res.ok) throw new Error("Error guardando");
@@ -298,8 +297,10 @@ export default function InventarioTable({ items, isAdmin = false, onItemDeleted,
                   {confirmItem.nombre || "Sin nombre"}
                 </p>
                 <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#888" }}>
-                  Precio: <span style={{ color: "#FFE000" }}>{fmt(confirmItem.precio_venta)}</span>
-                  &nbsp;· Stock: {confirmItem.cantidad}
+                  {(confirmItem.precio_venta || 0) > 0 && (
+                    <>Precio: <span style={{ color: "#FFE000" }}>{fmt(confirmItem.precio_venta)}</span> · </>
+                  )}
+                  Stock: {confirmItem.cantidad}
                 </p>
               </div>
             </div>
@@ -462,15 +463,21 @@ export default function InventarioTable({ items, isAdmin = false, onItemDeleted,
             <label className="edit-lbl">Nombre</label>
             <input className="edit-inp" type="text" value={editNombre}
               onChange={e => setEditNombre(e.target.value)} placeholder="Ej: Goku Ultra Instinct" />
-            <label className="edit-lbl">Tu Precio de Venta $</label>
-            <input className="edit-inp" type="number" step="0.01" value={editPrecio}
-              onChange={e => setEditPrecio(e.target.value)} placeholder="Ej: 650" />
+            {modoPrecio === "venta" && (
+              <>
+                <label className="edit-lbl">
+                  Tu Precio de Venta $ <span style={{ color: "#444", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(opcional)</span>
+                </label>
+                <input className="edit-inp" type="number" step="0.01" value={editPrecio}
+                  onChange={e => setEditPrecio(e.target.value)} placeholder="Ej: 650" />
+              </>
+            )}
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
               <button onClick={() => setEditItem(null)}
                 style={{ flex: 1, background: "#222", border: "1px solid #333", color: "#888", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
                 Cancelar
               </button>
-              <button onClick={handleSaveEdit} disabled={saving || !editPrecio}
+              <button onClick={handleSaveEdit} disabled={saving}
                 style={{ flex: 2, background: saving ? "#333" : "#FFE000", border: "none", color: "#000", borderRadius: 12, padding: 14, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving ? "Guardando..." : "Guardar cambios"}
               </button>
@@ -482,9 +489,10 @@ export default function InventarioTable({ items, isAdmin = false, onItemDeleted,
       {/* ── Grid de artículos ── */}
       <div className="inv-grid">
         {items.map((item) => {
-          const vendidas = item.vendidas || 0;
-          const mayoreo  = item.precio_mayoreo || 0;
-          const gananciaTotal = vendidas > 0 && mayoreo > 0
+          const vendidas      = item.vendidas || 0;
+          const mayoreo       = item.precio_mayoreo || 0;
+          const tienePrecioV  = (item.precio_venta || 0) > 0;
+          const gananciaTotal = vendidas > 0 && mayoreo > 0 && tienePrecioV
             ? (item.precio_venta - mayoreo) * vendidas
             : null;
 
@@ -500,12 +508,27 @@ export default function InventarioTable({ items, isAdmin = false, onItemDeleted,
               <div className="inv-info">
                 <div className="inv-name" style={{ paddingRight: 28 }}>{item.nombre || "Sin nombre"}</div>
                 <div className="inv-row">
-                  <span className="inv-precio">{fmt(item.precio_venta)}</span>
+                  {tienePrecioV && (
+                    <span className="inv-precio">{fmt(item.precio_venta)}</span>
+                  )}
                   <div className="inv-badge">Stock <strong>{item.cantidad}</strong></div>
                   <div className="inv-badge">Vendidas <strong>{vendidas}</strong></div>
                 </div>
 
-                {/* Ganancia acumulada — solo admin */}
+                {/* Precio asignado por dueño — solo admin */}
+                {isAdmin && mayoreo > 0 && (
+                  <div style={{
+                    background: "rgba(255,224,0,0.06)",
+                    border: "1px solid rgba(255,224,0,0.18)",
+                    borderRadius: 7, padding: "5px 10px",
+                    marginBottom: 8, fontSize: 11,
+                    fontFamily: "'Space Mono', monospace", color: "#FFE000",
+                  }}>
+                    💰 Precio asignado: {fmt(mayoreo)}
+                  </div>
+                )}
+
+                {/* Ganancia acumulada — solo admin con precio propio */}
                 {isAdmin && gananciaTotal !== null && (
                   <div className="inv-ganancia">
                     Ganancia acumulada: <strong>{fmt(gananciaTotal)}</strong>

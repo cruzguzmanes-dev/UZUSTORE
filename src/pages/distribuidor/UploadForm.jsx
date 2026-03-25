@@ -56,7 +56,7 @@ function compressImage(file, maxSize = 400, quality = 0.65) {
   });
 }
 
-export default function UploadForm({ slug, onSuccess }) {
+export default function UploadForm({ slug, onSuccess, modoPrecio = "venta" }) {
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
   const [cantidad, setCantidad] = useState("1");
@@ -77,8 +77,8 @@ export default function UploadForm({ slug, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!foto || !precio) {
-      setError("Foto y precio son requeridos");
+    if (!foto) {
+      setError("La foto es requerida");
       return;
     }
     setLoading(true);
@@ -93,7 +93,7 @@ export default function UploadForm({ slug, onSuccess }) {
           distribuidor: slug,
           nombre: nombre || null,
           foto_url: fotoBase64,
-          precio_venta: parseFloat(precio),
+          precio_venta: precio ? parseFloat(precio) : null,
           cantidad: parseInt(cantidad) || 1,
         }),
       });
@@ -153,11 +153,13 @@ export default function UploadForm({ slug, onSuccess }) {
               </div>
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <label style={lbl}>Tu Precio de Venta $</label>
-              <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
-                placeholder="Ej: 650" style={inp} />
-            </div>
+            {modoPrecio === "venta" && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={lbl}>Tu Precio de Venta $ <span style={{ color: "#444", letterSpacing: 0, textTransform: "none" }}>(opcional)</span></label>
+                <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
+                  placeholder="Ej: 650" style={inp} />
+              </div>
+            )}
 
             <div style={{ marginBottom: 14 }}>
               <label style={lbl}>Foto</label>
