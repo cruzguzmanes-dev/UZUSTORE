@@ -129,7 +129,7 @@ export default async function handler(req, res) {
       const { id } = req.query;
       if (!id) return res.status(400).json({ error: "Falta parámetro 'id'" });
 
-      const { cantidad, vendidas, precio_mayoreo } = req.body;
+      const { cantidad, vendidas, precio_mayoreo, nombre, precio_venta } = req.body;
 
       const updateRes = await fetch(
         `${SUPABASE_URL}/rest/v1/inventario_distribuidor?id=eq.${id}`,
@@ -145,6 +145,8 @@ export default async function handler(req, res) {
             ...(cantidad !== undefined && { cantidad: parseInt(cantidad) }),
             ...(vendidas !== undefined && { vendidas: parseInt(vendidas) }),
             ...(precio_mayoreo !== undefined && { precio_mayoreo: parseFloat(precio_mayoreo) }),
+            ...(nombre !== undefined && { nombre }),
+            ...(precio_venta !== undefined && { precio_venta: parseFloat(precio_venta) }),
           }),
         }
       );
