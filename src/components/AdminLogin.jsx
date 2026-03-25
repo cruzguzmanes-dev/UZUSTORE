@@ -102,14 +102,18 @@ export default function AdminLogin({ onConnect, onMock }) {
     }
   };
 
-  const handleMLConnect = () => {
-    const appId = localStorage.getItem("ml_app_id_setup") || prompt("App ID de MercadoLibre:");
-    const secret = localStorage.getItem("ml_secret_setup") || prompt("Secret Key de MercadoLibre:");
-    if (!appId || !secret) return;
-    localStorage.setItem("ml_app_id", appId);
-    localStorage.setItem("ml_secret", secret);
-    const authUrl = `https://auth.mercadolibre.com.mx/authorization?response_type=code&client_id=${appId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-    window.location.href = authUrl;
+  const handleMLConnect = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/admin/ml-auth-url");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error obteniendo URL de ML");
+      window.location.href = data.url;
+    } catch (e) {
+      setError(e.message);
+      setLoading(false);
+    }
   };
 
   const inp = {
