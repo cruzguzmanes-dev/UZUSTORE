@@ -110,7 +110,8 @@ export default async function handler(req, res) {
             distribuidor_id,
             nombre,
             foto_url,
-            ...(precio_venta != null && precio_venta !== "" && { precio_venta: parseFloat(precio_venta) }),
+            // precio_venta es nullable — el distribuidor puede no querer revelarlo
+            precio_venta: (precio_venta != null && precio_venta !== "") ? parseFloat(precio_venta) : null,
             cantidad: parseInt(cantidad) || 1,
           }),
         }
