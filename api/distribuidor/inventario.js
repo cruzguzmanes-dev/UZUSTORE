@@ -10,8 +10,8 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const SUPABASE_URL = process.env.SUPABASE_URL || 'https://sexbthodwpembszdeqqc.supabase.co';
-  const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_M-n1Y5Le0kQtU8csNj7z3Q_KgBssEql';
+  const SUPABASE_URL = process.env.SUPABASE_URL || 'https://kzngmlofewyoteedxxca.supabase.co';
+  const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_5lSuMZ7BaYqVYFZOABn6zg_c0V3LdDx';
 
   try {
     // GET /api/distribuidor/inventario?distribuidor=gaticueva
