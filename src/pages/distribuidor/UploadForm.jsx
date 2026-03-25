@@ -20,7 +20,7 @@ const inp = {
   borderRadius: 8,
   padding: "12px 14px",
   color: "#fff",
-  fontSize: 16, // 16px mínimo evita zoom automático en iOS
+  fontSize: 16,
   fontFamily: "'Space Mono', monospace",
   outline: "none",
   boxSizing: "border-box",
@@ -35,7 +35,6 @@ const lbl = {
   textTransform: "uppercase",
 };
 
-// Comprime la imagen en el cliente a max 600px, JPEG 0.75
 function compressImage(file, maxSize = 600, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -48,8 +47,7 @@ function compressImage(file, maxSize = 600, quality = 0.75) {
         const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
         canvas.width = Math.round(img.width * ratio);
         canvas.height = Math.round(img.height * ratio);
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", quality));
       };
       img.src = reader.result;
@@ -60,7 +58,6 @@ function compressImage(file, maxSize = 600, quality = 0.75) {
 
 export default function UploadForm({ slug, onSuccess }) {
   const [nombre, setNombre] = useState("");
-  const [costo, setCosto] = useState("");
   const [precio, setPrecio] = useState("");
   const [cantidad, setCantidad] = useState("1");
   const [foto, setFoto] = useState(null);
@@ -80,35 +77,33 @@ export default function UploadForm({ slug, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!foto || !precio || !costo) {
-      setError("Foto, costo y precio son requeridos");
+    if (!foto || !precio) {
+      setError("Foto y precio son requeridos");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      // Comprimir imagen en el cliente y guardar como base64
       const fotoBase64 = await compressImage(foto);
 
-      const articuloRes = await fetch("/api/distribuidor/inventario", {
+      const res = await fetch("/api/distribuidor/inventario", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           distribuidor: slug,
           nombre: nombre || null,
           foto_url: fotoBase64,
-          costo_unitario: parseFloat(costo),
           precio_venta: parseFloat(precio),
           cantidad: parseInt(cantidad) || 1,
         }),
       });
 
-      if (!articuloRes.ok) {
-        const data = await articuloRes.json().catch(() => ({}));
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Error creando artículo");
       }
 
-      setNombre(""); setCosto(""); setPrecio(""); setCantidad("1");
+      setNombre(""); setPrecio(""); setCantidad("1");
       setFoto(null); setPreview("");
       setOpen(false);
       onSuccess();
@@ -128,7 +123,6 @@ export default function UploadForm({ slug, onSuccess }) {
         borderRadius: 14,
         overflow: "hidden",
       }}>
-        {/* Toggle header */}
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
@@ -141,9 +135,7 @@ export default function UploadForm({ slug, onSuccess }) {
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15 }}>
             ➕ Agregar Artículo
           </span>
-          <span style={{ color: "#666", fontSize: 18, fontFamily: "'Space Mono', monospace" }}>
-            {open ? "−" : "+"}
-          </span>
+          <span style={{ color: "#666", fontSize: 18 }}>{open ? "−" : "+"}</span>
         </button>
 
         {open && (
@@ -152,7 +144,7 @@ export default function UploadForm({ slug, onSuccess }) {
               <div>
                 <label style={lbl}>Nombre (opcional)</label>
                 <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)}
-                  placeholder="Ej: Pink Man" style={inp} />
+                  placeholder="Ej: Goku UI" style={inp} />
               </div>
               <div>
                 <label style={lbl}>Cantidad</label>
@@ -161,17 +153,10 @@ export default function UploadForm({ slug, onSuccess }) {
               </div>
             </div>
 
-            <div className="upload-grid-2">
-              <div>
-                <label style={lbl}>Costo $</label>
-                <input type="number" step="0.01" value={costo} onChange={(e) => setCosto(e.target.value)}
-                  placeholder="150" style={inp} />
-              </div>
-              <div>
-                <label style={lbl}>Tu Precio $</label>
-                <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
-                  placeholder="300" style={inp} />
-              </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={lbl}>Tu Precio de Venta $</label>
+              <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
+                placeholder="Ej: 650" style={inp} />
             </div>
 
             <div style={{ marginBottom: 14 }}>

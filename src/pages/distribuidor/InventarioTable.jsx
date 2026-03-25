@@ -29,15 +29,8 @@ const CSS = `
     font-size: 15px; color: #fff; margin-bottom: 6px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .inv-prices {
-    display: flex; gap: 12px; margin-bottom: 8px;
-    font-family: 'Space Mono', monospace; font-size: 11px;
-  }
-  .inv-price-costo { color: #888; }
-  .inv-price-venta { color: #FFE000; font-weight: 700; }
-  .inv-badges {
-    display: flex; gap: 8px; margin-bottom: 12px;
-  }
+  .inv-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .inv-precio { color: #FFE000; font-weight: 700; font-family: 'Space Mono', monospace; font-size: 13px; }
   .inv-badge {
     background: rgba(255,255,255,0.07);
     border-radius: 6px; padding: 3px 10px;
@@ -45,6 +38,12 @@ const CSS = `
     color: #aaa;
   }
   .inv-badge strong { color: #fff; }
+  .inv-ganancia {
+    background: rgba(0,200,100,0.08);
+    border: 1px solid rgba(0,200,100,0.2);
+    border-radius: 8px; padding: 6px 10px; margin-bottom: 8px;
+    font-family: 'Space Mono', monospace; font-size: 11px; color: #7ecc7e;
+  }
   .inv-actions { display: flex; gap: 8px; }
   .inv-btn-sell {
     flex: 1;
@@ -61,7 +60,7 @@ const CSS = `
   }
 `;
 
-export default function InventarioTable({ items, onItemDeleted, onItemSold, slug }) {
+export default function InventarioTable({ items, onItemDeleted, onItemSold }) {
   const [deletingId, setDeletingId] = useState(null);
   const [sellingId, setSellingId] = useState(null);
 
@@ -101,41 +100,54 @@ export default function InventarioTable({ items, onItemDeleted, onItemSold, slug
     <>
       <style>{CSS}</style>
       <div className="inv-grid">
-        {items.map((item) => (
-          <div key={item.id} className="inv-card">
-            {item.foto_url
-              ? <img src={item.foto_url} alt={item.nombre} className="inv-img" />
-              : <div className="inv-img-placeholder">📦</div>
-            }
-            <div className="inv-info">
-              <div className="inv-name">{item.nombre || "Sin nombre"}</div>
-              <div className="inv-prices">
-                <span className="inv-price-costo">Costo {fmt(item.costo_unitario)}</span>
-                <span className="inv-price-venta">{fmt(item.precio_venta)}</span>
-              </div>
-              <div className="inv-badges">
-                <div className="inv-badge">Stock <strong>{item.cantidad}</strong></div>
-                <div className="inv-badge">Vendidas <strong>{item.vendidas || 0}</strong></div>
-              </div>
-              <div className="inv-actions">
-                <button
-                  className="inv-btn-sell"
-                  onClick={() => handleMarkSold(item.id, item.cantidad, item.vendidas)}
-                  disabled={item.cantidad <= 0 || sellingId === item.id}
-                >
-                  {sellingId === item.id ? "..." : "✓ Vendido"}
-                </button>
-                <button
-                  className="inv-btn-delete"
-                  onClick={() => handleDelete(item.id)}
-                  disabled={deletingId === item.id}
-                >
-                  {deletingId === item.id ? "..." : "✕"}
-                </button>
+        {items.map((item) => {
+          const vendidas = item.vendidas || 0;
+          const mayoreo = item.precio_mayoreo || 0;
+          const gananciaTotal = vendidas > 0 && mayoreo > 0
+            ? (item.precio_venta - mayoreo) * vendidas
+            : null;
+
+          return (
+            <div key={item.id} className="inv-card">
+              {item.foto_url
+                ? <img src={item.foto_url} alt={item.nombre} className="inv-img" />
+                : <div className="inv-img-placeholder">📦</div>
+              }
+              <div className="inv-info">
+                <div className="inv-name">{item.nombre || "Sin nombre"}</div>
+                <div className="inv-row">
+                  <span className="inv-precio">{fmt(item.precio_venta)}</span>
+                  <div className="inv-badge">Stock <strong>{item.cantidad}</strong></div>
+                  <div className="inv-badge">Vendidas <strong>{vendidas}</strong></div>
+                </div>
+
+                {/* Ganancia acumulada (solo si el dueño ya puso el mayoreo) */}
+                {gananciaTotal !== null && (
+                  <div className="inv-ganancia">
+                    Ganancia acumulada: <strong>{fmt(gananciaTotal)}</strong>
+                  </div>
+                )}
+
+                <div className="inv-actions">
+                  <button
+                    className="inv-btn-sell"
+                    onClick={() => handleMarkSold(item.id, item.cantidad, item.vendidas)}
+                    disabled={item.cantidad <= 0 || sellingId === item.id}
+                  >
+                    {sellingId === item.id ? "..." : "✓ Vendido"}
+                  </button>
+                  <button
+                    className="inv-btn-delete"
+                    onClick={() => handleDelete(item.id)}
+                    disabled={deletingId === item.id}
+                  >
+                    {deletingId === item.id ? "..." : "✕"}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

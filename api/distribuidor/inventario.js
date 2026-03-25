@@ -72,9 +72,9 @@ export default async function handler(req, res) {
 
     // POST /api/distribuidor/inventario
     if (req.method === 'POST') {
-      const { distribuidor, nombre, foto_url, costo_unitario, precio_venta, cantidad } = req.body;
+      const { distribuidor, nombre, foto_url, precio_venta, cantidad } = req.body;
 
-      if (!distribuidor || !costo_unitario || !precio_venta) {
+      if (!distribuidor || !precio_venta) {
         return res.status(400).json({ error: "Faltan campos requeridos" });
       }
 
@@ -110,7 +110,6 @@ export default async function handler(req, res) {
             distribuidor_id,
             nombre,
             foto_url,
-            costo_unitario: parseFloat(costo_unitario),
             precio_venta: parseFloat(precio_venta),
             cantidad: parseInt(cantidad) || 1,
           }),
@@ -125,7 +124,7 @@ export default async function handler(req, res) {
       const { id } = req.query;
       if (!id) return res.status(400).json({ error: "Falta parámetro 'id'" });
 
-      const { cantidad, vendidas } = req.body;
+      const { cantidad, vendidas, precio_mayoreo } = req.body;
 
       const updateRes = await fetch(
         `${SUPABASE_URL}/rest/v1/inventario_distribuidor?id=eq.${id}`,
@@ -140,6 +139,7 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             ...(cantidad !== undefined && { cantidad: parseInt(cantidad) }),
             ...(vendidas !== undefined && { vendidas: parseInt(vendidas) }),
+            ...(precio_mayoreo !== undefined && { precio_mayoreo: parseFloat(precio_mayoreo) }),
           }),
         }
       );

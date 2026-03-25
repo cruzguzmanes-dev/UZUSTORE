@@ -21,7 +21,7 @@ const CSS = `
   .dist-header { margin-bottom: 24px; }
   .dist-title { font-size: 24px; font-weight: 800; margin: 0 0 4px 0; font-family: 'Syne', sans-serif; line-height: 1.2; }
   .dist-sub { color: #666; margin: 0; font-size: 12px; font-family: 'Space Mono', monospace; }
-  .dist-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 20px; }
+  .dist-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
   .stat-card {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.08);
@@ -29,13 +29,22 @@ const CSS = `
   }
   .stat-label { font-family: 'Space Mono', monospace; font-size: 8px; color: #666; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 5px 0; }
   .stat-value { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; margin: 0; color: #fff; }
-  .stat-value.small { font-size: 14px; }
+  .stat-value.money { font-size: 16px; }
+  .corte-card {
+    background: rgba(255,224,0,0.04);
+    border: 1px solid rgba(255,224,0,0.15);
+    border-radius: 14px; padding: 18px; margin-bottom: 20px;
+  }
+  .corte-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #FFE000; margin: 0 0 14px 0; }
+  .corte-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .corte-row:last-child { border-bottom: none; }
+  .corte-label { font-family: 'Space Mono', monospace; font-size: 11px; color: #888; }
+  .corte-val { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; color: #fff; }
+  .corte-val.green { color: #7ecc7e; }
+  .corte-val.red { color: #ff8080; }
+  .corte-pending { font-family: 'Space Mono', monospace; font-size: 11px; color: #555; font-style: italic; }
   .dist-section-title { font-size: 16px; font-weight: 700; margin: 0 0 14px 0; font-family: 'Syne', sans-serif; color: #fff; }
   .dist-empty { color: #555; font-family: 'Space Mono', monospace; font-size: 13px; text-align: center; padding: 32px 0; }
-  @media (max-width: 360px) {
-    .dist-stats { grid-template-columns: 1fr 1fr; }
-    .dist-stats .stat-card:last-child { grid-column: 1 / -1; }
-  }
 `;
 
 export default function DistribuidorDashboard({ slug }) {
@@ -51,8 +60,7 @@ export default function DistribuidorDashboard({ slug }) {
     try {
       const res = await fetch(`/api/distribuidor/inventario?distribuidor=${slug}`);
       if (!res.ok) throw new Error("Error cargando inventario");
-      const data = await res.json();
-      setInventario(data || []);
+      setInventario(await res.json() || []);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -63,12 +71,8 @@ export default function DistribuidorDashboard({ slug }) {
   const fetchDistribuidor = async () => {
     try {
       const res = await fetch(`/api/distribuidor/auth?slug=${slug}`);
-      if (!res.ok) throw new Error("Distribuidor no encontrado");
-      const data = await res.json();
-      setDistribuidor(data);
-    } catch (e) {
-      setError(e.message);
-    }
+      if (res.ok) setDistribuidor(await res.json());
+    } catch {}
   };
 
   useEffect(() => {
@@ -81,9 +85,13 @@ export default function DistribuidorDashboard({ slug }) {
     return <DistribuidorLogin slug={slug} onLogin={(data) => { setDistribuidor(data); setAuthed(true); }} />;
   }
 
-  const totalStock = inventario.reduce((sum, item) => sum + item.cantidad, 0);
-  const totalVendidas = inventario.reduce((sum, item) => sum + (item.vendidas || 0), 0);
-  const totalValue = inventario.reduce((sum, item) => sum + (item.precio_venta * item.cantidad), 0);
+  // Cálculos
+  const totalStock    = inventario.reduce((s, i) => s + i.cantidad, 0);
+  const totalVendidas = inventario.reduce((s, i) => s + (i.vendidas || 0), 0);
+  const totalVentas   = inventario.reduce((s, i) => s + (i.precio_venta * (i.vendidas || 0)), 0);
+  const mayoreoSet    = inventario.some(i => (i.precio_mayoreo || 0) > 0);
+  const totalDebo     = inventario.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0);
+  const totalGanancia = totalVentas - totalDebo;
 
   return (
     <div className="dist-wrap">
@@ -96,21 +104,46 @@ export default function DistribuidorDashboard({ slug }) {
           <p className="dist-sub">Gestiona tu inventario</p>
         </div>
 
-        {/* Stats */}
+        {/* Stats básicas */}
         <div className="dist-stats">
           <div className="stat-card">
-            <p className="stat-label">Stock</p>
+            <p className="stat-label">En Stock</p>
             <p className="stat-value">{totalStock}</p>
           </div>
           <div className="stat-card">
             <p className="stat-label">Vendidas</p>
             <p className="stat-value">{totalVendidas}</p>
           </div>
-          <div className="stat-card">
-            <p className="stat-label">Valor</p>
-            <p className={`stat-value${totalValue >= 10000 ? " small" : ""}`}>{fmt(totalValue)}</p>
-          </div>
         </div>
+
+        {/* Corte — solo si hay vendidas */}
+        {totalVendidas > 0 && (
+          <div className="corte-card">
+            <p className="corte-title">📊 Mi Corte</p>
+
+            <div className="corte-row">
+              <span className="corte-label">Total ventas</span>
+              <span className="corte-val">{fmt(totalVentas)}</span>
+            </div>
+
+            {mayoreoSet ? (
+              <>
+                <div className="corte-row">
+                  <span className="corte-label">Le debo al dueño</span>
+                  <span className="corte-val red">{fmt(totalDebo)}</span>
+                </div>
+                <div className="corte-row">
+                  <span className="corte-label">Mi ganancia neta</span>
+                  <span className="corte-val green">{fmt(totalGanancia)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="corte-row">
+                <span className="corte-pending">El dueño aún no ha puesto el precio mayoreo. Pronto verás tu ganancia aquí.</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -140,7 +173,6 @@ export default function DistribuidorDashboard({ slug }) {
               items={inventario}
               onItemDeleted={fetchInventario}
               onItemSold={fetchInventario}
-              slug={slug}
             />
           )}
         </div>
