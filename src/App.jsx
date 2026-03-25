@@ -8,6 +8,7 @@ import Mensual from "./tabs/Mensual";
 import Inventario from "./tabs/Inventario";
 import Impuestos from "./tabs/Impuestos";
 import Ordenes from "./tabs/Ordenes";
+import DistribuidorDashboard from "./pages/distribuidor/DistribuidorDashboard";
 
 const TABS = ["resumen", "mensual", "inventario", "impuestos", "ordenes"];
 
@@ -101,6 +102,14 @@ async function enrichOrdersWithFees(orders, accessToken) {
 
 
 export default function App() {
+  // Detectar ruta de distribuidor
+  const pathname = window.location.pathname;
+  const distribuidorMatch = pathname.match(/^\/distribuidor\/([a-z]+)$/);
+  if (distribuidorMatch) {
+    const slug = distribuidorMatch[1];
+    return <DistribuidorDashboard slug={slug} />;
+  }
+
   const [connected, setConnected] = useState(false);
   const [orders, setOrders] = useState([]);
   const [lotes, setLotes] = useState([]);
