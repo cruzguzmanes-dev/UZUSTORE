@@ -2,6 +2,7 @@ import React, { useState } from "react";
 
 const CSS = `
   .upload-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  @media (max-width: 320px) { .upload-grid-2 { grid-template-columns: 1fr; } }
   .upload-drop {
     border: 2px dashed rgba(255,255,255,0.15);
     border-radius: 10px; padding: 20px 16px;
@@ -19,7 +20,7 @@ const inp = {
   borderRadius: 8,
   padding: "12px 14px",
   color: "#fff",
-  fontSize: 14,
+  fontSize: 16, // 16px mínimo evita zoom automático en iOS
   fontFamily: "'Space Mono', monospace",
   outline: "none",
   boxSizing: "border-box",
@@ -34,6 +35,29 @@ const lbl = {
   textTransform: "uppercase",
 };
 
+// Comprime la imagen en el cliente a max 600px, JPEG 0.75
+function compressImage(file, maxSize = 600, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function UploadForm({ slug, onSuccess }) {
   const [nombre, setNombre] = useState("");
   const [costo, setCosto] = useState("");
@@ -47,12 +71,11 @@ export default function UploadForm({ slug, onSuccess }) {
 
   const handleFotoChange = (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setFoto(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setPreview(reader.result);
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+    setFoto(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setPreview(reader.result);
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e) => {
@@ -64,12 +87,8 @@ export default function UploadForm({ slug, onSuccess }) {
     setLoading(true);
     setError("");
     try {
-      const uploadRes = await fetch(
-        `/api/distribuidor/upload?distribuidor=${slug}&filename=${foto.name}`,
-        { method: "POST", body: foto }
-      );
-      if (!uploadRes.ok) throw new Error("Error subiendo foto");
-      const { url: fotoUrl } = await uploadRes.json();
+      // Comprimir imagen en el cliente y guardar como base64
+      const fotoBase64 = await compressImage(foto);
 
       const articuloRes = await fetch("/api/distribuidor/inventario", {
         method: "POST",
@@ -77,13 +96,17 @@ export default function UploadForm({ slug, onSuccess }) {
         body: JSON.stringify({
           distribuidor: slug,
           nombre: nombre || null,
-          foto_url: fotoUrl,
+          foto_url: fotoBase64,
           costo_unitario: parseFloat(costo),
           precio_venta: parseFloat(precio),
           cantidad: parseInt(cantidad) || 1,
         }),
       });
-      if (!articuloRes.ok) throw new Error("Error creando artículo");
+
+      if (!articuloRes.ok) {
+        const data = await articuloRes.json().catch(() => ({}));
+        throw new Error(data.error || "Error creando artículo");
+      }
 
       setNombre(""); setCosto(""); setPrecio(""); setCantidad("1");
       setFoto(null); setPreview("");

@@ -7,21 +7,35 @@ import DistribuidorLogin, { getDistribuidorSession } from "./DistribuidorLogin";
 
 const CSS = `
   ${GS}
-  .dist-wrap { min-height: 100vh; background: #0a0a0f; color: #fff; padding: 20px 16px 40px; }
+  .dist-wrap {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: #0a0a0f; color: #fff;
+    padding: 20px 16px 40px;
+    padding-top: max(20px, env(safe-area-inset-top, 20px));
+    padding-bottom: max(40px, env(safe-area-inset-bottom, 40px));
+    padding-left: max(16px, env(safe-area-inset-left, 16px));
+    padding-right: max(16px, env(safe-area-inset-right, 16px));
+  }
   .dist-inner { max-width: 700px; margin: 0 auto; }
-  .dist-header { margin-bottom: 28px; }
-  .dist-title { font-size: 26px; font-weight: 800; margin: 0 0 4px 0; font-family: 'Syne', sans-serif; line-height: 1.2; }
-  .dist-sub { color: #666; margin: 0; font-size: 13px; font-family: 'Space Mono', monospace; }
-  .dist-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 24px; }
+  .dist-header { margin-bottom: 24px; }
+  .dist-title { font-size: 24px; font-weight: 800; margin: 0 0 4px 0; font-family: 'Syne', sans-serif; line-height: 1.2; }
+  .dist-sub { color: #666; margin: 0; font-size: 12px; font-family: 'Space Mono', monospace; }
+  .dist-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 20px; }
   .stat-card {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px; padding: 14px 10px; text-align: center;
+    border-radius: 12px; padding: 12px 8px; text-align: center;
   }
-  .stat-label { font-family: 'Space Mono', monospace; font-size: 9px; color: #666; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 0 6px 0; }
-  .stat-value { font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700; margin: 0; color: #fff; }
+  .stat-label { font-family: 'Space Mono', monospace; font-size: 8px; color: #666; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 5px 0; }
+  .stat-value { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; margin: 0; color: #fff; }
+  .stat-value.small { font-size: 14px; }
   .dist-section-title { font-size: 16px; font-weight: 700; margin: 0 0 14px 0; font-family: 'Syne', sans-serif; color: #fff; }
   .dist-empty { color: #555; font-family: 'Space Mono', monospace; font-size: 13px; text-align: center; padding: 32px 0; }
+  @media (max-width: 360px) {
+    .dist-stats { grid-template-columns: 1fr 1fr; }
+    .dist-stats .stat-card:last-child { grid-column: 1 / -1; }
+  }
 `;
 
 export default function DistribuidorDashboard({ slug }) {
@@ -94,7 +108,7 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
           <div className="stat-card">
             <p className="stat-label">Valor</p>
-            <p className="stat-value" style={{ fontSize: totalValue >= 10000 ? 16 : 22 }}>{fmt(totalValue)}</p>
+            <p className={`stat-value${totalValue >= 10000 ? " small" : ""}`}>{fmt(totalValue)}</p>
           </div>
         </div>
 
