@@ -1,5 +1,8 @@
 // api/distribuidor/auth.js
-// GET: validar acceso simple por slug y código (opcional)
+// GET: validar acceso por slug y código
+// Roles:
+//   "admin" → acceso_admin code  → ve todo (corte, ganancias, saldos)
+//   "basic" → acceso_code        → solo inventario y marcar vendidos
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -40,17 +43,41 @@ export default async function handler(req, res) {
 
     const distribuidor = data[0];
 
-    // Validar código si se proporciona
-    if (code && distribuidor.acceso_code && distribuidor.acceso_code !== code) {
-      return res.status(403).json({ error: "Código de acceso inválido" });
+    // Si no se proporciona código, solo retornar info básica (usado internamente)
+    if (!code) {
+      return res.status(200).json({
+        distribuidor_id: distribuidor.id,
+        nombre: distribuidor.nombre,
+        slug: distribuidor.slug,
+        role: null,
+      });
     }
 
-    return res.status(200).json({
-      distribuidor_id: distribuidor.id,
-      nombre: distribuidor.nombre,
-      slug: distribuidor.slug,
-      acceso_code: distribuidor.acceso_code ? true : false, // no retornar el código
-    });
+    const trimmedCode = code.trim();
+
+    // 1. Verificar código admin (acceso completo: corte, ganancias, saldos)
+    if (distribuidor.acceso_admin && distribuidor.acceso_admin === trimmedCode) {
+      return res.status(200).json({
+        distribuidor_id: distribuidor.id,
+        nombre: distribuidor.nombre,
+        slug: distribuidor.slug,
+        role: "admin",
+      });
+    }
+
+    // 2. Verificar código básico (solo inventario y marcar vendidos)
+    if (distribuidor.acceso_code && distribuidor.acceso_code === trimmedCode) {
+      return res.status(200).json({
+        distribuidor_id: distribuidor.id,
+        nombre: distribuidor.nombre,
+        slug: distribuidor.slug,
+        role: "basic",
+      });
+    }
+
+    // Ninguno coincide
+    return res.status(403).json({ error: "Código de acceso inválido" });
+
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

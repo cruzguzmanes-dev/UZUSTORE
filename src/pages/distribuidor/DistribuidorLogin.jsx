@@ -2,23 +2,29 @@ import { useState } from "react";
 import { GS } from "../../constants";
 
 // Guarda sesión del distribuidor por 30 días
-const SESSION_KEY = (slug) => `dist_session_${slug}`;
+const SESSION_KEY     = (slug) => `dist_session_${slug}`;
 const SESSION_EXP_KEY = (slug) => `dist_session_exp_${slug}`;
+const SESSION_ROLE_KEY = (slug) => `dist_role_${slug}`;
 const DAYS_30 = 30 * 24 * 60 * 60 * 1000;
 
 export function getDistribuidorSession(slug) {
   const token = localStorage.getItem(SESSION_KEY(slug));
-  const exp = localStorage.getItem(SESSION_EXP_KEY(slug));
+  const exp   = localStorage.getItem(SESSION_EXP_KEY(slug));
   if (token && exp && Date.now() < parseInt(exp)) return token;
   localStorage.removeItem(SESSION_KEY(slug));
   localStorage.removeItem(SESSION_EXP_KEY(slug));
+  localStorage.removeItem(SESSION_ROLE_KEY(slug));
   return null;
 }
 
+export function getDistribuidorRole(slug) {
+  return localStorage.getItem(SESSION_ROLE_KEY(slug)) || "basic";
+}
+
 export default function DistribuidorLogin({ slug, onLogin }) {
-  const [code, setCode] = useState("");
+  const [code, setCode]       = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError]     = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,14 +33,15 @@ export default function DistribuidorLogin({ slug, onLogin }) {
     setError("");
 
     try {
-      const res = await fetch(`/api/distribuidor/auth?slug=${slug}&code=${code.trim()}`);
+      const res  = await fetch(`/api/distribuidor/auth?slug=${slug}&code=${code.trim()}`);
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || "Código inválido");
 
-      // Guardar sesión por 30 días
-      localStorage.setItem(SESSION_KEY(slug), code.trim());
-      localStorage.setItem(SESSION_EXP_KEY(slug), String(Date.now() + DAYS_30));
+      // Guardar sesión y role por 30 días
+      localStorage.setItem(SESSION_KEY(slug),      code.trim());
+      localStorage.setItem(SESSION_EXP_KEY(slug),  String(Date.now() + DAYS_30));
+      localStorage.setItem(SESSION_ROLE_KEY(slug),  data.role || "basic");
       onLogin(data);
     } catch (e) {
       setError(e.message);
@@ -80,6 +87,7 @@ export default function DistribuidorLogin({ slug, onLogin }) {
                 textAlign: "center",
                 letterSpacing: 4,
                 marginBottom: 16,
+                boxSizing: "border-box",
               }}
             />
             {error && (

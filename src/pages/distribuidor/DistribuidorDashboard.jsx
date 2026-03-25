@@ -3,7 +3,7 @@ import { fmt } from "../../utils";
 import { GS } from "../../constants";
 import UploadForm from "./UploadForm";
 import InventarioTable from "./InventarioTable";
-import DistribuidorLogin, { getDistribuidorSession } from "./DistribuidorLogin";
+import DistribuidorLogin, { getDistribuidorSession, getDistribuidorRole } from "./DistribuidorLogin";
 
 const CSS = `
   ${GS}
@@ -48,11 +48,12 @@ const CSS = `
 `;
 
 export default function DistribuidorDashboard({ slug }) {
-  const [authed, setAuthed] = useState(() => !!getDistribuidorSession(slug));
+  const [authed, setAuthed]         = useState(() => !!getDistribuidorSession(slug));
+  const [role, setRole]             = useState(() => getDistribuidorRole(slug));
   const [inventario, setInventario] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]       = useState(true);
   const [distribuidor, setDistribuidor] = useState(null);
-  const [error, setError] = useState("");
+  const [error, setError]           = useState("");
 
   const fetchInventario = async () => {
     setLoading(true);
@@ -82,8 +83,19 @@ export default function DistribuidorDashboard({ slug }) {
   }, [slug, authed]);
 
   if (!authed) {
-    return <DistribuidorLogin slug={slug} onLogin={(data) => { setDistribuidor(data); setAuthed(true); }} />;
+    return (
+      <DistribuidorLogin
+        slug={slug}
+        onLogin={(data) => {
+          setDistribuidor(data);
+          setRole(data.role || "basic");
+          setAuthed(true);
+        }}
+      />
+    );
   }
+
+  const isAdmin = role === "admin";
 
   // Cálculos
   const totalStock    = inventario.reduce((s, i) => s + i.cantidad, 0);
@@ -116,8 +128,8 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         </div>
 
-        {/* Corte — solo si hay vendidas */}
-        {totalVendidas > 0 && (
+        {/* Corte — solo para admin y si hay vendidas */}
+        {isAdmin && totalVendidas > 0 && (
           <div className="corte-card">
             <p className="corte-title">📊 Mi Corte</p>
 
@@ -129,7 +141,7 @@ export default function DistribuidorDashboard({ slug }) {
             {mayoreoSet ? (
               <>
                 <div className="corte-row">
-                  <span className="corte-label">Le debo al dueño</span>
+                  <span className="corte-label">Saldo al proveedor</span>
                   <span className="corte-val red">{fmt(totalDebo)}</span>
                 </div>
                 <div className="corte-row">
@@ -139,7 +151,7 @@ export default function DistribuidorDashboard({ slug }) {
               </>
             ) : (
               <div className="corte-row">
-                <span className="corte-pending">El dueño aún no ha puesto el precio mayoreo. Pronto verás tu ganancia aquí.</span>
+                <span className="corte-pending">El proveedor aún no ha configurado tu precio. Pronto verás tu ganancia aquí.</span>
               </div>
             )}
           </div>
@@ -171,6 +183,7 @@ export default function DistribuidorDashboard({ slug }) {
           ) : (
             <InventarioTable
               items={inventario}
+              isAdmin={isAdmin}
               onItemDeleted={fetchInventario}
               onItemSold={fetchInventario}
             />

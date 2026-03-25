@@ -104,7 +104,7 @@ const CSS = `
   }
 `;
 
-export default function InventarioTable({ items, onItemDeleted, onItemSold }) {
+export default function InventarioTable({ items, isAdmin = false, onItemDeleted, onItemSold }) {
   const [deletingId, setDeletingId]     = useState(null);
   const [sellingId, setSellingId]       = useState(null);
   const [confirmItem, setConfirmItem]   = useState(null);
@@ -362,8 +362,8 @@ export default function InventarioTable({ items, onItemDeleted, onItemSold }) {
                   <div className="inv-badge">Vendidas <strong>{vendidas}</strong></div>
                 </div>
 
-                {/* Ganancia acumulada (solo si el dueño ya puso el mayoreo) */}
-                {gananciaTotal !== null && (
+                {/* Ganancia acumulada — solo para el admin del distribuidor */}
+                {isAdmin && gananciaTotal !== null && (
                   <div className="inv-ganancia">
                     Ganancia acumulada: <strong>{fmt(gananciaTotal)}</strong>
                   </div>
