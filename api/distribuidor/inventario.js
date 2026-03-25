@@ -116,7 +116,12 @@ export default async function handler(req, res) {
         }
       );
       const created = await createRes.json();
-      return res.status(createRes.status).json(created);
+      if (!createRes.ok) {
+        // Normalizar error de Supabase/PostgREST
+        const msg = created.message || created.error || created.hint || JSON.stringify(created);
+        return res.status(createRes.status).json({ error: msg });
+      }
+      return res.status(200).json(Array.isArray(created) ? created[0] : created);
     }
 
     // PUT /api/distribuidor/inventario/:id

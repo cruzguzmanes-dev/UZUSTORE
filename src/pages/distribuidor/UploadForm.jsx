@@ -35,7 +35,7 @@ const lbl = {
   textTransform: "uppercase",
 };
 
-function compressImage(file, maxSize = 600, quality = 0.75) {
+function compressImage(file, maxSize = 400, quality = 0.65) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -100,7 +100,7 @@ export default function UploadForm({ slug, onSuccess }) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Error creando artículo");
+        throw new Error(data.error || data.message || "Error creando artículo");
       }
 
       setNombre(""); setPrecio(""); setCantidad("1");
