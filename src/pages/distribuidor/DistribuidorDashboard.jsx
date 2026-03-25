@@ -1,8 +1,28 @@
 import React, { useState, useEffect } from "react";
 import { fmt } from "../../utils";
+import { GS } from "../../constants";
 import UploadForm from "./UploadForm";
 import InventarioTable from "./InventarioTable";
 import DistribuidorLogin, { getDistribuidorSession } from "./DistribuidorLogin";
+
+const CSS = `
+  ${GS}
+  .dist-wrap { min-height: 100vh; background: #0a0a0f; color: #fff; padding: 20px 16px 40px; }
+  .dist-inner { max-width: 700px; margin: 0 auto; }
+  .dist-header { margin-bottom: 28px; }
+  .dist-title { font-size: 26px; font-weight: 800; margin: 0 0 4px 0; font-family: 'Syne', sans-serif; line-height: 1.2; }
+  .dist-sub { color: #666; margin: 0; font-size: 13px; font-family: 'Space Mono', monospace; }
+  .dist-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 24px; }
+  .stat-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px; padding: 14px 10px; text-align: center;
+  }
+  .stat-label { font-family: 'Space Mono', monospace; font-size: 9px; color: #666; letter-spacing: 1.5px; text-transform: uppercase; margin: 0 0 6px 0; }
+  .stat-value { font-family: 'Space Mono', monospace; font-size: 22px; font-weight: 700; margin: 0; color: #fff; }
+  .dist-section-title { font-size: 16px; font-weight: 700; margin: 0 0 14px 0; font-family: 'Syne', sans-serif; color: #fff; }
+  .dist-empty { color: #555; font-family: 'Space Mono', monospace; font-size: 13px; text-align: center; padding: 32px 0; }
+`;
 
 export default function DistribuidorDashboard({ slug }) {
   const [authed, setAuthed] = useState(() => !!getDistribuidorSession(slug));
@@ -11,11 +31,6 @@ export default function DistribuidorDashboard({ slug }) {
   const [distribuidor, setDistribuidor] = useState(null);
   const [error, setError] = useState("");
 
-  if (!authed) {
-    return <DistribuidorLogin slug={slug} onLogin={(data) => { setDistribuidor(data); setAuthed(true); }} />;
-  }
-
-  // Cargar inventario del distribuidor
   const fetchInventario = async () => {
     setLoading(true);
     setError("");
@@ -31,7 +46,6 @@ export default function DistribuidorDashboard({ slug }) {
     }
   };
 
-  // Cargar info del distribuidor
   const fetchDistribuidor = async () => {
     try {
       const res = await fetch(`/api/distribuidor/auth?slug=${slug}`);
@@ -44,104 +58,80 @@ export default function DistribuidorDashboard({ slug }) {
   };
 
   useEffect(() => {
+    if (!authed) return;
     fetchDistribuidor();
     fetchInventario();
-  }, [slug]);
+  }, [slug, authed]);
 
-  const handleItemDeleted = () => {
-    fetchInventario();
-  };
+  if (!authed) {
+    return <DistribuidorLogin slug={slug} onLogin={(data) => { setDistribuidor(data); setAuthed(true); }} />;
+  }
 
-  const handleItemAdded = () => {
-    fetchInventario();
-  };
-
-  const handleItemSold = () => {
-    fetchInventario();
-  };
-
-  const totalInventario = inventario.reduce((sum, item) => sum + item.cantidad, 0);
+  const totalStock = inventario.reduce((sum, item) => sum + item.cantidad, 0);
   const totalVendidas = inventario.reduce((sum, item) => sum + (item.vendidas || 0), 0);
   const totalValue = inventario.reduce((sum, item) => sum + (item.precio_venta * item.cantidad), 0);
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#fff", padding: 20 }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+    <div className="dist-wrap">
+      <style>{CSS}</style>
+      <div className="dist-inner">
+
         {/* Header */}
-        <div style={{ marginBottom: 40 }}>
-          <h1 style={{ fontSize: 32, fontWeight: 700, margin: "0 0 8px 0", fontFamily: "'Syne', sans-serif" }}>
-            📦 Inventario — {distribuidor?.nombre || slug}
-          </h1>
-          <p style={{ color: "#888", margin: 0, fontSize: 14 }}>
-            Gestiona tu inventario de figuras
-          </p>
+        <div className="dist-header">
+          <h1 className="dist-title">📦 {distribuidor?.nombre || slug}</h1>
+          <p className="dist-sub">Gestiona tu inventario</p>
         </div>
 
         {/* Stats */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
-          <StatCard label="En Stock" value={totalInventario} />
-          <StatCard label="Vendidas" value={totalVendidas} />
-          <StatCard label="Valor Total" value={fmt(totalValue)} />
+        <div className="dist-stats">
+          <div className="stat-card">
+            <p className="stat-label">Stock</p>
+            <p className="stat-value">{totalStock}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Vendidas</p>
+            <p className="stat-value">{totalVendidas}</p>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Valor</p>
+            <p className="stat-value" style={{ fontSize: totalValue >= 10000 ? 16 : 22 }}>{fmt(totalValue)}</p>
+          </div>
         </div>
 
         {/* Error */}
         {error && (
           <div style={{
-            background: "rgba(255, 80, 80, 0.1)",
-            border: "1px solid rgba(255, 80, 80, 0.3)",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 24,
-            color: "#ff8080",
-            fontSize: 14,
+            background: "rgba(255,80,80,0.1)", border: "1px solid rgba(255,80,80,0.3)",
+            borderRadius: 10, padding: 14, marginBottom: 20, color: "#ff8080",
+            fontSize: 13, fontFamily: "'Space Mono', monospace",
           }}>
             ⚠ {error}
           </div>
         )}
 
         {/* Upload Form */}
-        <div style={{ marginBottom: 32 }}>
-          <UploadForm slug={slug} onSuccess={handleItemAdded} />
+        <div style={{ marginBottom: 28 }}>
+          <UploadForm slug={slug} onSuccess={fetchInventario} />
         </div>
 
-        {/* Inventory Table */}
+        {/* Inventario */}
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16, fontFamily: "'Syne', sans-serif" }}>
-            Artículos
-          </h2>
+          <h2 className="dist-section-title">Artículos</h2>
           {loading ? (
-            <p style={{ color: "#666" }}>Cargando...</p>
+            <p className="dist-empty">Cargando...</p>
           ) : inventario.length === 0 ? (
-            <p style={{ color: "#666" }}>No hay artículos aún. ¡Agrega uno!</p>
+            <p className="dist-empty">No hay artículos aún.<br />¡Agrega el primero arriba!</p>
           ) : (
             <InventarioTable
               items={inventario}
-              onItemDeleted={handleItemDeleted}
-              onItemSold={handleItemSold}
+              onItemDeleted={fetchInventario}
+              onItemSold={fetchInventario}
               slug={slug}
             />
           )}
         </div>
-      </div>
-    </div>
-  );
-}
 
-function StatCard({ label, value }) {
-  return (
-    <div style={{
-      background: "rgba(255, 255, 255, 0.05)",
-      border: "1px solid rgba(255, 255, 255, 0.1)",
-      borderRadius: 12,
-      padding: 20,
-      textAlign: "center",
-    }}>
-      <p style={{ margin: "0 0 8px 0", color: "#888", fontSize: 12, letterSpacing: 1, textTransform: "uppercase" }}>
-        {label}
-      </p>
-      <p style={{ margin: 0, fontSize: 28, fontWeight: 700, fontFamily: "'Space Mono', monospace" }}>
-        {value}
-      </p>
+      </div>
     </div>
   );
 }

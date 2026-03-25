@@ -1,6 +1,66 @@
 import React, { useState } from "react";
 import { fmt } from "../../utils";
 
+const CSS = `
+  .inv-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 600px) { .inv-grid { grid-template-columns: 1fr 1fr; } }
+  .inv-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .inv-img {
+    width: 72px; height: 72px; flex-shrink: 0;
+    border-radius: 10px; object-fit: cover; background: #1a1a1a;
+  }
+  .inv-img-placeholder {
+    width: 72px; height: 72px; flex-shrink: 0;
+    border-radius: 10px; background: #1a1a1a;
+    display: flex; align-items: center; justify-content: center;
+    color: #444; font-size: 26px;
+  }
+  .inv-info { flex: 1; min-width: 0; }
+  .inv-name {
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 15px; color: #fff; margin-bottom: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .inv-prices {
+    display: flex; gap: 12px; margin-bottom: 8px;
+    font-family: 'Space Mono', monospace; font-size: 11px;
+  }
+  .inv-price-costo { color: #888; }
+  .inv-price-venta { color: #FFE000; font-weight: 700; }
+  .inv-badges {
+    display: flex; gap: 8px; margin-bottom: 12px;
+  }
+  .inv-badge {
+    background: rgba(255,255,255,0.07);
+    border-radius: 6px; padding: 3px 10px;
+    font-family: 'Space Mono', monospace; font-size: 11px;
+    color: #aaa;
+  }
+  .inv-badge strong { color: #fff; }
+  .inv-actions { display: flex; gap: 8px; }
+  .inv-btn-sell {
+    flex: 1;
+    background: #1e3a1e; border: 1px solid #2d5a2d;
+    color: #7ecc7e; border-radius: 8px; padding: 8px 0;
+    font-size: 12px; font-family: 'Space Mono', monospace;
+    cursor: pointer; font-weight: 700;
+  }
+  .inv-btn-sell:disabled { background: #1a1a1a; border-color: #222; color: #444; cursor: not-allowed; }
+  .inv-btn-delete {
+    background: #2a1a1a; border: 1px solid #4a2a2a;
+    color: #ff8080; border-radius: 8px; padding: 8px 14px;
+    font-size: 14px; font-family: 'Space Mono', monospace; cursor: pointer;
+  }
+`;
+
 export default function InventarioTable({ items, onItemDeleted, onItemSold, slug }) {
   const [deletingId, setDeletingId] = useState(null);
   const [sellingId, setSellingId] = useState(null);
@@ -20,19 +80,13 @@ export default function InventarioTable({ items, onItemDeleted, onItemSold, slug
   };
 
   const handleMarkSold = async (id, cantidad, vendidas) => {
-    if (cantidad <= 0) {
-      alert("No hay stock disponible");
-      return;
-    }
+    if (cantidad <= 0) { alert("No hay stock disponible"); return; }
     setSellingId(id);
     try {
       const res = await fetch(`/api/distribuidor/inventario?id=${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cantidad: cantidad - 1,
-          vendidas: (vendidas || 0) + 1,
-        }),
+        body: JSON.stringify({ cantidad: cantidad - 1, vendidas: (vendidas || 0) + 1 }),
       });
       if (!res.ok) throw new Error("Error marcando vendido");
       onItemSold();
@@ -44,119 +98,45 @@ export default function InventarioTable({ items, onItemDeleted, onItemSold, slug
   };
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{
-        width: "100%",
-        borderCollapse: "collapse",
-        fontSize: 13,
-        fontFamily: "'Space Mono', monospace",
-      }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.1)" }}>
-            <th style={{ textAlign: "left", padding: "12px 16px", color: "#888", fontWeight: 500 }}>Foto</th>
-            <th style={{ textAlign: "left", padding: "12px 16px", color: "#888", fontWeight: 500 }}>Nombre</th>
-            <th style={{ textAlign: "right", padding: "12px 16px", color: "#888", fontWeight: 500 }}>Costo</th>
-            <th style={{ textAlign: "right", padding: "12px 16px", color: "#888", fontWeight: 500 }}>Tu Precio</th>
-            <th style={{ textAlign: "center", padding: "12px 16px", color: "#888", fontWeight: 500 }}>Stock</th>
-            <th style={{ textAlign: "center", padding: "12px 16px", color: "#888", fontWeight: 500 }}>Vendidas</th>
-            <th style={{ textAlign: "center", padding: "12px 16px", color: "#888", fontWeight: 500 }}>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} style={{ borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}>
-              {/* Foto */}
-              <td style={{ padding: "12px 16px" }}>
-                {item.foto_url ? (
-                  <img
-                    src={item.foto_url}
-                    alt={item.nombre}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 6,
-                      objectFit: "cover",
-                      background: "#222",
-                    }}
-                  />
-                ) : (
-                  <div style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 6,
-                    background: "#222",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#666",
-                    fontSize: 20,
-                  }}>
-                    —
-                  </div>
-                )}
-              </td>
-              {/* Nombre */}
-              <td style={{ padding: "12px 16px", color: "#fff" }}>
-                {item.nombre || "—"}
-              </td>
-              {/* Costo */}
-              <td style={{ padding: "12px 16px", textAlign: "right", color: "#aaa" }}>
-                {fmt(item.costo_unitario)}
-              </td>
-              {/* Precio */}
-              <td style={{ padding: "12px 16px", textAlign: "right", color: "#FFE000", fontWeight: 600 }}>
-                {fmt(item.precio_venta)}
-              </td>
-              {/* Stock */}
-              <td style={{ padding: "12px 16px", textAlign: "center", color: "#fff", fontWeight: 600 }}>
-                {item.cantidad}
-              </td>
-              {/* Vendidas */}
-              <td style={{ padding: "12px 16px", textAlign: "center", color: "#888" }}>
-                {item.vendidas || 0}
-              </td>
-              {/* Acciones */}
-              <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-                  <button
-                    onClick={() => handleMarkSold(item.id, item.cantidad, item.vendidas)}
-                    disabled={item.cantidad <= 0 || sellingId === item.id}
-                    style={{
-                      background: item.cantidad > 0 ? "#333" : "#1a1a1a",
-                      border: "1px solid #2a2a2a",
-                      color: item.cantidad > 0 ? "#fff" : "#666",
-                      borderRadius: 6,
-                      padding: "6px 12px",
-                      fontSize: 11,
-                      fontFamily: "'Space Mono', monospace",
-                      cursor: item.cantidad > 0 ? "pointer" : "not-allowed",
-                    }}
-                    title="Marcar como vendido"
-                  >
-                    {sellingId === item.id ? "..." : "✓ Vendido"}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    disabled={deletingId === item.id}
-                    style={{
-                      background: "#333",
-                      border: "1px solid #2a2a2a",
-                      color: "#ff8080",
-                      borderRadius: 6,
-                      padding: "6px 12px",
-                      fontSize: 11,
-                      fontFamily: "'Space Mono', monospace",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {deletingId === item.id ? "..." : "✕"}
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <style>{CSS}</style>
+      <div className="inv-grid">
+        {items.map((item) => (
+          <div key={item.id} className="inv-card">
+            {item.foto_url
+              ? <img src={item.foto_url} alt={item.nombre} className="inv-img" />
+              : <div className="inv-img-placeholder">📦</div>
+            }
+            <div className="inv-info">
+              <div className="inv-name">{item.nombre || "Sin nombre"}</div>
+              <div className="inv-prices">
+                <span className="inv-price-costo">Costo {fmt(item.costo_unitario)}</span>
+                <span className="inv-price-venta">{fmt(item.precio_venta)}</span>
+              </div>
+              <div className="inv-badges">
+                <div className="inv-badge">Stock <strong>{item.cantidad}</strong></div>
+                <div className="inv-badge">Vendidas <strong>{item.vendidas || 0}</strong></div>
+              </div>
+              <div className="inv-actions">
+                <button
+                  className="inv-btn-sell"
+                  onClick={() => handleMarkSold(item.id, item.cantidad, item.vendidas)}
+                  disabled={item.cantidad <= 0 || sellingId === item.id}
+                >
+                  {sellingId === item.id ? "..." : "✓ Vendido"}
+                </button>
+                <button
+                  className="inv-btn-delete"
+                  onClick={() => handleDelete(item.id)}
+                  disabled={deletingId === item.id}
+                >
+                  {deletingId === item.id ? "..." : "✕"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
