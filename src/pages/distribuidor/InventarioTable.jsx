@@ -81,26 +81,28 @@ const CSS = `
     border-radius: 8px; padding: 6px 10px; margin-bottom: 8px;
     font-family: 'Space Mono', monospace; font-size: 11px; color: #7ecc7e;
   }
-  .inv-actions { display: flex; gap: 8px; margin-bottom: 6px; }
+  /* Botón principal — ocupa toda la fila */
   .inv-btn-sell {
-    flex: 2;
+    width: 100%; display: block;
     background: #1e3a1e; border: 1px solid #2d5a2d;
-    color: #7ecc7e; border-radius: 8px; padding: 8px 0;
-    font-size: 12px; font-family: 'Space Mono', monospace;
-    cursor: pointer; font-weight: 700;
+    color: #7ecc7e; border-radius: 10px; padding: 11px 0;
+    font-size: 13px; font-family: 'Space Mono', monospace;
+    cursor: pointer; font-weight: 700; margin-bottom: 7px;
   }
   .inv-btn-sell:disabled { background: #1a1a1a; border-color: #222; color: #444; cursor: not-allowed; }
+  /* Fila secundaria: Stock + Eliminar */
+  .inv-actions-secondary { display: flex; gap: 7px; margin-bottom: 6px; }
   .inv-btn-restock {
     flex: 1;
-    background: #1a2a3a; border: 1px solid #2a4a5a;
-    color: #7ec5cc; border-radius: 8px; padding: 8px 0;
-    font-size: 12px; font-family: 'Space Mono', monospace;
+    background: rgba(26,42,58,0.8); border: 1px solid #2a4a5a;
+    color: #7ec5cc; border-radius: 8px; padding: 6px 0;
+    font-size: 11px; font-family: 'Space Mono', monospace;
     cursor: pointer; font-weight: 700;
   }
   .inv-btn-delete {
-    background: #2a1a1a; border: 1px solid #4a2a2a;
-    color: #ff8080; border-radius: 8px; padding: 8px 14px;
-    font-size: 14px; font-family: 'Space Mono', monospace; cursor: pointer;
+    background: rgba(42,26,26,0.8); border: 1px solid #4a2a2a;
+    color: #ff8080; border-radius: 8px; padding: 6px 12px;
+    font-size: 13px; font-family: 'Space Mono', monospace; cursor: pointer;
   }
   .inv-btn-gear {
     position: absolute; top: 10px; right: 10px;
@@ -510,17 +512,19 @@ export default function InventarioTable({ items, isAdmin = false, onItemDeleted,
                   </div>
                 )}
 
-                {/* Acciones */}
-                <div className="inv-actions">
-                  <button className="inv-btn-sell"
-                    onClick={() => confirmSell(item)}
-                    disabled={item.cantidad <= 0 || sellingId === item.id}>
-                    {sellingId === item.id ? "..." : "✓ Vendido"}
-                  </button>
+                {/* Acción principal */}
+                <button className="inv-btn-sell"
+                  onClick={() => confirmSell(item)}
+                  disabled={item.cantidad <= 0 || sellingId === item.id}>
+                  {sellingId === item.id ? "..." : "✓ Vendido"}
+                </button>
+
+                {/* Acciones secundarias */}
+                <div className="inv-actions-secondary">
                   <button className="inv-btn-restock"
                     onClick={() => openRestock(item)}
                     disabled={restockingId === item.id}>
-                    {restockingId === item.id ? "..." : "+ Stock"}
+                    {restockingId === item.id ? "..." : "📦 + Stock"}
                   </button>
                   <button className="inv-btn-delete"
                     onClick={() => setDeleteItem(item)}
