@@ -30,7 +30,7 @@ export default async function handler(req, res) {
         client_id,
         client_secret,
         code,
-        redirect_uri: redirect_uri || 'https://uzustore2-dashboard.vercel.app',
+        redirect_uri: redirect_uri || 'https://uzustore.vercel.app',
       }),
     });
 

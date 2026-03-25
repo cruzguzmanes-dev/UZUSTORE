@@ -1,7 +1,7 @@
 export const TAX = { ISR: 0.025, IVA_ML: 0.08, IVA_SAT: 0.08 };
-export const REDIRECT_URI = "https://uzustore2-dashboard.vercel.app";
-export const SUPABASE_URL = "https://sexbthodwpembszdeqqc.supabase.co";
-export const SUPABASE_KEY = "sb_publishable_M-n1Y5Le0kQtU8csNj7z3Q_KgBssEql";
+export const REDIRECT_URI = "https://uzustore.vercel.app";
+export const SUPABASE_URL = "https://kzngmlofewyoteedxxca.supabase.co";
+export const SUPABASE_KEY = "sb_publishable_5lSuMZ7BaYqVYFZOABn6zg_c0V3LdDx";
 export const PER_PAGE = 15;
 export const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 
