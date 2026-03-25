@@ -105,19 +105,22 @@ const CSS = `
 `;
 
 export default function InventarioTable({ items, onItemDeleted, onItemSold }) {
-  const [deletingId, setDeletingId]   = useState(null);
-  const [sellingId, setSellingId]     = useState(null);
-  const [confirmItem, setConfirmItem] = useState(null);
-  const [editItem, setEditItem]       = useState(null);
-  const [editNombre, setEditNombre]   = useState("");
-  const [editPrecio, setEditPrecio]   = useState("");
-  const [saving, setSaving]           = useState(false);
+  const [deletingId, setDeletingId]     = useState(null);
+  const [sellingId, setSellingId]       = useState(null);
+  const [confirmItem, setConfirmItem]   = useState(null);
+  const [deleteItem, setDeleteItem]     = useState(null);
+  const [editItem, setEditItem]         = useState(null);
+  const [editNombre, setEditNombre]     = useState("");
+  const [editPrecio, setEditPrecio]     = useState("");
+  const [saving, setSaving]             = useState(false);
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar este artículo?")) return;
-    setDeletingId(id);
+  const handleDelete = async () => {
+    const item = deleteItem;
+    setDeleteItem(null);
+    if (!item) return;
+    setDeletingId(item.id);
     try {
-      const res = await fetch(`/api/distribuidor/inventario?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/distribuidor/inventario?id=${item.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Error eliminando");
       onItemDeleted();
     } catch (e) {
@@ -235,6 +238,53 @@ export default function InventarioTable({ items, onItemDeleted, onItemSold }) {
         </div>
       )}
 
+      {/* Confirmación de borrado */}
+      {deleteItem && (
+        <div className="confirm-overlay" onClick={() => setDeleteItem(null)}>
+          <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
+              {deleteItem.foto_url
+                ? <img src={deleteItem.foto_url} alt="" className="confirm-foto" />
+                : <div className="confirm-foto-placeholder">📦</div>
+              }
+              <div>
+                <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#fff" }}>
+                  {deleteItem.nombre || "Sin nombre"}
+                </p>
+                <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#888" }}>
+                  Stock: {deleteItem.cantidad} · {fmt(deleteItem.precio_venta)}
+                </p>
+              </div>
+            </div>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666", textAlign: "center" }}>
+              ¿Eliminar este artículo? Esta acción no se puede deshacer.
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => setDeleteItem(null)}
+                style={{
+                  flex: 2, background: "#222", border: "1px solid #333",
+                  color: "#888", borderRadius: 12, padding: 14,
+                  fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                style={{
+                  flex: 1, background: "#3a1a1a", border: "1px solid #5a2a2a",
+                  color: "#ff8080", borderRadius: 12, padding: 14,
+                  fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer",
+                }}
+              >
+                ✕ Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sheet de edición */}
       {editItem && (
         <div className="confirm-overlay" onClick={() => setEditItem(null)}>
@@ -329,7 +379,7 @@ export default function InventarioTable({ items, onItemDeleted, onItemSold }) {
                   </button>
                   <button
                     className="inv-btn-delete"
-                    onClick={() => handleDelete(item.id)}
+                    onClick={() => setDeleteItem(item)}
                     disabled={deletingId === item.id}
                   >
                     {deletingId === item.id ? "..." : "✕"}

@@ -411,7 +411,7 @@ export default function App() {
           <Ordenes ordersWithFIFO={ordersWithFIFO} orders={orders} onLoteAdded={fetchLotes} enrichedMonths={enrichedMonths} enrichMonth={enrichMonth} enrichingMonth={enrichingMonth} onDebug={handleDebug} />
         )}
         {activeTab === "distribuidores" && (
-          <Distribuidores lotes={lotes} />
+          <Distribuidores />
         )}
       </div>
     </div>
