@@ -129,7 +129,7 @@ export default async function handler(req, res) {
       const { id } = req.query;
       if (!id) return res.status(400).json({ error: "Falta parámetro 'id'" });
 
-      const { cantidad, vendidas, precio_mayoreo, nombre, precio_venta, lote_sku } = req.body;
+      const { cantidad, vendidas, precio_mayoreo, nombre, precio_venta, lote_sku, log_venta } = req.body;
 
       const updateRes = await fetch(
         `${SUPABASE_URL}/rest/v1/inventario_distribuidor?id=eq.${id}`,
@@ -152,6 +152,29 @@ export default async function handler(req, res) {
         }
       );
       const updated = await updateRes.json();
+
+      // Registrar venta en historial si se indica
+      if (log_venta && log_venta.distribuidor_id) {
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/ventas_distribuidor`,
+          {
+            method: 'POST',
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": SUPABASE_KEY,
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
+              "Prefer": "return=minimal",
+            },
+            body: JSON.stringify({
+              item_id: id,
+              distribuidor_id: log_venta.distribuidor_id,
+              cantidad: 1,
+              precio_venta: log_venta.precio_venta,
+            }),
+          }
+        ).catch(() => {}); // no bloquear si falla el log
+      }
+
       return res.status(updateRes.status).json(updated);
     }
 
