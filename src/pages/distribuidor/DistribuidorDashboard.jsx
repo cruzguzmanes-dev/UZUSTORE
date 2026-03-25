@@ -2,12 +2,18 @@ import React, { useState, useEffect } from "react";
 import { fmt } from "../../utils";
 import UploadForm from "./UploadForm";
 import InventarioTable from "./InventarioTable";
+import DistribuidorLogin, { getDistribuidorSession } from "./DistribuidorLogin";
 
 export default function DistribuidorDashboard({ slug }) {
+  const [authed, setAuthed] = useState(() => !!getDistribuidorSession(slug));
   const [inventario, setInventario] = useState([]);
   const [loading, setLoading] = useState(true);
   const [distribuidor, setDistribuidor] = useState(null);
   const [error, setError] = useState("");
+
+  if (!authed) {
+    return <DistribuidorLogin slug={slug} onLogin={(data) => { setDistribuidor(data); setAuthed(true); }} />;
+  }
 
   // Cargar inventario del distribuidor
   const fetchInventario = async () => {

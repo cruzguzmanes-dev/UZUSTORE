@@ -40,6 +40,32 @@ export default async function handler(req, res) {
       return res.status(mlRes.status).json({ error: data.message || 'Error de MercadoLibre', details: data });
     }
 
+    // Guardar refresh_token en Supabase para login automático futuro
+    if (data.refresh_token) {
+      const SUPABASE_URL = process.env.SUPABASE_URL;
+      const SUPABASE_KEY = process.env.SUPABASE_KEY;
+      if (SUPABASE_URL && SUPABASE_KEY) {
+        // Borrar tokens anteriores e insertar el nuevo
+        await fetch(`${SUPABASE_URL}/rest/v1/admin_ml_tokens`, {
+          method: 'DELETE',
+          headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+        }).catch(() => {});
+        await fetch(`${SUPABASE_URL}/rest/v1/admin_ml_tokens`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            Prefer: 'return=minimal',
+          },
+          body: JSON.stringify({
+            refresh_token: data.refresh_token,
+            ml_user_id: String(data.user_id || ''),
+          }),
+        }).catch(() => {});
+      }
+    }
+
     return res.status(200).json(data);
   } catch (err) {
     return res.status(500).json({ error: 'Error interno: ' + err.message });

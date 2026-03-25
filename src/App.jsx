@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { TAX, MOCK_ORDERS, GS } from "./constants";
 import { sb, calcFIFO } from "./utils";
-import LoginScreen from "./components/LoginScreen";
+import AdminLogin from "./components/AdminLogin";
 import ModalLote from "./components/ModalLote";
 import Resumen from "./tabs/Resumen";
 import Mensual from "./tabs/Mensual";
@@ -280,7 +280,7 @@ export default function App() {
 
   const skusUnicos = [...new Map(paidOrders.map(o => [o.sku, { sku: o.sku, title: o.title }])).values()];
 
-  if (!connected) return <LoginScreen onConnect={fetchOrders} onMock={connectMock} />;
+  if (!connected) return <AdminLogin onConnect={fetchOrders} onMock={connectMock} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#fff", fontFamily: "'Syne', sans-serif" }}>
