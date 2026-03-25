@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { fmt } from "../utils";
+import { fmt, sb } from "../utils";
 
 const SLUGS = ["gaticueva", "friki"];
 const NOMBRES = { gaticueva: "Gaticueva", friki: "Friki" };
@@ -7,6 +7,7 @@ const COLORS  = { gaticueva: "#00C9FF", friki: "#FF6B9D" };
 
 export default function Distribuidores() {
   const [data, setData] = useState({ gaticueva: [], friki: [] });
+  const [lotes, setLotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState("gaticueva");
@@ -15,10 +16,14 @@ export default function Distribuidores() {
     setLoading(true);
     setError("");
     try {
-      const results = await Promise.all(
-        SLUGS.map(s => fetch(`/api/distribuidor/inventario?distribuidor=${s}`).then(r => r.ok ? r.json() : []))
-      );
+      const [results, lotesData] = await Promise.all([
+        Promise.all(
+          SLUGS.map(s => fetch(`/api/distribuidor/inventario?distribuidor=${s}`).then(r => r.ok ? r.json() : []))
+        ),
+        sb("lotes?select=id,titulo,sku,costo_unitario&order=titulo.asc").catch(() => []),
+      ]);
       setData({ gaticueva: results[0] || [], friki: results[1] || [] });
+      setLotes(lotesData || []);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -28,11 +33,14 @@ export default function Distribuidores() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const setMayoreo = async (id, valor) => {
+  const setMayoreo = async (id, valor, loteSku) => {
     await fetch(`/api/distribuidor/inventario?id=${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ precio_mayoreo: parseFloat(valor) || 0 }),
+      body: JSON.stringify({
+        precio_mayoreo: parseFloat(valor) || 0,
+        ...(loteSku !== undefined && { lote_sku: loteSku }),
+      }),
     });
     fetchAll();
   };
@@ -124,6 +132,7 @@ export default function Distribuidores() {
           items={data[tab] || []}
           resumen={resumen.find(r => r.slug === tab)}
           color={COLORS[tab]}
+          lotes={lotes}
           onSetMayoreo={setMayoreo}
         />
       )}
@@ -131,7 +140,7 @@ export default function Distribuidores() {
   );
 }
 
-function DistribuidorDetalle({ slug, items, resumen, color, onSetMayoreo }) {
+function DistribuidorDetalle({ slug, items, resumen, color, lotes, onSetMayoreo }) {
   return (
     <div>
       {/* Corte de este distribuidor */}
@@ -155,7 +164,7 @@ function DistribuidorDetalle({ slug, items, resumen, color, onSetMayoreo }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {items.map(item => (
-            <ItemRow key={item.id} item={item} color={color} onSetMayoreo={onSetMayoreo} />
+            <ItemRow key={item.id} item={item} color={color} lotes={lotes} onSetMayoreo={onSetMayoreo} />
           ))}
         </div>
       )}
@@ -163,17 +172,44 @@ function DistribuidorDetalle({ slug, items, resumen, color, onSetMayoreo }) {
   );
 }
 
-function ItemRow({ item, color, onSetMayoreo }) {
+function ItemRow({ item, color, lotes, onSetMayoreo }) {
   const [editando, setEditando] = useState(false);
-  const [val, setVal] = useState(item.precio_mayoreo || "");
+  const [val, setVal]           = useState(item.precio_mayoreo || "");
+  const [selectedSku, setSelectedSku] = useState(item.lote_sku || "");
 
   const vendidas = item.vendidas || 0;
   const mayoreo  = item.precio_mayoreo || 0;
   const teDebe   = mayoreo * vendidas;
   const ganancia = (item.precio_venta - mayoreo) * vendidas;
 
+  // Ganancia del dueño: solo si el item está vinculado a un lote con costo conocido
+  const loteVinculado   = item.lote_sku ? lotes.find(l => l.sku === item.lote_sku) : null;
+  const miGananciaUnit  = loteVinculado ? (mayoreo - loteVinculado.costo_unitario) : null;
+  const miGananciaTotal = miGananciaUnit !== null && vendidas > 0 ? miGananciaUnit * vendidas : null;
+
+  // Al elegir un lote del picker, auto-rellena el precio mayoreo
+  const handleLotePick = (sku) => {
+    setSelectedSku(sku);
+    if (sku) {
+      const lote = lotes.find(l => l.sku === sku);
+      if (lote) setVal(String(lote.costo_unitario));
+    }
+  };
+
+  // Si el admin edita el número manualmente, desvincula el lote
+  const handleManualVal = (v) => {
+    setVal(v);
+    setSelectedSku("");
+  };
+
   const guardar = () => {
-    onSetMayoreo(item.id, val);
+    onSetMayoreo(item.id, val, selectedSku);
+    setEditando(false);
+  };
+
+  const cancelar = () => {
+    setVal(item.precio_mayoreo || "");
+    setSelectedSku(item.lote_sku || "");
     setEditando(false);
   };
 
@@ -194,53 +230,127 @@ function ItemRow({ item, color, onSetMayoreo }) {
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
-          <span style={{ color: color }}>Precio: {fmt(item.precio_venta)}</span>
+          <span style={{ color }}>Precio: {fmt(item.precio_venta)}</span>
           <span style={{ color: "#888" }}>Stock: {item.cantidad}</span>
           <span style={{ color: "#aaa" }}>Vendidas: {vendidas}</span>
         </div>
 
         {/* Mayoreo editable */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: vendidas > 0 ? 8 : 0 }}>
-          <span style={{ fontSize: 10, color: "#666", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1 }}>
-            Mayoreo:
-          </span>
+        <div style={{ marginBottom: vendidas > 0 && mayoreo > 0 ? 8 : 0 }}>
           {editando ? (
-            <>
-              <input
-                type="number"
-                value={val}
-                onChange={e => setVal(e.target.value)}
-                step="0.01"
-                autoFocus
-                style={{
-                  width: 90, background: "#111", border: "1px solid #444", borderRadius: 6,
-                  padding: "4px 8px", color: "#fff", fontSize: 13,
-                  fontFamily: "'Space Mono', monospace", outline: "none",
-                }}
-              />
-              <button onClick={guardar} style={{ background: "#FFE000", border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>✓</button>
-              <button onClick={() => setEditando(false)} style={{ background: "none", border: "none", color: "#666", fontSize: 12, cursor: "pointer" }}>✕</button>
-            </>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+              {/* Lote picker — solo si hay lotes en el inventario */}
+              {lotes.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 9, color: "#555", fontFamily: "'Space Mono', monospace", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
+                    Vincular a lote del inventario
+                  </div>
+                  <select
+                    value={selectedSku}
+                    onChange={e => handleLotePick(e.target.value)}
+                    style={{
+                      width: "100%", background: "#111",
+                      border: `1px solid ${selectedSku ? "#444" : "#2a2a2a"}`,
+                      borderRadius: 6, padding: "7px 10px",
+                      color: selectedSku ? "#fff" : "#555",
+                      fontSize: 12, fontFamily: "'Space Mono', monospace",
+                      outline: "none", cursor: "pointer",
+                    }}
+                  >
+                    <option value="">— Elegir del inventario —</option>
+                    {lotes.map(l => (
+                      <option key={l.id} value={l.sku}>
+                        {l.titulo}  ·  SKU: {l.sku}  ·  {fmt(l.costo_unitario)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Input precio mayoreo + acciones */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 10, color: "#666", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1, flexShrink: 0 }}>
+                  $ Mayoreo
+                </span>
+                <input
+                  type="number"
+                  value={val}
+                  onChange={e => handleManualVal(e.target.value)}
+                  step="0.01"
+                  autoFocus={lotes.length === 0}
+                  placeholder="0.00"
+                  style={{
+                    flex: 1, minWidth: 0, background: "#111",
+                    border: "1px solid #444", borderRadius: 6,
+                    padding: "5px 8px", color: "#fff", fontSize: 13,
+                    fontFamily: "'Space Mono', monospace", outline: "none",
+                  }}
+                />
+                <button
+                  onClick={guardar}
+                  disabled={!val}
+                  style={{
+                    background: val ? "#FFE000" : "#333", border: "none",
+                    borderRadius: 6, padding: "5px 12px",
+                    fontSize: 12, fontWeight: 700,
+                    cursor: val ? "pointer" : "not-allowed",
+                    color: val ? "#000" : "#666",
+                    flexShrink: 0,
+                  }}
+                >
+                  ✓
+                </button>
+                <button
+                  onClick={cancelar}
+                  style={{ background: "none", border: "none", color: "#555", fontSize: 14, cursor: "pointer", flexShrink: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+
+            </div>
           ) : (
-            <>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, color: "#666", fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1 }}>
+                Mayoreo:
+              </span>
               <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, color: mayoreo > 0 ? "#fff" : "#555" }}>
                 {mayoreo > 0 ? fmt(mayoreo) : "—"}
               </span>
+              {/* Badge SKU vinculado */}
+              {item.lote_sku && (
+                <span style={{
+                  background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: 4, padding: "2px 7px",
+                  fontSize: 10, color: "#666", fontFamily: "'Space Mono', monospace",
+                }}>
+                  {item.lote_sku}
+                </span>
+              )}
               <button
                 onClick={() => setEditando(true)}
-                style={{ background: "rgba(255,255,255,0.07)", border: "none", borderRadius: 6, padding: "3px 10px", fontSize: 10, color: "#aaa", cursor: "pointer", fontFamily: "'Space Mono', monospace" }}
+                style={{
+                  background: "rgba(255,255,255,0.07)", border: "none",
+                  borderRadius: 6, padding: "3px 10px",
+                  fontSize: 10, color: "#aaa", cursor: "pointer",
+                  fontFamily: "'Space Mono', monospace",
+                }}
               >
                 editar
               </button>
-            </>
+            </div>
           )}
         </div>
 
-        {/* Resumen si hay vendidas */}
+        {/* Resumen financiero si hay vendidas y mayoreo configurado */}
         {vendidas > 0 && mayoreo > 0 && (
-          <div style={{ display: "flex", gap: 12, fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
             <span style={{ color: "#ff8080" }}>Te debe: {fmt(teDebe)}</span>
             <span style={{ color: "#7ecc7e" }}>Su gan.: {fmt(ganancia)}</span>
+            {miGananciaTotal !== null && (
+              <span style={{ color: "#FFE000" }}>Mi gan.: {fmt(miGananciaTotal)}</span>
+            )}
           </div>
         )}
       </div>
