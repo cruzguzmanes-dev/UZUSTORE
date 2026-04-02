@@ -283,7 +283,7 @@ export default function App() {
   if (!connected) return <AdminLogin onConnect={fetchOrders} onMock={connectMock} />;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a1a2f", color: "#fff", fontFamily: "'Syne', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#fff", fontFamily: "'Syne', sans-serif" }}>
       <style>{GS}</style>
       {showModalLote && <ModalLote skus={skusUnicos} onClose={() => setShowModalLote(false)} onSaved={fetchLotes} />}
 

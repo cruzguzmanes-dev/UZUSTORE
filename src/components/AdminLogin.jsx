@@ -138,7 +138,7 @@ export default function AdminLogin({ onConnect, onMock }) {
   };
 
   if (autoConnecting) return (
-    <div style={{ minHeight: "100vh", background: "#ff0000", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <style>{GS}</style>
       <div style={{ textAlign: "center", fontFamily: "'Syne', sans-serif" }}>
         <div style={{ fontSize: 48, marginBottom: 20 }}>📦</div>
@@ -150,7 +150,7 @@ export default function AdminLogin({ onConnect, onMock }) {
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: "#ff0000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Syne', sans-serif", padding: 20 }}>
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Syne', sans-serif", padding: 20 }}>
       <style>{GS}</style>
       <div style={{ width: "100%", maxWidth: 420 }}>
         {/* Logo */}
