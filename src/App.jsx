@@ -9,9 +9,10 @@ import Inventario from "./tabs/Inventario";
 import Impuestos from "./tabs/Impuestos";
 import Ordenes from "./tabs/Ordenes";
 import Distribuidores from "./tabs/Distribuidores";
+import Empaques from "./tabs/Empaques";
 import DistribuidorDashboard from "./pages/distribuidor/DistribuidorDashboard";
 
-const TABS = ["resumen", "mensual", "inventario", "impuestos", "ordenes", "distribuidores"];
+const TABS = ["resumen", "mensual", "inventario", "impuestos", "ordenes", "empaques", "distribuidores"];
 
 // ML caps offset at 50 per query — paginate by date range instead
 async function fetchAllOrders(sellerId, accessToken) {
@@ -409,6 +410,9 @@ export default function App() {
         )}
         {activeTab === "ordenes" && (
           <Ordenes ordersWithFIFO={ordersWithFIFO} orders={orders} onLoteAdded={fetchLotes} enrichedMonths={enrichedMonths} enrichMonth={enrichMonth} enrichingMonth={enrichingMonth} onDebug={handleDebug} />
+        )}
+        {activeTab === "empaques" && (
+          <Empaques />
         )}
         {activeTab === "distribuidores" && (
           <Distribuidores />

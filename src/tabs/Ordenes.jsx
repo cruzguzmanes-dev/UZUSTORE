@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import StatCard from "../components/StatCard";
 import { fmt, sb } from "../utils";
 import { PER_PAGE, MESES } from "../constants";
@@ -78,6 +78,40 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
   const [page, setPage] = useState(1);
   const [mesSeleccionado, setMesSeleccionado] = useState("todos");
   const [ordenParaCosto, setOrdenParaCosto] = useState(null);
+  const [empaques, setEmpaques] = useState([]);
+  // { [order_id]: empaque_id }
+  const [cajasPorOrden, setCajasPorOrden] = useState({});
+  const [savingCaja, setSavingCaja] = useState(null);
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+    sb("empaques?order=created_at.asc").then(data => setEmpaques(data || [])).catch(() => {});
+    sb("orden_empaque").then(data => {
+      if (!data) return;
+      const map = {};
+      data.forEach(r => { map[r.order_id] = r.empaque_id; });
+      setCajasPorOrden(map);
+    }).catch(() => {});
+  }, []);
+
+  const handleCajaChange = async (orderId, empaqueId) => {
+    setSavingCaja(orderId);
+    try {
+      if (!empaqueId) {
+        // Quitar caja
+        await sb(`orden_empaque?order_id=eq.${orderId}`, "DELETE");
+        setCajasPorOrden(prev => { const n = { ...prev }; delete n[orderId]; return n; });
+      } else {
+        // Upsert via DELETE + INSERT (Supabase REST no soporta ON CONFLICT en todos los casos)
+        await sb(`orden_empaque?order_id=eq.${orderId}`, "DELETE");
+        await sb("orden_empaque", "POST", { order_id: orderId, empaque_id: parseInt(empaqueId) });
+        setCajasPorOrden(prev => ({ ...prev, [orderId]: parseInt(empaqueId) }));
+      }
+    } catch (e) { console.error(e); }
+    finally { setSavingCaja(null); }
+  };
 
   const thStyle = { padding: "14px 16px", textAlign: "left", fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1.5, textTransform: "uppercase" };
   const tdMono = (color = "#fff") => ({ padding: "12px 16px", fontFamily: "'Space Mono', monospace", fontSize: 13, color });
@@ -103,7 +137,11 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
     ? ordenesFiltradas.reduce((sum, o) => {
         if (o.netoML == null || o.costo == null) return sum;
         const ivaSAT = (o.salePrice / 1.16) * 0.08;
-        return sum + (o.netoML - ivaSAT - o.costo);
+        const realId = String(o.orderId || o.id);
+        const cajaId = cajasPorOrden[realId];
+        const caja = cajaId ? empaques.find(e => e.id === cajaId) : null;
+        const cajaCosto = caja ? caja.precio : 0;
+        return sum + (o.netoML - ivaSAT - o.costo - cajaCosto);
       }, 0)
     : null;
   const ordenesConUtilidad = mesSeleccionado !== "todos"
@@ -185,7 +223,7 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-              {["#", "Fecha", "ID Orden", "Producto", "Precio Venta", "Neto ML", "Neto SAT", "Costo FIFO", "Utilidad", "Lote", ""].map(h => (
+              {["#", "Fecha", "ID Orden", "Producto", "Precio Venta", "Neto ML", "Neto SAT", "Costo FIFO", "Caja", "Utilidad", "Lote", ""].map(h => (
                 <th key={h} style={thStyle}>{h}</th>
               ))}
             </tr>
@@ -194,6 +232,9 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
             {ordenesPagina.map((o, i) => {
               const num = (page - 1) * PER_PAGE + i + 1;
               const sinLote = o.costo === null;
+              const realOrderId = String(o.orderId || o.id);
+              const cajaId = cajasPorOrden[realOrderId];
+              const cajaAsignada = cajaId ? empaques.find(e => e.id === cajaId) : null;
               return (
                 <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: sinLote ? "rgba(255,224,0,0.02)" : "transparent" }}>
                   <td style={{ padding: "12px 16px", fontSize: 11, color: "#333", fontFamily: "'Space Mono', monospace" }}>{num}</td>
@@ -245,6 +286,31 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
                       <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, color: "#ff8080" }}>{fmt(o.costo)}</span>
                     )}
                   </td>
+                  {/* Caja */}
+                  <td style={{ padding: "8px 12px", minWidth: 130 }}>
+                    {empaques.length === 0 ? (
+                      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#333" }}>—</span>
+                    ) : (
+                      <div>
+                        <select
+                          value={cajaId || ""}
+                          onChange={e => handleCajaChange(realOrderId, e.target.value)}
+                          disabled={savingCaja === realOrderId}
+                          style={{ background: cajaId ? "rgba(0,201,255,0.08)" : "#111", border: `1px solid ${cajaId ? "rgba(0,201,255,0.3)" : "#2a2a2a"}`, borderRadius: 6, padding: "5px 8px", color: cajaId ? "#00C9FF" : "#555", fontFamily: "'Space Mono', monospace", fontSize: 10, outline: "none", cursor: "pointer", width: "100%" }}>
+                          <option value="">Sin caja</option>
+                          {empaques.map(e => (
+                            <option key={e.id} value={e.id}>{e.nombre} · {fmt(e.precio)}</option>
+                          ))}
+                        </select>
+                        {cajaAsignada && (
+                          <div style={{ fontSize: 9, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 3 }}>
+                            −{fmt(cajaAsignada.precio)} caja
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  {/* Utilidad (incluye costo de caja si está asignada) */}
                   <td style={{ padding: "12px 16px" }}>
                     {sinLote ? (
                       <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#333" }}>—</span>
@@ -252,11 +318,21 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
                       const base = o.salePrice / 1.16;
                       const ivaSAT = base * 0.08;
                       const netoSAT = o.netoML != null ? o.netoML - ivaSAT : null;
-                      const utilidad = netoSAT != null ? netoSAT - o.costo : null;
+                      const cajaCosto = cajaAsignada ? cajaAsignada.precio : 0;
+                      const utilidad = netoSAT != null ? netoSAT - o.costo - cajaCosto : null;
                       const color = utilidad == null ? "#444" : utilidad >= 0 ? "#00FF94" : "#FF5050";
-                      return <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, color, fontWeight: 700 }}>
-                        {utilidad == null ? "—" : new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN"}).format(utilidad)}
-                      </span>;
+                      return (
+                        <div>
+                          <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, color, fontWeight: 700 }}>
+                            {utilidad == null ? "—" : new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN"}).format(utilidad)}
+                          </span>
+                          {cajaCosto > 0 && utilidad != null && (
+                            <div style={{ fontSize: 9, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 2 }}>
+                              inc. caja
+                            </div>
+                          )}
+                        </div>
+                      );
                     })()}
                   </td>
                   <td style={{ padding: "12px 16px", fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace" }}>
