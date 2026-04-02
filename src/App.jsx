@@ -399,7 +399,7 @@ export default function App() {
           />
         )}
         {activeTab === "inventario" && (
-          <Inventario lotes={lotes} loadingLotes={loadingLotes} onAgregarLote={() => setShowModalLote(true)} />
+          <Inventario lotes={lotes} loadingLotes={loadingLotes} onAgregarLote={() => setShowModalLote(true)} onLoteEdited={fetchLotes} />
         )}
         {activeTab === "impuestos" && (
           <Impuestos
