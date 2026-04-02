@@ -12,7 +12,7 @@ import Distribuidores from "./tabs/Distribuidores";
 import Empaques from "./tabs/Empaques";
 import DistribuidorDashboard from "./pages/distribuidor/DistribuidorDashboard";
 
-const TABS = ["resumen", "mensual", "inventario", "impuestos", "ordenes", "empaques", "distribuidores"];
+const TABS = ["resumen", "mensual", "inventario", "impuestos", "ordenes test", "empaques", "distribuidores"];
 
 // ML caps offset at 50 per query — paginate by date range instead
 async function fetchAllOrders(sellerId, accessToken) {
