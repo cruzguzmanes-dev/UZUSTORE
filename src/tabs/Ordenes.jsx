@@ -82,6 +82,7 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
   // { [order_id]: empaque_id }
   const [cajasPorOrden, setCajasPorOrden] = useState({});
   const [savingCaja, setSavingCaja] = useState(null);
+  const [editandoCaja, setEditandoCaja] = useState(null);
   const loadedRef = useRef(false);
 
   useEffect(() => {
@@ -251,7 +252,7 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
                     {o.netoML != null ? (
                       <>
                         <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, color: "#00C9FF", fontWeight: 700 }}>{fmt(o.netoML)}</div>
-                        <div style={{ fontSize: 9, color: "#555", fontFamily: "'Space Mono', monospace", marginTop: 3, lineHeight: 1.8 }}>
+                        <div style={{ fontSize: 9, color: "#888", fontFamily: "'Space Mono', monospace", marginTop: 3, lineHeight: 1.8 }}>
                           {o.saleFee > 0 && <span style={{ display: "block" }}>−{fmt(o.saleFee)} comisión</span>}
                           {o.shippingCost > 0 && <span style={{ display: "block" }}>−{fmt(o.shippingCost)} envío</span>}
                           {o.retencionIVA > 0 && <span style={{ display: "block" }}>−{fmt(o.retencionIVA)} ret. IVA</span>}
@@ -290,24 +291,31 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
                   <td style={{ padding: "8px 12px", minWidth: 130 }}>
                     {empaques.length === 0 ? (
                       <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#333" }}>—</span>
-                    ) : (
-                      <div>
-                        <select
-                          value={cajaId || ""}
-                          onChange={e => handleCajaChange(realOrderId, e.target.value)}
-                          disabled={savingCaja === realOrderId}
-                          style={{ background: cajaId ? "rgba(0,201,255,0.08)" : "#111", border: `1px solid ${cajaId ? "rgba(0,201,255,0.3)" : "#2a2a2a"}`, borderRadius: 6, padding: "5px 8px", color: cajaId ? "#00C9FF" : "#555", fontFamily: "'Space Mono', monospace", fontSize: 10, outline: "none", cursor: "pointer", width: "100%" }}>
-                          <option value="">Sin caja</option>
-                          {empaques.map(e => (
-                            <option key={e.id} value={e.id}>{e.nombre} · {fmt(e.precio)}</option>
-                          ))}
-                        </select>
-                        {cajaAsignada && (
-                          <div style={{ fontSize: 9, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 3 }}>
-                            −{fmt(cajaAsignada.precio)} caja
-                          </div>
-                        )}
+                    ) : cajaAsignada && editandoCaja !== realOrderId ? (
+                      <div
+                        onClick={() => setEditandoCaja(realOrderId)}
+                        title="Click para cambiar"
+                        style={{ background: "rgba(0,201,255,0.08)", border: "1px solid rgba(0,201,255,0.3)", borderRadius: 6, padding: "6px 10px", cursor: "pointer" }}>
+                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#00C9FF", fontWeight: 700 }}>
+                          {fmt(cajaAsignada.precio)}
+                        </div>
+                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, color: "#4a9ab5", marginTop: 2 }}>
+                          {cajaAsignada.nombre}
+                        </div>
                       </div>
+                    ) : (
+                      <select
+                        autoFocus
+                        value={cajaId || ""}
+                        onChange={e => { handleCajaChange(realOrderId, e.target.value); setEditandoCaja(null); }}
+                        onBlur={() => setEditandoCaja(null)}
+                        disabled={savingCaja === realOrderId}
+                        style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 6, padding: "5px 8px", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 10, outline: "none", cursor: "pointer", width: "100%" }}>
+                        <option value="">Sin caja</option>
+                        {empaques.map(e => (
+                          <option key={e.id} value={e.id}>{e.nombre} · {fmt(e.precio)}</option>
+                        ))}
+                      </select>
                     )}
                   </td>
                   {/* Utilidad (incluye costo de caja si está asignada) */}
