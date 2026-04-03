@@ -32,12 +32,14 @@ async function fetchAllOrders(sellerId, accessToken) {
       const path = `orders/search?seller=${sellerId}&order.status=paid&sort=date_desc&limit=50&offset=${offset}&order.date_created.from=${range.from}&order.date_created.to=${range.to}`;
       const res = await fetch(`/api/ml?path=${encodeURIComponent(path)}`, { headers: { Authorization: `Bearer ${accessToken}` } });
       const data = await res.json();
+      if (data.error) { console.warn("ML error for range", range.from, data.error, data.message); break; }
       const results = data.results || [];
       all = [...all, ...results];
       if (results.length < 50) break;
       offset += 50;
       if (offset >= 200) break;
     }
+    await new Promise(r => setTimeout(r, 150));
   }
   const seen = new Set();
   return all.filter(o => { if (seen.has(o.id)) return false; seen.add(o.id); return true; });
