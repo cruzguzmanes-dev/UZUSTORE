@@ -18,7 +18,7 @@ async function fetchAllOrders(sellerId, accessToken) {
   let all = [];
   const ranges = [];
   const now = new Date();
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 15; i++) {
     const from = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const to   = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
     ranges.push({
