@@ -133,7 +133,7 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
   const devoluciones = orders.filter(o => o.status === "cancelled" || o.salePrice < 0).length;
   const sinCosto = ordenesFiltradas.filter(o => o.costo === null).length;
 
-  // Utilidad total del mes seleccionado (solo órdenes con costo y neto ML)
+  // Métricas del mes seleccionado
   const utilidadTotal = mesSeleccionado !== "todos"
     ? ordenesFiltradas.reduce((sum, o) => {
         if (o.netoML == null || o.costo == null) return sum;
@@ -144,6 +144,9 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
         const cajaCosto = caja ? caja.precio : 0;
         return sum + (o.netoML - ivaSAT - o.costo - cajaCosto);
       }, 0)
+    : null;
+  const deudaSAT = mesSeleccionado !== "todos"
+    ? ordenesFiltradas.reduce((sum, o) => sum + (o.salePrice / 1.16) * 0.08, 0)
     : null;
   const ordenesConUtilidad = mesSeleccionado !== "todos"
     ? ordenesFiltradas.filter(o => o.netoML != null && o.costo != null).length
@@ -178,19 +181,45 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
         </div>
       )}
 
-      {mesSeleccionado !== "todos" && utilidadTotal !== null && (
-        <div style={{ background: utilidadTotal >= 0 ? "rgba(0,255,148,0.06)" : "rgba(255,80,80,0.06)", border: `1px solid ${utilidadTotal >= 0 ? "rgba(0,255,148,0.2)" : "rgba(255,80,80,0.2)"}`, borderRadius: 12, padding: "14px 24px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Utilidad neta del mes</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: utilidadTotal >= 0 ? "#00FF94" : "#FF5050", fontFamily: "'Syne', sans-serif", letterSpacing: -1 }}>
-              {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(utilidadTotal)}
+      {mesSeleccionado !== "todos" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+          {/* Órdenes del mes */}
+          <div style={{ background: "rgba(0,201,255,0.06)", border: "1px solid rgba(0,201,255,0.2)", borderRadius: 12, padding: "16px 20px" }}>
+            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>Órdenes del mes</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: "#00C9FF", fontFamily: "'Syne', sans-serif", letterSpacing: -1 }}>
+              {ordenesFiltradas.length}
             </div>
             <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#444", marginTop: 4 }}>
-              {ordenesConUtilidad} de {ordenesFiltradas.length} órdenes con datos completos
+              {ordenesConUtilidad} con datos completos
               {ordenesFiltradas.length - ordenesConUtilidad > 0 && <span style={{ color: "#FFE000" }}> · {ordenesFiltradas.length - ordenesConUtilidad} pendientes</span>}
             </div>
           </div>
-          <div style={{ fontSize: 32 }}>{utilidadTotal >= 0 ? "📈" : "📉"}</div>
+
+          {/* Utilidad neta */}
+          <div style={{ background: utilidadTotal != null && utilidadTotal >= 0 ? "rgba(0,255,148,0.06)" : "rgba(255,80,80,0.06)", border: `1px solid ${utilidadTotal != null && utilidadTotal >= 0 ? "rgba(0,255,148,0.2)" : "rgba(255,80,80,0.2)"}`, borderRadius: 12, padding: "16px 20px" }}>
+            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>Utilidad neta</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: utilidadTotal != null && utilidadTotal >= 0 ? "#00FF94" : "#FF5050", fontFamily: "'Syne', sans-serif", letterSpacing: -1 }}>
+              {utilidadTotal != null
+                ? new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(utilidadTotal)
+                : "—"}
+            </div>
+            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#444", marginTop: 4 }}>
+              después de comisiones, envío, costo, IVA
+            </div>
+          </div>
+
+          {/* Deuda SAT */}
+          <div style={{ background: "rgba(255,80,80,0.06)", border: "1px solid rgba(255,80,80,0.2)", borderRadius: 12, padding: "16px 20px" }}>
+            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 6 }}>IVA pendiente SAT</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: "#FF5050", fontFamily: "'Syne', sans-serif", letterSpacing: -1 }}>
+              {deudaSAT != null
+                ? new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(deudaSAT)
+                : "—"}
+            </div>
+            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#444", marginTop: 4 }}>
+              8% sobre base · {ordenesFiltradas.length} órdenes
+            </div>
+          </div>
         </div>
       )}
 
