@@ -205,17 +205,17 @@ function SeccionFiguras({ onFigurasChange }) {
 }
 
 // ─── Sección: Compras ─────────────────────────────────────────────────────────
-function SeccionCompras({ figuras }) {
+function SeccionCompras({ figuras, onFigurasChange }) {
   const [compras, setCompras]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState({
-    figura_id: "", cantidad: "", precio_jpy: "", precio_mxn: "",
+    nombre_figura: "", cantidad: "", precio_jpy: "",
     fecha_compra: new Date().toISOString().slice(0, 10),
   });
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState("");
-  const [editingCell, setEditingCell] = useState(null); // { id, field }
+  const [editingCell, setEditingCell] = useState(null);
   const [editVal, setEditVal]   = useState("");
   const loaded = useRef(false);
 
@@ -234,22 +234,34 @@ function SeccionCompras({ figuras }) {
   }, []);
 
   const handleAdd = async () => {
-    const { figura_id, cantidad, precio_jpy, precio_mxn, fecha_compra } = form;
-    if (!figura_id || !cantidad || !precio_jpy || !fecha_compra) { setError("Completa los campos requeridos (*)"); return; }
+    const { nombre_figura, cantidad, precio_jpy, fecha_compra } = form;
+    if (!nombre_figura.trim() || !cantidad || !precio_jpy || !fecha_compra) { setError("Completa los campos requeridos (*)"); return; }
     const qty = parseInt(cantidad), jpy = parseFloat(precio_jpy);
     if (isNaN(qty) || qty <= 0 || isNaN(jpy) || jpy <= 0) { setError("Cantidad y precio ¥ deben ser positivos"); return; }
     setSaving(true); setError("");
     try {
-      const mxn = precio_mxn ? parseFloat(precio_mxn) : null;
+      const nombre = nombre_figura.trim();
+      let figuraId;
+      const existing = figuras.find(f => f.nombre.toLowerCase() === nombre.toLowerCase());
+      if (existing) {
+        figuraId = existing.id;
+      } else {
+        const allFiguras = await sb("figuras?select=id&order=id.asc");
+        const idProv = `FIG-${String((allFiguras?.length || 0) + 1).padStart(3, "0")}`;
+        await sb("figuras", "POST", { nombre, id_provisional: idProv });
+        onFigurasChange?.();
+        const fresh = await sb("figuras?order=id.desc&limit=1");
+        figuraId = fresh?.[0]?.id;
+      }
+      if (!figuraId) throw new Error("No se pudo crear la figura");
       await sb("lotes_compra", "POST", {
-        figura_id: parseInt(figura_id),
+        figura_id: figuraId,
         cantidad: qty,
         precio_jpy: jpy,
-        precio_mxn: mxn,
         fecha_compra,
-        estado: mxn ? "pagado" : "pendiente",
+        estado: "pendiente",
       });
-      setForm(f => ({ ...f, figura_id: "", cantidad: "", precio_jpy: "", precio_mxn: "" }));
+      setForm(f => ({ ...f, nombre_figura: "", cantidad: "", precio_jpy: "" }));
       setShowForm(false);
       await fetchCompras();
     } catch (e) { setError(e.message); }
@@ -260,16 +272,7 @@ function SeccionCompras({ figuras }) {
     if (!editingCell) return;
     const { id, field } = editingCell;
     try {
-      if (field === "precio_mxn") {
-        const v = parseFloat(editVal);
-        if (!isNaN(v) && v > 0) {
-          const compra = compras.find(c => c.id === id);
-          await sb(`lotes_compra?id=eq.${id}`, "PATCH", {
-            precio_mxn: v,
-            estado: compra?.estado === "pendiente" ? "pagado" : compra?.estado,
-          });
-        }
-      } else if (field === "estado") {
+      if (field === "estado") {
         await sb(`lotes_compra?id=eq.${id}`, "PATCH", { estado: editVal });
       }
       await fetchCompras();
@@ -278,9 +281,6 @@ function SeccionCompras({ figuras }) {
   };
 
   const ESTADOS = ["pendiente", "pagado", "en_transito", "recibido"];
-  const tc = form.precio_mxn && form.precio_jpy
-    ? (parseFloat(form.precio_mxn) / parseFloat(form.precio_jpy)).toFixed(4)
-    : null;
 
   return (
     <div>
@@ -288,30 +288,20 @@ function SeccionCompras({ figuras }) {
         <div style={{ fontSize: 12, color: "#555", fontFamily: "'Space Mono', monospace" }}>
           {compras.length} lote{compras.length !== 1 ? "s" : ""} de compra
         </div>
-        <button
-          onClick={() => { setShowForm(!showForm); setError(""); }}
-          disabled={figuras.length === 0}
-          style={{ background: "#FFE000", border: "none", borderRadius: 8, padding: "8px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: figuras.length === 0 ? "not-allowed" : "pointer", opacity: figuras.length === 0 ? 0.4 : 1 }}>
+        <button onClick={() => { setShowForm(!showForm); setError(""); }}
+          style={{ background: "#FFE000", border: "none", borderRadius: 8, padding: "8px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer" }}>
           {showForm ? "Cancelar" : "+ Nueva Compra"}
         </button>
       </div>
 
-      {figuras.length === 0 && (
-        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", marginBottom: 14 }}>
-          ↑ Primero registra figuras en el catálogo
-        </div>
-      )}
-
       {showForm && (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
             <div>
-              <label style={lbl}>Figura *</label>
-              <select value={form.figura_id} onChange={e => setForm(f => ({ ...f, figura_id: e.target.value }))}
-                style={{ ...inp, cursor: "pointer" }}>
-                <option value="">Seleccionar...</option>
-                {figuras.map(f => <option key={f.id} value={f.id}>{f.nombre}</option>)}
-              </select>
+              <label style={lbl}>Nombre de la figura *</label>
+              <input type="text" value={form.nombre_figura}
+                onChange={e => setForm(f => ({ ...f, nombre_figura: e.target.value }))}
+                placeholder="Rem Re:Zero 1/7" style={inp} autoFocus />
             </div>
             <div>
               <label style={lbl}>Cantidad *</label>
@@ -326,23 +316,12 @@ function SeccionCompras({ figuras }) {
                 placeholder="3500" style={inp} />
             </div>
             <div>
-              <label style={lbl}>Precio MXN/u</label>
-              <input type="number" min="0.01" step="0.01" value={form.precio_mxn}
-                onChange={e => setForm(f => ({ ...f, precio_mxn: e.target.value }))}
-                placeholder="420.00" style={inp} />
-            </div>
-            <div>
               <label style={lbl}>Fecha *</label>
               <input type="date" value={form.fecha_compra}
                 onChange={e => setForm(f => ({ ...f, fecha_compra: e.target.value }))}
                 style={inp} />
             </div>
           </div>
-          {tc && (
-            <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 12 }}>
-              Tipo de cambio implícito: <span style={{ color: "#00C9FF" }}>¥1 = ${tc} MXN</span>
-            </div>
-          )}
           {errBox(error)}
           <button onClick={handleAdd} disabled={saving}
             style={{ background: saving ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: saving ? "default" : "pointer" }}>
@@ -359,7 +338,7 @@ function SeccionCompras({ figuras }) {
         </div>
       ) : (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 720 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                 {["Figura", "Fecha", "Cant.", "Precio ¥", "Precio MXN", "Estado", "Lote Gen."].map(h => (
@@ -377,29 +356,12 @@ function SeccionCompras({ figuras }) {
                   <td style={tdS}>{c.fecha_compra}</td>
                   <td style={{ ...tdS, color: "#fff", fontWeight: 700 }}>{c.cantidad}</td>
                   <td style={{ ...tdS, color: "#aaa" }}>¥{Number(c.precio_jpy).toLocaleString()}</td>
-
-                  {/* Precio MXN — editable */}
-                  <td style={{ padding: "12px 16px" }}>
-                    {editingCell?.id === c.id && editingCell?.field === "precio_mxn" ? (
-                      <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                        <input type="number" step="0.01" value={editVal}
-                          onChange={e => setEditVal(e.target.value)}
-                          onBlur={saveEdit}
-                          onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingCell(null); }}
-                          autoFocus style={{ ...inp, width: 100, padding: "5px 8px", fontSize: 12 }} />
-                        <button onClick={saveEdit}
-                          style={{ background: "#00FF94", border: "none", borderRadius: 5, padding: "4px 8px", color: "#000", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✓</button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { setEditingCell({ id: c.id, field: "precio_mxn" }); setEditVal(c.precio_mxn ? String(c.precio_mxn) : ""); }}
-                        style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: c.precio_mxn ? "#00C9FF" : "#555", padding: 0 }}
-                        title="Click para editar">
-                        {c.precio_mxn ? fmt(c.precio_mxn) : "Pendiente ✎"}
-                      </button>
-                    )}
+                  {/* Precio MXN — read-only, se llena automáticamente al asignar pago */}
+                  <td style={tdS}>
+                    <span style={{ color: c.precio_mxn ? "#00C9FF" : "#444" }}>
+                      {c.precio_mxn ? fmt(c.precio_mxn) : "— vía pago"}
+                    </span>
                   </td>
-
                   {/* Estado — editable */}
                   <td style={{ padding: "12px 16px" }}>
                     {editingCell?.id === c.id && editingCell?.field === "estado" ? (
@@ -415,7 +377,6 @@ function SeccionCompras({ figuras }) {
                       </button>
                     )}
                   </td>
-
                   <td style={{ ...tdS, fontSize: 11 }}>
                     {c.lote_generado_id
                       ? <span style={{ color: "#00FF94" }}>✓ lote #{c.lote_generado_id}</span>
@@ -436,7 +397,7 @@ function SeccionPaquetes({ onLoteEdited }) {
   const [paquetes, setPaquetes]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
-  const [form, setForm]           = useState({ nombre: "", fecha_envio: "" });
+  const [form, setForm]           = useState({ nombre: "", id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "" });
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState("");
   const [expanded, setExpanded]   = useState(null);
@@ -490,10 +451,12 @@ function SeccionPaquetes({ onLoteEdited }) {
     try {
       await sb("paquetes", "POST", {
         nombre: form.nombre.trim(),
+        id_zenmarket: form.id_zenmarket.trim() || null,
+        costo_envio_jpy: form.costo_envio_jpy ? parseFloat(form.costo_envio_jpy) : null,
         estado: "armando",
         fecha_envio: form.fecha_envio || null,
       });
-      setForm({ nombre: "", fecha_envio: "" });
+      setForm({ nombre: "", id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "" });
       setShowForm(false);
       await fetchPaquetes();
     } catch (e) { setError(e.message); }
@@ -508,7 +471,7 @@ function SeccionPaquetes({ onLoteEdited }) {
         const patch = { estado: editVal };
         if (editVal === "recibido") patch.fecha_llegada = new Date().toISOString().slice(0, 10);
         await sb(`paquetes?id=eq.${pId}`, "PATCH", patch);
-      } else if (field === "costo_envio_mxn" || field === "costo_aduana_mxn") {
+      } else if (field === "costo_envio_jpy" || field === "costo_aduana_mxn") {
         const v = parseFloat(editVal);
         if (!isNaN(v) && v >= 0) await sb(`paquetes?id=eq.${pId}`, "PATCH", { [field]: v });
       }
@@ -544,52 +507,45 @@ function SeccionPaquetes({ onLoteEdited }) {
     setGenerando(paquete.id);
     setGenError("");
     try {
-      // Fetch fresco de los items con toda la info necesaria
       const items = await sb(
         `paquete_items?paquete_id=eq.${paquete.id}&select=*,lotes_compra(*,figuras(nombre,id_provisional,ml_sku))`
       );
       if (!items || items.length === 0) throw new Error("No hay artículos en este paquete");
 
-      // Verificar que todos tengan precio_mxn
-      const sinPrecio = items.filter(it => !it.lotes_compra?.precio_mxn);
-      if (sinPrecio.length > 0) {
-        throw new Error(`Faltan precios MXN en: ${sinPrecio.map(it => it.lotes_compra?.figuras?.nombre || "?").join(", ")}`);
-      }
+      // Obtener tipo de cambio del pago ZenMarket
+      const pagos = await sb(`pagos_zenmarket?id=eq.${paquete.pago_zenmarket_id}&select=mxn_pagados,jpy_obtenidos`);
+      if (!pagos || pagos.length === 0) throw new Error("No se encontró el pago ZenMarket asignado");
+      const tc = parseFloat(pagos[0].mxn_pagados) / parseFloat(pagos[0].jpy_obtenidos);
 
-      const totalPiezas = items.reduce((s, it) => s + it.cantidad, 0);
-      const envioPorPieza  = (parseFloat(paquete.costo_envio_mxn)  || 0) / totalPiezas;
+      const totalPiezas    = items.reduce((s, it) => s + it.cantidad, 0);
+      const envioPorPieza  = (parseFloat(paquete.costo_envio_jpy) || 0) * tc / totalPiezas;
       const aduanaPorPieza = (parseFloat(paquete.costo_aduana_mxn) || 0) / totalPiezas;
 
       for (const item of items) {
         const lc  = item.lotes_compra;
         const fig = lc.figuras;
         const sku = fig.ml_sku || fig.id_provisional;
-        const costoUnitario = parseFloat(
-          (parseFloat(lc.precio_mxn) + envioPorPieza + aduanaPorPieza).toFixed(2)
-        );
+        const precioMxn    = parseFloat(lc.precio_jpy) * tc;
+        const costoUnitario = parseFloat((precioMxn + envioPorPieza + aduanaPorPieza).toFixed(2));
 
-        // Crear lote en inventario FIFO
         const [newLote] = await sb("lotes", "POST", {
-          titulo:               fig.nombre,
-          sku:                  sku,
-          cantidad_disponible:  item.cantidad,
-          cantidad_inicial:     item.cantidad,
-          costo_unitario:       costoUnitario,
-          fecha_compra:         lc.fecha_compra,
+          titulo:              fig.nombre,
+          sku:                 sku,
+          cantidad_disponible: item.cantidad,
+          cantidad_inicial:    item.cantidad,
+          costo_unitario:      costoUnitario,
+          fecha_compra:        lc.fecha_compra,
         });
 
-        // Vincular lote_compra al lote generado
         await sb(`lotes_compra?id=eq.${lc.id}`, "PATCH", {
           lote_generado_id: newLote.id,
           estado: "recibido",
         });
       }
 
-      // Marcar paquete como procesado
       await sb(`paquetes?id=eq.${paquete.id}`, "PATCH", { lotes_generados: true });
-
       await fetchPaquetes();
-      onLoteEdited?.(); // Refresca Carril A en App.jsx
+      onLoteEdited?.();
     } catch (e) {
       setGenError(e.message);
     } finally {
@@ -620,7 +576,7 @@ function SeccionPaquetes({ onLoteEdited }) {
 
       {showForm && (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
             <div>
               <label style={lbl}>Nombre del paquete *</label>
               <input type="text" value={form.nombre}
@@ -629,7 +585,19 @@ function SeccionPaquetes({ onLoteEdited }) {
                 placeholder="Paquete Marzo 2025" style={inp} autoFocus />
             </div>
             <div>
-              <label style={lbl}>Fecha de envío (opcional)</label>
+              <label style={lbl}>ID ZenMarket</label>
+              <input type="text" value={form.id_zenmarket}
+                onChange={e => setForm(f => ({ ...f, id_zenmarket: e.target.value }))}
+                placeholder="207" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Envío ¥ (opcional)</label>
+              <input type="number" min="0" value={form.costo_envio_jpy}
+                onChange={e => setForm(f => ({ ...f, costo_envio_jpy: e.target.value }))}
+                placeholder="8000" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Fecha de envío</label>
               <input type="date" value={form.fecha_envio}
                 onChange={e => setForm(f => ({ ...f, fecha_envio: e.target.value }))}
                 style={inp} />
@@ -653,23 +621,23 @@ function SeccionPaquetes({ onLoteEdited }) {
         <div>
           {paquetes.map(p => {
             const canGenerate = p.estado === "recibido"
-              && p.costo_envio_mxn != null
+              && p.pago_zenmarket_id != null
               && p.costo_aduana_mxn != null
               && !p.lotes_generados;
-            const items = paqueteItems[p.id] || [];
-            const isExp = expanded === p.id;
+            const items   = paqueteItems[p.id] || [];
+            const isExp   = expanded === p.id;
             const disponibles = getComprasParaPaquete(p.id);
 
             return (
               <div key={p.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, marginBottom: 8, overflow: "hidden" }}>
 
-                {/* Fila principal del paquete */}
+                {/* Fila principal */}
                 <div style={{ display: "flex", gap: 12, alignItems: "center", padding: "14px 16px", flexWrap: "wrap" }}>
-                  {/* Toggle + nombre */}
                   <button onClick={() => toggleExpand(p.id)}
                     style={{ background: "transparent", border: "none", cursor: "pointer", textAlign: "left", padding: 0, flex: 1, minWidth: 160 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>
                       {isExp ? "▾" : "▸"} {p.nombre}
+                      {p.id_zenmarket && <span style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace", marginLeft: 8 }}># {p.id_zenmarket}</span>}
                     </div>
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 3 }}>
                       {p.fecha_envio ? `Envío: ${p.fecha_envio}` : "Sin fecha de envío"}
@@ -691,24 +659,24 @@ function SeccionPaquetes({ onLoteEdited }) {
                     </button>
                   )}
 
-                  {/* Costo envío */}
+                  {/* Envío ¥ */}
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 2 }}>Envío</div>
-                    {editingCell?.id === p.id && editingCell?.field === "costo_envio_mxn" ? (
-                      <input type="number" step="0.01" value={editVal}
+                    <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 2 }}>Envío ¥</div>
+                    {editingCell?.id === p.id && editingCell?.field === "costo_envio_jpy" ? (
+                      <input type="number" step="1" value={editVal}
                         onChange={e => setEditVal(e.target.value)}
                         onBlur={() => saveEdit(p.id)}
                         onKeyDown={e => { if (e.key === "Enter") saveEdit(p.id); if (e.key === "Escape") setEditingCell(null); }}
-                        autoFocus style={{ ...inp, width: 110, padding: "5px 8px", fontSize: 12 }} />
+                        autoFocus style={{ ...inp, width: 100, padding: "5px 8px", fontSize: 12 }} />
                     ) : (
-                      <button onClick={() => { setEditingCell({ id: p.id, field: "costo_envio_mxn" }); setEditVal(p.costo_envio_mxn != null ? String(p.costo_envio_mxn) : ""); }}
-                        style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: p.costo_envio_mxn != null ? "#fff" : "#444", padding: 0 }}>
-                        {p.costo_envio_mxn != null ? fmt(p.costo_envio_mxn) : "— ✎"}
+                      <button onClick={() => { setEditingCell({ id: p.id, field: "costo_envio_jpy" }); setEditVal(p.costo_envio_jpy != null ? String(p.costo_envio_jpy) : ""); }}
+                        style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: p.costo_envio_jpy != null ? "#fff" : "#444", padding: 0 }}>
+                        {p.costo_envio_jpy != null ? `¥${Number(p.costo_envio_jpy).toLocaleString()}` : "— ✎"}
                       </button>
                     )}
                   </div>
 
-                  {/* Costo aduana */}
+                  {/* Aduana MXN */}
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 2 }}>Aduana</div>
                     {editingCell?.id === p.id && editingCell?.field === "costo_aduana_mxn" ? (
@@ -716,7 +684,7 @@ function SeccionPaquetes({ onLoteEdited }) {
                         onChange={e => setEditVal(e.target.value)}
                         onBlur={() => saveEdit(p.id)}
                         onKeyDown={e => { if (e.key === "Enter") saveEdit(p.id); if (e.key === "Escape") setEditingCell(null); }}
-                        autoFocus style={{ ...inp, width: 110, padding: "5px 8px", fontSize: 12 }} />
+                        autoFocus style={{ ...inp, width: 100, padding: "5px 8px", fontSize: 12 }} />
                     ) : (
                       <button onClick={() => { setEditingCell({ id: p.id, field: "costo_aduana_mxn" }); setEditVal(p.costo_aduana_mxn != null ? String(p.costo_aduana_mxn) : ""); }}
                         style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: p.costo_aduana_mxn != null ? "#fff" : "#444", padding: 0 }}>
@@ -725,14 +693,20 @@ function SeccionPaquetes({ onLoteEdited }) {
                     )}
                   </div>
 
-                  {/* Badge lotes generados */}
+                  {/* Pago asignado */}
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 2 }}>Pago</div>
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: p.pago_zenmarket_id ? "#00C9FF" : "#444" }}>
+                      {p.pago_zenmarket_id ? `#${p.pago_zenmarket_id}` : "Sin asignar"}
+                    </span>
+                  </div>
+
                   {p.lotes_generados && (
                     <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", padding: "3px 10px", borderRadius: 20, background: "rgba(0,255,148,0.1)", color: "#00FF94", whiteSpace: "nowrap", letterSpacing: 1 }}>
                       ✓ LOTES OK
                     </span>
                   )}
 
-                  {/* Botón generar lotes */}
                   {canGenerate && (
                     <button onClick={() => handleGenerarLotes(p)} disabled={generando === p.id}
                       style={{ background: generando === p.id ? "#333" : "#00FF94", border: "none", borderRadius: 8, padding: "8px 16px", color: "#000", fontSize: 11, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: generando === p.id ? "default" : "pointer", whiteSpace: "nowrap" }}>
@@ -741,11 +715,9 @@ function SeccionPaquetes({ onLoteEdited }) {
                   )}
                 </div>
 
-                {/* Contenido expandido: items del paquete */}
+                {/* Contenido expandido */}
                 {isExp && (
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)", padding: "14px 20px" }}>
-
-                    {/* Lista de items */}
                     {items.length === 0 ? (
                       <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace", marginBottom: 14 }}>
                         Sin artículos — agrega compras a este paquete ↓
@@ -761,9 +733,14 @@ function SeccionPaquetes({ onLoteEdited }) {
                               </span>
                             </div>
                             <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#888" }}>×{it.cantidad}</div>
-                            <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: it.lotes_compra?.precio_mxn ? "#00C9FF" : "#FFE000" }}>
-                              {it.lotes_compra?.precio_mxn ? fmt(it.lotes_compra.precio_mxn) + "/u" : "⚠ Sin precio MXN"}
+                            <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#aaa" }}>
+                              ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()}/u
                             </div>
+                            {it.lotes_compra?.precio_mxn && (
+                              <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#00C9FF" }}>
+                                {fmt(it.lotes_compra.precio_mxn)}/u
+                              </div>
+                            )}
                             {!p.lotes_generados && (
                               <button onClick={() => handleRemoveItem(it.id, p.id)}
                                 style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "3px 8px", color: "#555", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
@@ -775,7 +752,6 @@ function SeccionPaquetes({ onLoteEdited }) {
                       </div>
                     )}
 
-                    {/* Formulario agregar item */}
                     {!p.lotes_generados && (
                       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
                         <div>
@@ -795,17 +771,14 @@ function SeccionPaquetes({ onLoteEdited }) {
                           </select>
                         </div>
                         <div>
-                          <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 4, letterSpacing: 1, textTransform: "uppercase" }}>
-                            Cant.
-                          </div>
+                          <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 4, letterSpacing: 1, textTransform: "uppercase" }}>Cant.</div>
                           <input type="number" min="1" placeholder="10"
                             value={addingItem.paquete_id === p.id ? addingItem.cantidad : ""}
                             onChange={e => setAddingItem(prev => ({ ...prev, cantidad: e.target.value }))}
                             onKeyDown={e => e.key === "Enter" && handleAddItem(p.id)}
                             style={{ ...inp, width: 80, padding: "7px 10px", fontSize: 12 }} />
                         </div>
-                        <button
-                          onClick={() => handleAddItem(p.id)}
+                        <button onClick={() => handleAddItem(p.id)}
                           disabled={!addingItem.lote_compra_id || !addingItem.cantidad}
                           style={{ background: "#FFE000", border: "none", borderRadius: 8, padding: "9px 16px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer", opacity: (!addingItem.lote_compra_id || !addingItem.cantidad) ? 0.35 : 1 }}>
                           + Agregar
@@ -813,28 +786,276 @@ function SeccionPaquetes({ onLoteEdited }) {
                       </div>
                     )}
 
-                    {/* Info de costos cuando está listo para generar */}
-                    {p.estado === "recibido" && items.length > 0 && !p.lotes_generados && (
+                    {/* Vista previa de costos */}
+                    {p.estado === "recibido" && p.pago_zenmarket_id && items.length > 0 && !p.lotes_generados && (
                       <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(0,255,148,0.05)", border: "1px solid rgba(0,255,148,0.15)", borderRadius: 10, fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
                         <div style={{ color: "#00FF94", marginBottom: 6, fontWeight: 700 }}>Vista previa de costos</div>
-                        {(() => {
-                          const totalPiezas = items.reduce((s, it) => s + it.cantidad, 0);
-                          const envio = parseFloat(p.costo_envio_mxn) || 0;
-                          const aduana = parseFloat(p.costo_aduana_mxn) || 0;
-                          return items.map(it => {
-                            const mxn = parseFloat(it.lotes_compra?.precio_mxn);
-                            if (!mxn) return null;
-                            const costo = (mxn + envio / totalPiezas + aduana / totalPiezas).toFixed(2);
-                            return (
-                              <div key={it.id} style={{ color: "#888", marginBottom: 3 }}>
-                                {it.lotes_compra?.figuras?.nombre}: {fmt(mxn)} + env + aduana ={" "}
-                                <span style={{ color: "#fff" }}>{fmt(parseFloat(costo))}/u</span>
-                              </div>
-                            );
-                          });
-                        })()}
+                        {items.map(it => (
+                          <div key={it.id} style={{ color: "#888", marginBottom: 3 }}>
+                            {it.lotes_compra?.figuras?.nombre}: ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()}/u
+                            {it.lotes_compra?.precio_mxn && (
+                              <span style={{ color: "#fff", marginLeft: 8 }}>= {fmt(it.lotes_compra.precio_mxn)}/u</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sección: Pagos ZenMarket ─────────────────────────────────────────────────
+function SeccionPagos() {
+  const [pagos, setPagos]       = useState([]);
+  const [loading, setLoading]   = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm]         = useState({
+    fecha: new Date().toISOString().slice(0, 10),
+    mxn_pagados: "", jpy_obtenidos: "", notas: "",
+  });
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState("");
+  const [expanded, setExpanded]       = useState(null);
+  const [paquetesSinPago, setPaquetesSinPago]   = useState([]);
+  const [paquetesDelPago, setPaquetesDelPago]   = useState({});
+  const [selectedPkgs, setSelectedPkgs]         = useState([]);
+  const [assigning, setAssigning]               = useState(false);
+  const loaded = useRef(false);
+
+  const fetchPagos = async () => {
+    try {
+      const data = await sb("pagos_zenmarket?order=fecha.desc");
+      setPagos(data || []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const fetchPaquetesSinPago = async () => {
+    try {
+      const data = await sb("paquetes?pago_zenmarket_id=is.null&lotes_generados=eq.false&order=created_at.desc&select=id,nombre,id_zenmarket");
+      setPaquetesSinPago(data || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchPaquetesDelPago = async (pagoId) => {
+    try {
+      const data = await sb(`paquetes?pago_zenmarket_id=eq.${pagoId}&select=id,nombre,id_zenmarket,estado`);
+      setPaquetesDelPago(prev => ({ ...prev, [pagoId]: data || [] }));
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
+    fetchPagos();
+  }, []);
+
+  const handleAdd = async () => {
+    const { fecha, mxn_pagados, jpy_obtenidos } = form;
+    if (!fecha || !mxn_pagados || !jpy_obtenidos) { setError("Fecha, MXN y ¥ son requeridos"); return; }
+    const mxn = parseFloat(mxn_pagados), jpy = parseFloat(jpy_obtenidos);
+    if (isNaN(mxn) || mxn <= 0 || isNaN(jpy) || jpy <= 0) { setError("Los montos deben ser positivos"); return; }
+    setSaving(true); setError("");
+    try {
+      await sb("pagos_zenmarket", "POST", {
+        fecha,
+        mxn_pagados: mxn,
+        jpy_obtenidos: jpy,
+        notas: form.notas.trim() || null,
+      });
+      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "" });
+      setShowForm(false);
+      await fetchPagos();
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleExpandPago = async (id) => {
+    if (expanded === id) { setExpanded(null); return; }
+    setExpanded(id);
+    setSelectedPkgs([]);
+    await Promise.all([fetchPaquetesSinPago(), fetchPaquetesDelPago(id)]);
+  };
+
+  const togglePkg = (pkgId) =>
+    setSelectedPkgs(prev => prev.includes(pkgId) ? prev.filter(id => id !== pkgId) : [...prev, pkgId]);
+
+  const handleAsignar = async (pago) => {
+    if (selectedPkgs.length === 0) return;
+    setAssigning(true);
+    const tc = parseFloat(pago.mxn_pagados) / parseFloat(pago.jpy_obtenidos);
+    try {
+      for (const pkgId of selectedPkgs) {
+        await sb(`paquetes?id=eq.${pkgId}`, "PATCH", { pago_zenmarket_id: pago.id });
+        const items = await sb(`paquete_items?paquete_id=eq.${pkgId}&select=lote_compra_id,lotes_compra(precio_jpy)`);
+        for (const item of (items || [])) {
+          const precioMxn = parseFloat(item.lotes_compra?.precio_jpy) * tc;
+          await sb(`lotes_compra?id=eq.${item.lote_compra_id}`, "PATCH", {
+            precio_mxn: parseFloat(precioMxn.toFixed(2)),
+            estado: "pagado",
+          });
+        }
+      }
+      setSelectedPkgs([]);
+      await Promise.all([fetchPaquetesSinPago(), fetchPaquetesDelPago(pago.id)]);
+    } catch (e) { console.error(e); }
+    finally { setAssigning(false); }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: "#555", fontFamily: "'Space Mono', monospace" }}>
+          {pagos.length} pago{pagos.length !== 1 ? "s" : ""} ZenMarket
+        </div>
+        <button onClick={() => { setShowForm(!showForm); setError(""); }}
+          style={{ background: "#FFE000", border: "none", borderRadius: 8, padding: "8px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer" }}>
+          {showForm ? "Cancelar" : "+ Nuevo Pago"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={lbl}>Fecha *</label>
+              <input type="date" value={form.fecha}
+                onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+                style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>MXN pagados *</label>
+              <input type="number" min="0.01" step="0.01" value={form.mxn_pagados}
+                onChange={e => setForm(f => ({ ...f, mxn_pagados: e.target.value }))}
+                placeholder="15000.00" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>¥ obtenidos *</label>
+              <input type="number" min="1" value={form.jpy_obtenidos}
+                onChange={e => setForm(f => ({ ...f, jpy_obtenidos: e.target.value }))}
+                placeholder="120000" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Notas</label>
+              <input type="text" value={form.notas}
+                onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+                placeholder="Recarga abril..." style={inp} />
+            </div>
+          </div>
+          {form.mxn_pagados && form.jpy_obtenidos && (
+            <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 12 }}>
+              Tipo de cambio: <span style={{ color: "#00C9FF" }}>¥1 = ${(parseFloat(form.mxn_pagados) / parseFloat(form.jpy_obtenidos)).toFixed(4)} MXN</span>
+            </div>
+          )}
+          {errBox(error)}
+          <button onClick={handleAdd} disabled={saving}
+            style={{ background: saving ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: saving ? "default" : "pointer" }}>
+            {saving ? "Guardando..." : "Registrar Pago →"}
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>Cargando...</div>
+      ) : pagos.length === 0 ? (
+        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.07)", borderRadius: 16, padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
+          Sin pagos registrados
+        </div>
+      ) : (
+        <div>
+          {pagos.map(pago => {
+            const tc       = (parseFloat(pago.mxn_pagados) / parseFloat(pago.jpy_obtenidos)).toFixed(4);
+            const isExp    = expanded === pago.id;
+            const asignados = paquetesDelPago[pago.id] || [];
+
+            return (
+              <div key={pago.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, marginBottom: 8, overflow: "hidden" }}>
+                <button onClick={() => handleExpandPago(pago.id)}
+                  style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", padding: "14px 16px" }}>
+                  <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace", marginBottom: 3, letterSpacing: 1 }}>FECHA</div>
+                      <div style={{ fontSize: 13, color: "#fff", fontFamily: "'Space Mono', monospace" }}>{pago.fecha}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace", marginBottom: 3, letterSpacing: 1 }}>PAGADO MXN</div>
+                      <div style={{ fontSize: 13, color: "#FFE000", fontFamily: "'Space Mono', monospace" }}>{fmt(pago.mxn_pagados)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace", marginBottom: 3, letterSpacing: 1 }}>CRÉDITO ¥</div>
+                      <div style={{ fontSize: 13, color: "#aaa", fontFamily: "'Space Mono', monospace" }}>¥{Number(pago.jpy_obtenidos).toLocaleString()}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace", marginBottom: 3, letterSpacing: 1 }}>T/C</div>
+                      <div style={{ fontSize: 13, color: "#00C9FF", fontFamily: "'Space Mono', monospace" }}>¥1 = ${tc}</div>
+                    </div>
+                    {pago.notas && (
+                      <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace", fontStyle: "italic" }}>{pago.notas}</div>
+                    )}
+                    <div style={{ marginLeft: "auto", fontSize: 12, color: "#555" }}>{isExp ? "▾" : "▸"}</div>
+                  </div>
+                </button>
+
+                {isExp && (
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)", padding: "14px 20px" }}>
+                    {/* Paquetes ya asignados */}
+                    {asignados.length > 0 && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+                          Paquetes asignados
+                        </div>
+                        {asignados.map(pkg => (
+                          <div key={pkg.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                            <div style={{ flex: 1, fontSize: 13, color: "#ddd", fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>
+                              {pkg.nombre}
+                              {pkg.id_zenmarket && <span style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace", marginLeft: 8 }}># {pkg.id_zenmarket}</span>}
+                            </div>
+                            <span style={badgeEstado(pkg.estado)}>{pkg.estado}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Asignar paquetes sin pago */}
+                    {paquetesSinPago.length > 0 ? (
+                      <div>
+                        <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+                          Asignar paquetes a este pago
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                          {paquetesSinPago.map(pkg => (
+                            <button key={pkg.id} onClick={() => togglePkg(pkg.id)}
+                              style={{
+                                background: selectedPkgs.includes(pkg.id) ? "rgba(255,224,0,0.15)" : "rgba(255,255,255,0.04)",
+                                border: selectedPkgs.includes(pkg.id) ? "1px solid #FFE000" : "1px solid rgba(255,255,255,0.1)",
+                                borderRadius: 8, padding: "6px 14px",
+                                color: selectedPkgs.includes(pkg.id) ? "#FFE000" : "#aaa",
+                                fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer",
+                              }}>
+                              {pkg.nombre}
+                              {pkg.id_zenmarket && <span style={{ color: "#555", marginLeft: 6 }}># {pkg.id_zenmarket}</span>}
+                            </button>
+                          ))}
+                        </div>
+                        {selectedPkgs.length > 0 && (
+                          <button onClick={() => handleAsignar(pago)} disabled={assigning}
+                            style={{ background: assigning ? "#333" : "#00C9FF", border: "none", borderRadius: 8, padding: "8px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: assigning ? "default" : "pointer" }}>
+                            {assigning ? "Asignando..." : `Asignar ${selectedPkgs.length} paquete${selectedPkgs.length > 1 ? "s" : ""} →`}
+                          </button>
+                        )}
+                      </div>
+                    ) : asignados.length === 0 ? (
+                      <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>
+                        No hay paquetes pendientes de asignar
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -864,11 +1085,11 @@ export default function InventarioCarrilB({ onLoteEdited }) {
     { key: "figuras",  label: "Figuras"  },
     { key: "compras",  label: "Compras"  },
     { key: "paquetes", label: "Paquetes" },
+    { key: "pagos",    label: "Pagos"    },
   ];
 
   return (
     <div style={{ marginTop: 48 }}>
-      {/* Separador con título */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
         <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
         <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 2.5, textTransform: "uppercase", whiteSpace: "nowrap" }}>
@@ -877,7 +1098,6 @@ export default function InventarioCarrilB({ onLoteEdited }) {
         <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
       </div>
 
-      {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 2, marginBottom: 24, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: 4 }}>
         {TABS.map(t => (
           <button key={t.key} onClick={() => setSubTab(t.key)}
@@ -897,8 +1117,9 @@ export default function InventarioCarrilB({ onLoteEdited }) {
       </div>
 
       {subTab === "figuras"  && <SeccionFiguras  onFigurasChange={fetchFiguras} />}
-      {subTab === "compras"  && <SeccionCompras  figuras={figuras} />}
+      {subTab === "compras"  && <SeccionCompras  figuras={figuras} onFigurasChange={fetchFiguras} />}
       {subTab === "paquetes" && <SeccionPaquetes onLoteEdited={onLoteEdited} />}
+      {subTab === "pagos"    && <SeccionPagos />}
     </div>
   );
 }
