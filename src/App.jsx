@@ -70,8 +70,8 @@ async function enrichOrdersWithFees(orders, accessToken) {
           const detail = await r1.json();
           if (!detail || detail.error) return;
           const totalAmount = detail.total_amount || 0;
-          // sale_fee ya es correcto por orden individual
-          const saleFee = detail.order_items?.[0]?.sale_fee || 0;
+          // sale_fee × qty por cada item (ML reporta la comisión por unidad)
+          const saleFee = (detail.order_items || []).reduce((s, it) => s + (it.sale_fee || 0) * (it.quantity || 1), 0);
           const shippingId = detail.shipping?.id;
           let shippingCost = 0;
           if (shippingId) {
@@ -149,7 +149,8 @@ export default function App() {
       // Map basic fields first so dashboard shows something immediately
       const mapOrder = (o) => {
         const totalAmount = o.total_amount || 0;
-        const saleFee = o.saleFee ?? o.order_items?.[0]?.sale_fee ?? 0;
+        const qty = o.order_items?.[0]?.quantity || 1;
+        const saleFee = o.saleFee ?? ((o.order_items?.[0]?.sale_fee || 0) * qty);
         const shippingCost = o.shippingCost ?? 0;
         const retencionIVA = o.retencionIVA ?? 0;
         const retencionISR = o.retencionISR ?? 0;
@@ -160,6 +161,7 @@ export default function App() {
           date: o.date_created?.slice(0, 10),
           title: o.order_items?.[0]?.item?.title || "—",
           sku: o.order_items?.[0]?.item?.id || "—",
+          qty,
           status: o.status,
           salePrice: totalAmount,
           saleFee,

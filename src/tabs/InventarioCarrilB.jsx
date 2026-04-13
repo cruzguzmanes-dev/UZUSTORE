@@ -823,10 +823,7 @@ function SeccionPagos() {
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState("");
   const [expanded, setExpanded]       = useState(null);
-  const [paquetesSinPago, setPaquetesSinPago]   = useState([]);
-  const [paquetesDelPago, setPaquetesDelPago]   = useState({});
-  const [selectedPkgs, setSelectedPkgs]         = useState([]);
-  const [assigning, setAssigning]               = useState(false);
+  const [paquetesDelPago, setPaquetesDelPago] = useState({});
   const loaded = useRef(false);
 
   const fetchPagos = async () => {
@@ -835,13 +832,6 @@ function SeccionPagos() {
       setPagos(data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  };
-
-  const fetchPaquetesSinPago = async () => {
-    try {
-      const data = await sb("paquetes?pago_zenmarket_id=is.null&lotes_generados=eq.false&order=created_at.desc&select=id,nombre,id_zenmarket");
-      setPaquetesSinPago(data || []);
-    } catch (e) { console.error(e); }
   };
 
   const fetchPaquetesDelPago = async (pagoId) => {
@@ -864,12 +854,27 @@ function SeccionPagos() {
     if (isNaN(mxn) || mxn <= 0 || isNaN(jpy) || jpy <= 0) { setError("Los montos deben ser positivos"); return; }
     setSaving(true); setError("");
     try {
-      await sb("pagos_zenmarket", "POST", {
-        fecha,
-        mxn_pagados: mxn,
-        jpy_obtenidos: jpy,
+      // 1. Crear el pago
+      const [pago] = await sb("pagos_zenmarket", "POST", {
+        fecha, mxn_pagados: mxn, jpy_obtenidos: jpy,
         notas: form.notas.trim() || null,
       });
+      const tc = mxn / jpy;
+
+      // 2. Asignar automáticamente todos los paquetes pendientes
+      const pendientes = await sb("paquetes?pago_zenmarket_id=is.null&lotes_generados=eq.false&select=id");
+      for (const pkg of (pendientes || [])) {
+        await sb(`paquetes?id=eq.${pkg.id}`, "PATCH", { pago_zenmarket_id: pago.id });
+        const items = await sb(`paquete_items?paquete_id=eq.${pkg.id}&select=lote_compra_id,lotes_compra(precio_jpy)`);
+        for (const item of (items || [])) {
+          const precioMxn = parseFloat(item.lotes_compra?.precio_jpy) * tc;
+          await sb(`lotes_compra?id=eq.${item.lote_compra_id}`, "PATCH", {
+            precio_mxn: parseFloat(precioMxn.toFixed(2)),
+            estado: "pagado",
+          });
+        }
+      }
+
       setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "" });
       setShowForm(false);
       await fetchPagos();
@@ -880,33 +885,7 @@ function SeccionPagos() {
   const handleExpandPago = async (id) => {
     if (expanded === id) { setExpanded(null); return; }
     setExpanded(id);
-    setSelectedPkgs([]);
-    await Promise.all([fetchPaquetesSinPago(), fetchPaquetesDelPago(id)]);
-  };
-
-  const togglePkg = (pkgId) =>
-    setSelectedPkgs(prev => prev.includes(pkgId) ? prev.filter(id => id !== pkgId) : [...prev, pkgId]);
-
-  const handleAsignar = async (pago) => {
-    if (selectedPkgs.length === 0) return;
-    setAssigning(true);
-    const tc = parseFloat(pago.mxn_pagados) / parseFloat(pago.jpy_obtenidos);
-    try {
-      for (const pkgId of selectedPkgs) {
-        await sb(`paquetes?id=eq.${pkgId}`, "PATCH", { pago_zenmarket_id: pago.id });
-        const items = await sb(`paquete_items?paquete_id=eq.${pkgId}&select=lote_compra_id,lotes_compra(precio_jpy)`);
-        for (const item of (items || [])) {
-          const precioMxn = parseFloat(item.lotes_compra?.precio_jpy) * tc;
-          await sb(`lotes_compra?id=eq.${item.lote_compra_id}`, "PATCH", {
-            precio_mxn: parseFloat(precioMxn.toFixed(2)),
-            estado: "pagado",
-          });
-        }
-      }
-      setSelectedPkgs([]);
-      await Promise.all([fetchPaquetesSinPago(), fetchPaquetesDelPago(pago.id)]);
-    } catch (e) { console.error(e); }
-    finally { setAssigning(false); }
+    await fetchPaquetesDelPago(id);
   };
 
   return (
@@ -1005,11 +984,14 @@ function SeccionPagos() {
 
                 {isExp && (
                   <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.25)", padding: "14px 20px" }}>
-                    {/* Paquetes ya asignados */}
-                    {asignados.length > 0 && (
-                      <div style={{ marginBottom: 16 }}>
+                    {asignados.length === 0 ? (
+                      <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>
+                        Sin paquetes asignados
+                      </div>
+                    ) : (
+                      <>
                         <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-                          Paquetes asignados
+                          Paquetes cubiertos por este pago
                         </div>
                         {asignados.map(pkg => (
                           <div key={pkg.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
@@ -1020,42 +1002,8 @@ function SeccionPagos() {
                             <span style={badgeEstado(pkg.estado)}>{pkg.estado}</span>
                           </div>
                         ))}
-                      </div>
+                      </>
                     )}
-
-                    {/* Asignar paquetes sin pago */}
-                    {paquetesSinPago.length > 0 ? (
-                      <div>
-                        <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
-                          Asignar paquetes a este pago
-                        </div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
-                          {paquetesSinPago.map(pkg => (
-                            <button key={pkg.id} onClick={() => togglePkg(pkg.id)}
-                              style={{
-                                background: selectedPkgs.includes(pkg.id) ? "rgba(255,224,0,0.15)" : "rgba(255,255,255,0.04)",
-                                border: selectedPkgs.includes(pkg.id) ? "1px solid #FFE000" : "1px solid rgba(255,255,255,0.1)",
-                                borderRadius: 8, padding: "6px 14px",
-                                color: selectedPkgs.includes(pkg.id) ? "#FFE000" : "#aaa",
-                                fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer",
-                              }}>
-                              {pkg.nombre}
-                              {pkg.id_zenmarket && <span style={{ color: "#555", marginLeft: 6 }}># {pkg.id_zenmarket}</span>}
-                            </button>
-                          ))}
-                        </div>
-                        {selectedPkgs.length > 0 && (
-                          <button onClick={() => handleAsignar(pago)} disabled={assigning}
-                            style={{ background: assigning ? "#333" : "#00C9FF", border: "none", borderRadius: 8, padding: "8px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: assigning ? "default" : "pointer" }}>
-                            {assigning ? "Asignando..." : `Asignar ${selectedPkgs.length} paquete${selectedPkgs.length > 1 ? "s" : ""} →`}
-                          </button>
-                        )}
-                      </div>
-                    ) : asignados.length === 0 ? (
-                      <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>
-                        No hay paquetes pendientes de asignar
-                      </div>
-                    ) : null}
                   </div>
                 )}
               </div>
