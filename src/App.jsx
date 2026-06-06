@@ -175,29 +175,7 @@ export default function App() {
       };
       setOrders(results.flatMap(mapOrder));
       await fetchLotes();
-
-      // Enriquecer solo mes actual y mes anterior (los más usados)
-      const now = new Date();
-      const recentMonths = new Set([
-        `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-        `${now.getFullYear()}-${String(now.getMonth()).padStart(2, "0") || "12"}`,
-      ]);
-      const recentOrders = results.filter(o => {
-        const m = o.date_created?.slice(0, 7);
-        return recentMonths.has(m);
-      });
-      if (recentOrders.length > 0) {
-        const enriched = await enrichOrdersWithFees(recentOrders, accessToken);
-        // Merge enriched fees back into raw results by id, then re-expand with mapOrder
-        const enrichedMap = new Map(enriched.map(o => [String(o.id), o]));
-        const merged = results.map(o => {
-          const e = enrichedMap.get(String(o.id));
-          if (!e) return o;
-          return { ...o, saleFee: e.saleFee, shippingCost: e.shippingCost, retencionIVA: e.retencionIVA, retencionISR: e.retencionISR, taxAmount: e.taxAmount, paidAmount: e.paidAmount };
-        });
-        setOrders(merged.flatMap(mapOrder));
-        setEnrichedMonths(recentMonths);
-      }
+      // El enriquecimiento se hace bajo demanda al seleccionar un mes en el tab Ordenes
     } catch (e) { alert("Error: " + e.message); }
     finally { setLoadingOrders(false); }
   }, [fetchLotes]);
@@ -245,17 +223,21 @@ export default function App() {
         const realId = o.orderId || o.id;
         const e = enrichedMap.get(String(realId));
         if (!e) return o;
-        // Prorratear envío e impuestos entre las filas del mismo orderId
+        // Prorratear comisión, envío e impuestos entre las filas del mismo orderId
         const rowsForOrder = prev.filter(r => (r.orderId || r.id) === realId);
         const n = rowsForOrder.length || 1;
+        const saleFee      = (e.saleFee      || 0) / n;
+        const shippingCost = (e.shippingCost || 0) / n;
+        const retencionIVA = (e.retencionIVA || 0) / n;
+        const retencionISR = (e.retencionISR || 0) / n;
         return {
           ...o,
-          saleFee: o.saleFee, // comisión ya es por item desde mapOrder
-          shippingCost: (e.shippingCost || 0) / n,
-          retencionIVA: (e.retencionIVA || 0) / n,
-          retencionISR: (e.retencionISR || 0) / n,
-          taxAmount: ((e.retencionIVA || 0) + (e.retencionISR || 0)) / n,
-          paidAmount: o.salePrice - o.saleFee - (e.shippingCost || 0) / n - ((e.retencionIVA || 0) + (e.retencionISR || 0)) / n,
+          saleFee,
+          shippingCost,
+          retencionIVA,
+          retencionISR,
+          taxAmount:  retencionIVA + retencionISR,
+          paidAmount: o.salePrice - saleFee - shippingCost - retencionIVA - retencionISR,
         };
       }));
       setEnrichedMonths(prev => new Set([...prev, monthKey]));

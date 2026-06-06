@@ -97,6 +97,15 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
     }).catch(() => {});
   }, []);
 
+  // Auto-enriquecer cuando el usuario selecciona un mes específico
+  useEffect(() => {
+    if (mesSeleccionado === "todos") return;
+    if (!enrichMonth) return;
+    if (enrichedMonths.has(mesSeleccionado)) return;
+    if (enrichingMonth === mesSeleccionado) return;
+    enrichMonth(mesSeleccionado);
+  }, [mesSeleccionado, enrichedMonths, enrichingMonth, enrichMonth]);
+
   const handleCajaChange = async (orderId, empaqueId) => {
     setSavingCaja(orderId);
     try {
