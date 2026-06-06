@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { TAX, MOCK_ORDERS, GS } from "./constants";
+import { TAX, MOCK_ORDERS, GS, VERSION } from "./constants";
 import { sb, aplicarCostosManuales } from "./utils";
 import AdminLogin from "./components/AdminLogin";
 import ModalLote from "./components/ModalLote";
@@ -289,6 +289,18 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 22 }}>📦</span>
+            <span style={{
+              fontFamily: "'Space Mono', monospace",
+              fontSize: 10,
+              letterSpacing: 1,
+              color: "#FFE000",
+              background: "rgba(255,224,0,0.08)",
+              border: "1px solid rgba(255,224,0,0.25)",
+              borderRadius: 6,
+              padding: "2px 8px",
+            }}>
+              v{VERSION}
+            </span>
             <div>
               <div style={{ fontWeight: 800, fontSize: 16, letterSpacing: -0.5 }}>{connectedUser}</div>
               <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555" }}>
