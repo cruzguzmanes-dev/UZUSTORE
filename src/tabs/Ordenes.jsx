@@ -17,7 +17,7 @@ function ModalCostoRapido({ orden, onClose, onSaved }) {
     if (cantNum < 1) { setError("La cantidad debe ser al menos 1"); return; }
     setLoading(true); setError("");
     try {
-      await sb("lotes", "POST", {
+      const resp = await sb("lotes", "POST", {
         sku: orden.sku,
         titulo: orden.title,
         cantidad_inicial: cantNum,
@@ -25,7 +25,8 @@ function ModalCostoRapido({ orden, onClose, onSaved }) {
         costo_unitario: parseFloat(costo),
         fecha_compra: fecha,
       });
-      onSaved();
+      const saved = Array.isArray(resp) ? resp[0] : resp;
+      onSaved(saved);
       onClose();
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
@@ -83,7 +84,15 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
   const [cajasPorOrden, setCajasPorOrden] = useState({});
   const [savingCaja, setSavingCaja] = useState(null);
   const [editandoCaja, setEditandoCaja] = useState(null);
+  const [snackbar, setSnackbar] = useState(null); // { lote } | null
   const loadedRef = useRef(false);
+  const snackTimerRef = useRef(null);
+
+  const showSnackbar = (lote) => {
+    setSnackbar({ lote });
+    if (snackTimerRef.current) clearTimeout(snackTimerRef.current);
+    snackTimerRef.current = setTimeout(() => setSnackbar(null), 5000);
+  };
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -173,8 +182,35 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
         <ModalCostoRapido
           orden={ordenParaCosto}
           onClose={() => setOrdenParaCosto(null)}
-          onSaved={() => { onLoteAdded(); setOrdenParaCosto(null); }}
+          onSaved={(saved) => { onLoteAdded(); setOrdenParaCosto(null); if (saved) showSnackbar(saved); }}
         />
+      )}
+
+      {snackbar?.lote && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 300,
+          background: "#0d1117", border: "1px solid rgba(0,255,148,0.35)",
+          borderRadius: 12, padding: "14px 18px",
+          minWidth: 280, maxWidth: 380,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 0 24px rgba(0,255,148,0.08)",
+          animation: "snackIn 0.25s ease",
+        }}>
+          <style>{`@keyframes snackIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#00FF94", fontFamily: "'Syne', sans-serif", marginBottom: 6 }}>
+                ✓ Lote guardado en Supabase
+              </div>
+              <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", lineHeight: 1.6 }}>
+                <div>BD ID: <span style={{ color: "#00C9FF" }}>#{snackbar.lote.id}</span></div>
+                <div>SKU: <span style={{ color: "#FFE000" }}>{snackbar.lote.sku}</span></div>
+                <div>{snackbar.lote.cantidad_inicial} u × {fmt(snackbar.lote.costo_unitario)}</div>
+              </div>
+            </div>
+            <button onClick={() => setSnackbar(null)}
+              style={{ background: "none", border: "none", color: "#555", fontSize: 16, cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+          </div>
+        </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 24 }}>
@@ -279,10 +315,14 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
                   <td style={{ padding: "12px 16px", fontSize: 11, color: "#333", fontFamily: "'Space Mono', monospace" }}>{num}</td>
                   <td style={tdMono("#888")}>{o.date}</td>
                   <td style={{ padding: "12px 16px", fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>{String(o.id)}</td>
-                  <td style={{ padding: "12px 16px", fontSize: 12, color: "#ddd" }}>
-                    <div>{o.title?.slice(0, 32)}{o.title?.length > 32 ? "..." : ""}</div>
+                  <td style={{ padding: "12px 16px", fontSize: 12, color: "#ddd", maxWidth: 240 }}>
+                    <div style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.35, wordBreak: "break-word" }}>
+                      {o.title}
+                    </div>
                     {o.titleExtra?.map((t, i) => (
-                      <div key={i} style={{ fontSize: 10, color: "#666", marginTop: 2 }}>+ {t?.slice(0, 32)}{t?.length > 32 ? "..." : ""}</div>
+                      <div key={i} style={{ fontSize: 10, color: "#666", marginTop: 2, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.35, wordBreak: "break-word" }}>
+                        + {t}
+                      </div>
                     ))}
                   </td>
                   <td style={tdMono("#FFE000")}>{fmt(o.salePrice)}</td>
