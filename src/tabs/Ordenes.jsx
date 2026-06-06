@@ -3,27 +3,30 @@ import StatCard from "../components/StatCard";
 import { fmt, sb } from "../utils";
 import { PER_PAGE, MESES } from "../constants";
 
-function ModalCostoRapido({ orden, onClose, onSaved }) {
-  const [costo, setCosto] = useState("");
-  const [cantidad, setCantidad] = useState("1");
-  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+function ModalCostoOrden({ orden, onClose, onSaved }) {
+  const orderId = String(orden.orderId || orden.id);
+  const qty = orden.qty || 1;
+  const esEdicion = orden.costoUnit != null;
+
+  const [costoUnit, setCostoUnit] = useState(esEdicion ? String(orden.costoUnit) : "");
+  const [notas, setNotas] = useState(orden.costoNotas || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const cantNum = parseInt(cantidad) || 1;
+  const unit = parseFloat(costoUnit);
+  const total = unit > 0 ? unit * qty : 0;
 
   const handleSave = async () => {
-    if (!costo) { setError("Ingresa el costo"); return; }
-    if (cantNum < 1) { setError("La cantidad debe ser al menos 1"); return; }
+    if (!unit || unit <= 0) { setError("Ingresa un costo unitario válido"); return; }
     setLoading(true); setError("");
     try {
-      const resp = await sb("lotes", "POST", {
-        sku: orden.sku,
-        titulo: orden.title,
-        cantidad_inicial: cantNum,
-        cantidad_disponible: cantNum, // FIFO descuenta al calcular, no aquí
-        costo_unitario: parseFloat(costo),
-        fecha_compra: fecha,
+      // Upsert: borra el costo previo si existía y reinserta
+      await sb(`costos_orden?order_id=eq.${orderId}`, "DELETE");
+      const resp = await sb("costos_orden", "POST", {
+        order_id: orderId,
+        costo_unitario: unit,
+        cantidad: qty,
+        notas: notas.trim() || null,
       });
       const saved = Array.isArray(resp) ? resp[0] : resp;
       onSaved(saved);
@@ -32,50 +35,54 @@ function ModalCostoRapido({ orden, onClose, onSaved }) {
     finally { setLoading(false); }
   };
 
-  const inp = { width: "100%", background: "#0a0a0f", border: "1px solid #2a2a2a", borderRadius: 8, padding: "10px 12px", color: "#fff", fontSize: 13, fontFamily: "'Space Mono', monospace", outline: "none" };
+  const inp = { width: "100%", background: "#0a0a0f", border: "1px solid #2a2a2a", borderRadius: 8, padding: "10px 12px", color: "#fff", fontSize: 13, fontFamily: "'Space Mono', monospace", outline: "none", boxSizing: "border-box" };
   const lbl = { display: "block", fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", letterSpacing: 2, marginBottom: 6, textTransform: "uppercase" };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 20 }}>
-      <div style={{ background: "#111", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 400 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 4 }}>💰 Agregar costo</div>
-            <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>{orden.title?.slice(0, 40)}</div>
+      <div style={{ background: "#111", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 28, width: "100%", maxWidth: 420 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
+              {esEdicion ? "✎ Editar costo" : "💰 Agregar costo"}
+            </div>
+            <div style={{ fontSize: 11, color: "#888", fontFamily: "'Syne', sans-serif", marginBottom: 2 }}>{orden.title}</div>
+            <div style={{ fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace" }}>
+              Orden #{orderId} · {qty} u
+            </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#555", fontSize: 20, cursor: "pointer", lineHeight: 1, flexShrink: 0 }}>×</button>
         </div>
 
-        <div style={{ background: "rgba(255,224,0,0.05)", border: "1px solid rgba(255,224,0,0.15)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 11, color: "#888", fontFamily: "'Space Mono', monospace" }}>
-          Crea un lote para <span style={{ color: "#FFE000" }}>{orden.sku}</span>. Pon la cantidad total que compraste en ese lote — el sistema FIFO asignará el costo a esta y futuras ventas automáticamente.
+        <div style={{ background: "rgba(0,201,255,0.05)", border: "1px solid rgba(0,201,255,0.15)", borderRadius: 8, padding: "10px 14px", marginBottom: 16, fontSize: 11, color: "#888", fontFamily: "'Space Mono', monospace", lineHeight: 1.5 }}>
+          El costo se guarda directamente ligado al <span style={{ color: "#00C9FF" }}>order_id</span> en la tabla <span style={{ color: "#00C9FF" }}>costos_orden</span>. No depende de lotes ni del SKU.
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-          <div>
-            <label style={lbl}>Costo unitario $</label>
-            <input type="number" value={costo} onChange={e => setCosto(e.target.value)} placeholder="Ej: 399" style={inp} autoFocus />
-          </div>
-          <div>
-            <label style={lbl}>Cant. total del lote</label>
-            <input type="number" value={cantidad} onChange={e => setCantidad(e.target.value)} placeholder="Ej: 8" style={inp} />
-          </div>
-        </div>
+        <label style={lbl}>Costo unitario $</label>
+        <input type="number" step="0.01" value={costoUnit} onChange={e => setCostoUnit(e.target.value)} placeholder="Ej: 399.00" style={{ ...inp, marginBottom: 12 }} autoFocus />
 
-        <label style={lbl}>Fecha de compra</label>
-        <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={{ ...inp, marginBottom: 16 }} />
+        {unit > 0 && (
+          <div style={{ background: "rgba(255,224,0,0.05)", border: "1px solid rgba(255,224,0,0.15)", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#888", display: "flex", justifyContent: "space-between" }}>
+            <span>Total ({qty} u × {fmt(unit)})</span>
+            <span style={{ color: "#FFE000", fontWeight: 700 }}>{fmt(total)}</span>
+          </div>
+        )}
+
+        <label style={lbl}>Notas (opcional)</label>
+        <input type="text" value={notas} onChange={e => setNotas(e.target.value)} placeholder="Ej: lote marzo, proveedor X..." style={{ ...inp, marginBottom: 16 }} />
 
         {error && <div style={{ background: "rgba(255,80,80,0.1)", border: "1px solid rgba(255,80,80,0.3)", borderRadius: 8, padding: "8px 12px", color: "#ff8080", fontSize: 11, fontFamily: "'Space Mono', monospace", marginBottom: 12 }}>⚠ {error}</div>}
 
         <button onClick={handleSave} disabled={loading}
           style={{ width: "100%", background: loading ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 8, padding: 12, fontSize: 13, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer" }}>
-          {loading ? "Guardando..." : "Guardar Lote →"}
+          {loading ? "Guardando..." : esEdicion ? "Actualizar costo →" : "Guardar costo →"}
         </button>
       </div>
     </div>
   );
 }
 
-export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedMonths = new Set(), enrichMonth, enrichingMonth, onDebug }) {
+export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, onCostoSaved, enrichedMonths = new Set(), enrichMonth, enrichingMonth, onDebug }) {
   const [page, setPage] = useState(1);
   const [mesSeleccionado, setMesSeleccionado] = useState("todos");
   const [ordenParaCosto, setOrdenParaCosto] = useState(null);
@@ -179,10 +186,10 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
   return (
     <div>
       {ordenParaCosto && (
-        <ModalCostoRapido
+        <ModalCostoOrden
           orden={ordenParaCosto}
           onClose={() => setOrdenParaCosto(null)}
-          onSaved={(saved) => { onLoteAdded(); setOrdenParaCosto(null); if (saved) showSnackbar(saved); }}
+          onSaved={(saved) => { onCostoSaved?.(); setOrdenParaCosto(null); if (saved) showSnackbar(saved); }}
         />
       )}
 
@@ -199,12 +206,12 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#00FF94", fontFamily: "'Syne', sans-serif", marginBottom: 6 }}>
-                ✓ Lote guardado en Supabase
+                ✓ Costo guardado en Supabase
               </div>
               <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", lineHeight: 1.6 }}>
                 <div>BD ID: <span style={{ color: "#00C9FF" }}>#{snackbar.lote.id}</span></div>
-                <div>SKU: <span style={{ color: "#FFE000" }}>{snackbar.lote.sku}</span></div>
-                <div>{snackbar.lote.cantidad_inicial} u × {fmt(snackbar.lote.costo_unitario)}</div>
+                <div>Orden: <span style={{ color: "#FFE000" }}>{snackbar.lote.order_id}</span></div>
+                <div>{snackbar.lote.cantidad || 1} u × {fmt(snackbar.lote.costo_unitario)}</div>
               </div>
             </div>
             <button onClick={() => setSnackbar(null)}
@@ -362,7 +369,10 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
                         + Costo
                       </button>
                     ) : (
-                      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, color: "#ff8080" }}>{fmt(o.costo)}</span>
+                      <button onClick={() => setOrdenParaCosto(o)} title="Editar costo"
+                        style={{ background: "transparent", border: "none", padding: 0, fontFamily: "'Space Mono', monospace", fontSize: 13, color: "#ff8080", cursor: "pointer" }}>
+                        {fmt(o.costo)} <span style={{ fontSize: 10, color: "#555" }}>✎</span>
+                      </button>
                     )}
                   </td>
                   {/* Caja */}
@@ -422,7 +432,7 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, enrichedM
                     })()}
                   </td>
                   <td style={{ padding: "12px 16px", fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace" }}>
-                    {sinLote ? <span style={{ color: "#333" }}>Sin lote</span> : o.loteInfo}
+                    {sinLote ? <span style={{ color: "#333" }}>—</span> : (o.costoNotas || <span style={{ color: "#444" }}>manual</span>)}
                   </td>
                   <td style={{ padding: "8px" }}>
                     {onDebug && (

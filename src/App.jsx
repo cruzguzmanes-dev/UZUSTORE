@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { TAX, MOCK_ORDERS, GS } from "./constants";
-import { sb, calcFIFO } from "./utils";
+import { sb, aplicarCostosManuales } from "./utils";
 import AdminLogin from "./components/AdminLogin";
 import ModalLote from "./components/ModalLote";
 import Resumen from "./tabs/Resumen";
@@ -117,6 +117,7 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [orders, setOrders] = useState([]);
   const [lotes, setLotes] = useState([]);
+  const [costosOrden, setCostosOrden] = useState({}); // { [order_id]: row }
   const [activeTab, setActiveTab] = useState("resumen");
   const [useMock, setUseMock] = useState(false);
   const [connectedUser, setConnectedUser] = useState("");
@@ -133,6 +134,15 @@ export default function App() {
     try { const data = await sb("lotes?order=fecha_compra.asc,created_at.asc"); setLotes(data || []); }
     catch (e) { console.error(e); }
     finally { setLoadingLotes(false); }
+  }, []);
+
+  const fetchCostosOrden = useCallback(async () => {
+    try {
+      const data = await sb("costos_orden?select=order_id,costo_unitario,cantidad,notas");
+      const map = {};
+      (data || []).forEach(c => { map[String(c.order_id)] = c; });
+      setCostosOrden(map);
+    } catch (e) { console.error("fetchCostosOrden", e); }
   }, []);
 
   const fetchOrders = useCallback(async (accessToken) => {
@@ -174,11 +184,11 @@ export default function App() {
         }];
       };
       setOrders(results.flatMap(mapOrder));
-      await fetchLotes();
+      await Promise.all([fetchLotes(), fetchCostosOrden()]);
       // El enriquecimiento se hace bajo demanda al seleccionar un mes en el tab Ordenes
     } catch (e) { alert("Error: " + e.message); }
     finally { setLoadingOrders(false); }
-  }, [fetchLotes]);
+  }, [fetchLotes, fetchCostosOrden]);
 
   // Enriquecer un mes específico bajo demanda
   const handleDebug = React.useCallback(async (orderId) => {
@@ -248,11 +258,11 @@ export default function App() {
   const connectMock = async () => {
     setUseMock(true); setConnected(true);
     setConnectedUser("UZUSTORE"); setOrders(MOCK_ORDERS);
-    await fetchLotes();
+    await Promise.all([fetchLotes(), fetchCostosOrden()]);
   };
 
   const paidOrders = orders.filter(o => o.status === "paid" && o.salePrice > 0);
-  const ordersWithFIFO = calcFIFO(paidOrders, lotes);
+  const ordersWithFIFO = aplicarCostosManuales(paidOrders, costosOrden);
 
   const totalVentas = ordersWithFIFO.reduce((s, o) => s + o.salePrice, 0);
   const totalNetoML = ordersWithFIFO.reduce((s, o) => s + (o.netoML || 0), 0);
@@ -398,7 +408,7 @@ export default function App() {
           />
         )}
         {activeTab === "ordenes" && (
-          <Ordenes ordersWithFIFO={ordersWithFIFO} orders={orders} onLoteAdded={fetchLotes} enrichedMonths={enrichedMonths} enrichMonth={enrichMonth} enrichingMonth={enrichingMonth} onDebug={handleDebug} />
+          <Ordenes ordersWithFIFO={ordersWithFIFO} orders={orders} onLoteAdded={fetchLotes} onCostoSaved={fetchCostosOrden} enrichedMonths={enrichedMonths} enrichMonth={enrichMonth} enrichingMonth={enrichingMonth} onDebug={handleDebug} />
         )}
         {activeTab === "distribuidores" && (
           <Distribuidores />

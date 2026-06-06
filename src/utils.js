@@ -20,6 +20,27 @@ export const sb = async (path, method = "GET", body) => {
   return res.status === 204 ? null : res.json();
 };
 
+// Aplica costos manuales guardados por order_id (tabla costos_orden).
+// Reemplaza el cálculo FIFO desde lotes mientras se diseña el sistema automático.
+export const aplicarCostosManuales = (paidOrders, costosMap) => {
+  return paidOrders.map(order => {
+    const netoML = order.saleFee > 0 ? order.paidAmount : null;
+    const realId = String(order.orderId || order.id);
+    const c = costosMap?.[realId];
+    if (!c) return { ...order, costo: null, costoUnit: null, costoNotas: null, netoML, loteInfo: null };
+    const qty = order.qty || c.cantidad || 1;
+    const unit = parseFloat(c.costo_unitario) || 0;
+    return {
+      ...order,
+      costo: unit * qty,
+      costoUnit: unit,
+      costoNotas: c.notas || null,
+      netoML,
+      loteInfo: c.notas ? `manual · ${c.notas}` : "manual",
+    };
+  });
+};
+
 export const calcFIFO = (paidOrders, lotes) => {
   const lotesCopy = lotes.map(l => ({ ...l, _disp: l.cantidad_disponible }));
   return paidOrders.map(order => {
