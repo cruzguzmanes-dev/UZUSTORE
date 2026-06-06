@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { sb, fmt } from "../utils";
+import Loader from "../components/Loader";
 
 export default function Empaques() {
   const [empaques, setEmpaques] = useState([]);
@@ -116,9 +117,7 @@ export default function Empaques() {
 
       {/* Tabla */}
       {loading ? (
-        <div style={{ textAlign: "center", padding: 40, fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555" }}>
-          Cargando empaques...
-        </div>
+        <Loader size={96} message="Cargando empaques" />
       ) : empaques.length === 0 ? (
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.1)", borderRadius: 16, padding: 48, textAlign: "center" }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>

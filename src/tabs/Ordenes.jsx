@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import StatCard from "../components/StatCard";
+import Loader from "../components/Loader";
 import { fmt, sb } from "../utils";
 import { PER_PAGE, MESES } from "../constants";
 
@@ -291,8 +292,13 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, onCostoSa
             <button
               onClick={() => enrichMonth && enrichMonth(mesSeleccionado)}
               disabled={enrichingMonth === mesSeleccionado}
-              style={{ background: enrichingMonth === mesSeleccionado ? "rgba(255,224,0,0.05)" : "rgba(255,224,0,0.1)", border: "1px solid rgba(255,224,0,0.3)", borderRadius: 8, padding: "6px 14px", color: enrichingMonth === mesSeleccionado ? "#888" : "#FFE000", fontSize: 11, fontFamily: "'Space Mono', monospace", cursor: enrichingMonth === mesSeleccionado ? "default" : "pointer", whiteSpace: "nowrap" }}>
-              {enrichingMonth === mesSeleccionado ? "⏳ Cargando datos ML..." : "⬇ Cargar datos ML"}
+              style={{ background: enrichingMonth === mesSeleccionado ? "rgba(255,224,0,0.05)" : "rgba(255,224,0,0.1)", border: "1px solid rgba(255,224,0,0.3)", borderRadius: 8, padding: "4px 12px", color: enrichingMonth === mesSeleccionado ? "#888" : "#FFE000", fontSize: 11, fontFamily: "'Space Mono', monospace", cursor: enrichingMonth === mesSeleccionado ? "default" : "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 8 }}>
+              {enrichingMonth === mesSeleccionado ? (
+                <>
+                  <span style={{ width: 24, display: "inline-flex" }}><Loader inline size={24} /></span>
+                  Cargando datos ML...
+                </>
+              ) : "⬇ Cargar datos ML"}
             </button>
           )}
           <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555" }}>

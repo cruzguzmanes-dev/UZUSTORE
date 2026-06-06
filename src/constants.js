@@ -1,4 +1,4 @@
-export const VERSION = "1.11.2";
+export const VERSION = "1.12.0";
 export const TAX = { ISR: 0.025, IVA_ML: 0.08, IVA_SAT: 0.08 };
 export const REDIRECT_URI = "https://uzustore.vercel.app";
 export const SUPABASE_URL = "https://kzngmlofewyoteedxxca.supabase.co";

@@ -4,6 +4,7 @@ import { GS } from "../../constants";
 import UploadForm from "./UploadForm";
 import InventarioTable from "./InventarioTable";
 import DistribuidorLogin, { getDistribuidorSession, getDistribuidorRole } from "./DistribuidorLogin";
+import Loader from "../../components/Loader";
 
 const CSS = `
   ${GS}
@@ -185,7 +186,7 @@ export default function DistribuidorDashboard({ slug }) {
         <div>
           <h2 className="dist-section-title">Artículos</h2>
           {loading ? (
-            <p className="dist-empty">Cargando...</p>
+            <Loader size={100} message="Cargando artículos" />
           ) : inventario.length === 0 ? (
             <p className="dist-empty">No hay artículos aún.<br />¡Agrega el primero arriba!</p>
           ) : (

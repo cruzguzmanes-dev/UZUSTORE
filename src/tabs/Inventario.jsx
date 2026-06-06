@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { fmt, sb } from "../utils";
+import Loader from "../components/Loader";
 
 function SeccionEmpaques() {
   const [empaques, setEmpaques] = useState([]);
@@ -105,7 +106,7 @@ function SeccionEmpaques() {
       )}
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>Cargando empaques...</div>
+        <Loader size={96} message="Cargando empaques" />
       ) : empaques.length === 0 ? (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.07)", borderRadius: 16, padding: 32, textAlign: "center" }}>
           <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>Sin cajas registradas — agrega una para asignarlas a órdenes</div>
@@ -192,7 +193,7 @@ export default function Inventario({ lotes, loadingLotes, onAgregarLote, onLoteE
       </div>
 
       {loadingLotes ? (
-        <div style={{ textAlign: "center", padding: 40, color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>Cargando inventario...</div>
+        <Loader size={120} message="Cargando inventario" />
       ) : lotes.length === 0 ? (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: 40, textAlign: "center" }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>📦</div>

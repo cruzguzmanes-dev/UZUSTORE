@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { fmt, sb } from "../utils";
+import Loader from "../components/Loader";
 
 // ─── Estilos base ─────────────────────────────────────────────────────────────
 const inp = {
@@ -155,7 +156,7 @@ function SeccionFiguras({ onFigurasChange }) {
       )}
 
       {loading ? (
-        <div style={{ padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>Cargando...</div>
+        <Loader size={96} message="Cargando" />
       ) : figuras.length === 0 ? (
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.07)", borderRadius: 16, padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
           Sin figuras — agrega tu primer producto al catálogo
@@ -331,7 +332,7 @@ function SeccionCompras({ figuras, onFigurasChange }) {
       )}
 
       {loading ? (
-        <div style={{ padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>Cargando...</div>
+        <Loader size={96} message="Cargando" />
       ) : compras.length === 0 ? (
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.07)", borderRadius: 16, padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
           Sin compras registradas
@@ -612,7 +613,7 @@ function SeccionPaquetes({ onLoteEdited }) {
       )}
 
       {loading ? (
-        <div style={{ padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>Cargando...</div>
+        <Loader size={96} message="Cargando" />
       ) : paquetes.length === 0 ? (
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.07)", borderRadius: 16, padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
           Sin paquetes registrados
@@ -942,7 +943,7 @@ function SeccionPagos() {
       )}
 
       {loading ? (
-        <div style={{ padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>Cargando...</div>
+        <Loader size={96} message="Cargando" />
       ) : pagos.length === 0 ? (
         <div style={{ background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.07)", borderRadius: 16, padding: 32, textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
           Sin pagos registrados

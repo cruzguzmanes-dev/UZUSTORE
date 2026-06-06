@@ -3,6 +3,7 @@ import { TAX, MOCK_ORDERS, GS, VERSION } from "./constants";
 import { sb, aplicarCostosManuales } from "./utils";
 import AdminLogin from "./components/AdminLogin";
 import ModalLote from "./components/ModalLote";
+import Loader from "./components/Loader";
 import Resumen from "./tabs/Resumen";
 import Mensual from "./tabs/Mensual";
 import Inventario from "./tabs/Inventario";
@@ -359,8 +360,10 @@ export default function App() {
 
       {/* Loading banner */}
       {loadingOrders && (
-        <div style={{ background: "rgba(255,224,0,0.06)", borderBottom: "1px solid rgba(255,224,0,0.15)", padding: "10px 32px", display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#FFE000", animation: "pulse 1s infinite" }} />
+        <div style={{ background: "rgba(255,224,0,0.06)", borderBottom: "1px solid rgba(255,224,0,0.15)", padding: "8px 32px", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 32, flexShrink: 0 }}>
+            <Loader inline size={32} />
+          </div>
           <span style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#FFE000" }}>
             Descargando órdenes y desglose de comisiones... {orders.length} procesadas
           </span>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { fmt } from "../../utils";
+import Loader from "../../components/Loader";
 
 const fmtFecha = (iso) => {
   const d = new Date(iso);
@@ -383,9 +384,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             </p>
 
             {historialLoading ? (
-              <p style={{ textAlign: "center", color: "#555", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
-                Cargando...
-              </p>
+              <Loader size={80} message="Cargando historial" />
             ) : historialData.length === 0 ? (
               <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
                 Sin ventas registradas aún

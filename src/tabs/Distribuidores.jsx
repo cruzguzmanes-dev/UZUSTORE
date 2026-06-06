@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { fmt, sb } from "../utils";
+import Loader from "../components/Loader";
 
 const SLUGS   = ["gaticueva", "friki"];
 const NOMBRES = { gaticueva: "Gaticueva", friki: "Friki" };
@@ -169,7 +170,7 @@ export default function Distribuidores() {
       </div>
 
       {loading ? (
-        <p style={{ color: "#666", fontFamily: "'Space Mono', monospace", fontSize: 13 }}>Cargando...</p>
+        <Loader size={120} message="Cargando distribuidores" />
       ) : (
         <DistribuidorDetalle
           slug={tab}
