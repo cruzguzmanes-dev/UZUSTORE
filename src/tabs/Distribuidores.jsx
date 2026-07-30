@@ -19,6 +19,7 @@ export default function Distribuidores() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [tab,     setTab]     = useState("gaticueva");
+  const [showAdd, setShowAdd] = useState(false);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -77,6 +78,25 @@ export default function Distribuidores() {
       }),
     });
     fetchAll();
+  };
+
+  const crearArticulo = async ({ nombre, foto_url, precio_mayoreo, cantidad }) => {
+    const res = await fetch("/api/distribuidor/inventario", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        distribuidor: tab,
+        nombre: nombre || null,
+        foto_url: foto_url || null,
+        precio_mayoreo: precio_mayoreo || null,
+        cantidad: parseInt(cantidad) || 1,
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Error creando artículo");
+    }
+    await fetchAll();
   };
 
   const registrarPago = async (slug, monto, tipo, notas) => {
@@ -185,6 +205,238 @@ export default function Distribuidores() {
           onUpdateModoPrecio={updateModoPrecio}
         />
       )}
+
+      {/* ─── Botón flotante: alta rápida ─── */}
+      <button
+        onClick={() => setShowAdd(true)}
+        aria-label={`Agregar artículo a ${NOMBRES[tab]}`}
+        style={{
+          position: "fixed",
+          right: "max(20px, env(safe-area-inset-right, 20px))",
+          bottom: "max(24px, env(safe-area-inset-bottom, 24px))",
+          width: 58, height: 58, borderRadius: "50%",
+          background: COLORS[tab], border: "none",
+          color: "#000", fontSize: 30, fontWeight: 700, lineHeight: 1,
+          cursor: "pointer", zIndex: 900,
+          boxShadow: `0 6px 20px ${COLORS[tab]}55, 0 2px 6px rgba(0,0,0,0.4)`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+      >
+        +
+      </button>
+
+      {showAdd && (
+        <QuickAddSheet
+          slug={tab}
+          color={COLORS[tab]}
+          onClose={() => setShowAdd(false)}
+          onCreate={crearArticulo}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ─── Compresión de imagen (cámara / galería) ─── */
+function compressImage(file, maxSize = 400, quality = 0.65) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+        canvas.width  = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ─── Sheet de alta rápida (desde el admin) ─── */
+function QuickAddSheet({ slug, color, onClose, onCreate }) {
+  const [nombre,   setNombre]   = useState("");
+  const [mayoreo,  setMayoreo]  = useState("");
+  const [cantidad, setCantidad] = useState("1");
+  const [preview,  setPreview]  = useState("");
+  const [fotoB64,  setFotoB64]  = useState("");
+  const [comprimiendo, setComprimiendo] = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState("");
+
+  const handleFoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setComprimiendo(true);
+    setError("");
+    try {
+      const b64 = await compressImage(file);
+      setFotoB64(b64);
+      setPreview(b64);
+    } catch (err) {
+      setError("No se pudo procesar la foto");
+    } finally {
+      setComprimiendo(false);
+    }
+  };
+
+  const guardar = async (cerrar) => {
+    setSaving(true);
+    setError("");
+    try {
+      await onCreate({
+        nombre: nombre.trim(),
+        foto_url: fotoB64,
+        precio_mayoreo: mayoreo ? parseFloat(mayoreo) : null,
+        cantidad,
+      });
+      if (cerrar) {
+        onClose();
+      } else {
+        // "Guardar y agregar otro" — limpia y deja el sheet abierto
+        setNombre(""); setMayoreo(""); setCantidad("1");
+        setPreview(""); setFotoB64("");
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inp = {
+    width: "100%", background: "#111", border: "1px solid #2a2a2a", borderRadius: 8,
+    padding: "12px 14px", color: "#fff", fontSize: 16,
+    fontFamily: "'Space Mono', monospace", outline: "none", boxSizing: "border-box",
+  };
+  const lbl = {
+    display: "block", fontSize: 9, color: "#666", letterSpacing: 2,
+    textTransform: "uppercase", fontFamily: "'Space Mono', monospace", marginBottom: 6,
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.7)",
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+        paddingBottom: "max(24px, env(safe-area-inset-bottom, 24px))",
+        animation: "fadeInDist 0.15s ease",
+      }}
+    >
+      <style>{`
+        @keyframes fadeInDist { from { opacity:0 } to { opacity:1 } }
+        @keyframes slideUpDist { from { transform:translateY(20px);opacity:0 } to { transform:translateY(0);opacity:1 } }
+      `}</style>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: 20, padding: 22, width: "calc(100% - 32px)", maxWidth: 420,
+          maxHeight: "88vh", overflowY: "auto", animation: "slideUpDist 0.2s ease",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div>
+            <p style={{ margin: "0 0 3px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+              ➕ Agregar artículo
+            </p>
+            <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color }}>
+              {NOMBRES[slug]}
+            </p>
+          </div>
+          <button onClick={onClose}
+            style={{ background: "none", border: "none", color: "#555", fontSize: 20, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* Foto */}
+        <label style={lbl}>Foto</label>
+        <div style={{ marginBottom: 14 }}>
+          {preview ? (
+            <div style={{ textAlign: "center" }}>
+              <img src={preview} alt="Preview" style={{ maxHeight: 180, maxWidth: "100%", borderRadius: 8, display: "block", margin: "0 auto" }} />
+              <button type="button" onClick={() => { setPreview(""); setFotoB64(""); }}
+                style={{ marginTop: 10, background: "none", border: "none", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'Space Mono', monospace" }}>
+                Cambiar foto
+              </button>
+            </div>
+          ) : (
+            <>
+              <input type="file" accept="image/*" capture="environment" onChange={handleFoto}
+                style={{ display: "none" }} id="quickFotoInput" />
+              <label htmlFor="quickFotoInput" style={{
+                display: "block", border: "2px dashed rgba(255,255,255,0.15)", borderRadius: 10,
+                padding: "22px 16px", textAlign: "center", cursor: "pointer",
+              }}>
+                <p style={{ margin: "0 0 6px 0", color: "#888", fontSize: 14 }}>
+                  {comprimiendo ? "Procesando…" : "📸 Tomar / elegir foto"}
+                </p>
+                <p style={{ margin: 0, color: "#555", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>
+                  Opcional
+                </p>
+              </label>
+            </>
+          )}
+        </div>
+
+        {/* Nombre */}
+        <div style={{ marginBottom: 14 }}>
+          <label style={lbl}>Nombre <span style={{ letterSpacing: 0, textTransform: "none", color: "#444" }}>(opcional)</span></label>
+          <input type="text" value={nombre} onChange={e => setNombre(e.target.value)}
+            placeholder="Ej: Goku UI" style={inp} />
+        </div>
+
+        {/* Precio mayoreo + cantidad */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 18 }}>
+          <div>
+            <label style={lbl}>Precio $ <span style={{ letterSpacing: 0, textTransform: "none", color: "#444" }}>(le cobras)</span></label>
+            <input type="number" inputMode="decimal" step="0.01" min="0" value={mayoreo}
+              onChange={e => setMayoreo(e.target.value)} placeholder="Ej: 350" style={inp} />
+          </div>
+          <div>
+            <label style={lbl}>Unidades</label>
+            <input type="number" inputMode="numeric" min="1" value={cantidad}
+              onChange={e => setCantidad(e.target.value)} style={inp} />
+          </div>
+        </div>
+
+        {error && (
+          <div style={{
+            background: "rgba(255,80,80,0.1)", border: "1px solid rgba(255,80,80,0.3)",
+            borderRadius: 8, padding: "10px 14px", color: "#ff8080",
+            fontSize: 12, fontFamily: "'Space Mono', monospace", marginBottom: 14,
+          }}>
+            ⚠ {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={() => guardar(false)} disabled={saving || comprimiendo}
+            style={{
+              width: "100%", background: saving || comprimiendo ? "#333" : "rgba(255,255,255,0.06)",
+              color: saving || comprimiendo ? "#666" : "#ccc", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 10, padding: 13, fontSize: 13, fontWeight: 700,
+              fontFamily: "'Space Mono', monospace", cursor: saving || comprimiendo ? "not-allowed" : "pointer",
+            }}>
+            {saving ? "Guardando…" : "+ Guardar y agregar otro"}
+          </button>
+          <button onClick={() => guardar(true)} disabled={saving || comprimiendo}
+            style={{
+              width: "100%", background: saving || comprimiendo ? "#333" : color,
+              color: saving || comprimiendo ? "#666" : "#000", border: "none",
+              borderRadius: 10, padding: 15, fontSize: 15, fontWeight: 700,
+              fontFamily: "'Syne', sans-serif", cursor: saving || comprimiendo ? "not-allowed" : "pointer",
+            }}>
+            {saving ? "Guardando…" : "Guardar y cerrar →"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

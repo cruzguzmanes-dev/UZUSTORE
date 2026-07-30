@@ -72,7 +72,7 @@ export default async function handler(req, res) {
 
     // POST /api/distribuidor/inventario
     if (req.method === 'POST') {
-      const { distribuidor, nombre, foto_url, precio_venta, cantidad } = req.body;
+      const { distribuidor, nombre, foto_url, precio_venta, precio_mayoreo, cantidad } = req.body;
 
       if (!distribuidor) {
         return res.status(400).json({ error: "Falta el campo 'distribuidor'" });
@@ -112,6 +112,8 @@ export default async function handler(req, res) {
             foto_url,
             // precio_venta es nullable — el distribuidor puede no querer revelarlo
             precio_venta: (precio_venta != null && precio_venta !== "") ? parseFloat(precio_venta) : null,
+            // precio_mayoreo lo asigna el dueño (alta rápida desde el admin); nullable
+            precio_mayoreo: (precio_mayoreo != null && precio_mayoreo !== "") ? parseFloat(precio_mayoreo) : null,
             cantidad: parseInt(cantidad) || 1,
           }),
         }
