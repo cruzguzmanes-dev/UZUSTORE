@@ -1,5 +1,40 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { fmt } from "../../utils";
+
+// Caché de fotos por id (base64) — evita volver a pedir la misma foto
+const fotoCache = new Map();
+
+/* Carga la foto de un artículo solo cuando su tarjeta entra en pantalla */
+function LazyFoto({ itemId, imgClass, phClass, alt = "" }) {
+  const [src, setSrc] = useState(() => fotoCache.get(itemId) || null);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (src) return; // ya cargada o en caché
+    const el = ref.current;
+    if (!el) return;
+    let done = false;
+    const load = () => {
+      if (done) return;
+      done = true;
+      fetch(`/api/distribuidor/inventario?foto=${itemId}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          const f = Array.isArray(d) ? d[0]?.foto_url : d?.foto_url;
+          if (f) { fotoCache.set(itemId, f); setSrc(f); }
+        })
+        .catch(() => {});
+    };
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) { obs.disconnect(); load(); }
+    }, { rootMargin: "150px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [itemId, src]);
+
+  if (src) return <img src={src} alt={alt} className={imgClass} />;
+  return <div ref={ref} className={phClass}>📦</div>;
+}
 
 const CSS = `
   .inv-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -224,10 +259,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
         <div className="confirm-overlay" onClick={() => setConfirmItem(null)}>
           <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-              {confirmItem.foto_url
-                ? <img src={confirmItem.foto_url} alt="" className="confirm-foto" />
-                : <div className="confirm-foto-placeholder">📦</div>
-              }
+              <LazyFoto itemId={confirmItem.id} imgClass="confirm-foto" phClass="confirm-foto-placeholder" />
               <div>
                 <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#fff" }}>
                   {confirmItem.nombre || "Sin nombre"}
@@ -262,10 +294,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
         <div className="confirm-overlay" onClick={() => setRestockItem(null)}>
           <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-              {restockItem.foto_url
-                ? <img src={restockItem.foto_url} alt="" className="confirm-foto" />
-                : <div className="confirm-foto-placeholder">📦</div>
-              }
+              <LazyFoto itemId={restockItem.id} imgClass="confirm-foto" phClass="confirm-foto-placeholder" />
               <div>
                 <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#fff" }}>
                   {restockItem.nombre || "Sin nombre"}
@@ -363,10 +392,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
               {/* Engrane */}
               <button className="inv-btn-gear" onClick={() => openEdit(item)}>⚙</button>
 
-              {item.foto_url
-                ? <img src={item.foto_url} alt={item.nombre} className="inv-img" />
-                : <div className="inv-img-placeholder">📦</div>
-              }
+              <LazyFoto itemId={item.id} imgClass="inv-img" phClass="inv-img-placeholder" alt={item.nombre} />
               <div className="inv-info">
                 <div className="inv-name" style={{ paddingRight: 28 }}>{item.nombre || "Sin nombre"}</div>
 

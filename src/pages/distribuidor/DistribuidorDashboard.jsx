@@ -126,7 +126,8 @@ export default function DistribuidorDashboard({ slug }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/distribuidor/inventario?distribuidor=${slug}`);
+      // light=1 → sin fotos (base64); cada foto se carga lazy cuando su tarjeta se ve
+      const res = await fetch(`/api/distribuidor/inventario?distribuidor=${slug}&light=1`);
       if (!res.ok) throw new Error("Error cargando inventario");
       setInventario(await res.json() || []);
     } catch (e) {
@@ -197,14 +198,9 @@ export default function DistribuidorDashboard({ slug }) {
   // Cálculos
   const totalStock    = inventario.reduce((s, i) => s + i.cantidad, 0);
   const totalVendidas = inventario.reduce((s, i) => s + (i.vendidas || 0), 0);
-  const mayoreoSet    = inventario.some(i => (i.precio_mayoreo || 0) > 0);
   const totalDebo     = inventario.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0);
   const totalPagado   = pagos.reduce((s, p) => s + p.monto, 0);
   const saldo         = totalDebo - totalPagado;
-  // Ventas y ganancia solo si hay precio_venta registrado
-  const tienePrecio   = inventario.some(i => (i.precio_venta || 0) > 0);
-  const totalVentas   = tienePrecio ? inventario.reduce((s, i) => s + ((i.precio_venta || 0) * (i.vendidas || 0)), 0) : null;
-  const totalGanancia = totalVentas !== null ? totalVentas - totalDebo : null;
 
   // Filtro de búsqueda
   const q = search.trim().toLowerCase();
@@ -360,31 +356,6 @@ export default function DistribuidorDashboard({ slug }) {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Corte extra — solo admin (total a cobrar + ganancia) */}
-        {isAdmin && totalVendidas > 0 && (totalVentas !== null || mayoreoSet) && (
-          <div className="corte-card">
-            <p className="corte-title">📊 Mi Corte</p>
-            {totalVentas !== null && (
-              <div className="corte-row">
-                <span className="corte-label">Total ventas</span>
-                <span className="corte-val">{fmt(totalVentas)}</span>
-              </div>
-            )}
-            {mayoreoSet && (
-              <div className="corte-row">
-                <span className="corte-label">Total a cobrar (mayoreo)</span>
-                <span className="corte-val">{fmt(totalDebo)}</span>
-              </div>
-            )}
-            {totalGanancia !== null && (
-              <div className="corte-row">
-                <span className="corte-label">Mi ganancia neta</span>
-                <span className="corte-val green">{fmt(totalGanancia)}</span>
-              </div>
-            )}
           </div>
         )}
 
@@ -640,13 +611,17 @@ export default function DistribuidorDashboard({ slug }) {
             ) : (
               <>
                 <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>Total</span>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>Total mayoreo</span>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
-                    {histVentas.reduce((s, v) => s + v.cantidad, 0)} uds · {fmt(histVentas.reduce((s, v) => s + ((v.precio_venta || 0) * v.cantidad), 0))}
+                    {histVentas.reduce((s, v) => s + v.cantidad, 0)} uds · {fmt(histVentas.reduce((s, v) => {
+                      const it = inventario.find(i => i.id === v.item_id);
+                      return s + ((it?.precio_mayoreo || 0) * v.cantidad);
+                    }, 0))}
                   </span>
                 </div>
                 {histVentas.map(v => {
                   const item = inventario.find(i => i.id === v.item_id);
+                  const mayoreo = item?.precio_mayoreo || 0;
                   return (
                     <div key={v.id} className="pay-hist-row">
                       <div>
@@ -658,7 +633,7 @@ export default function DistribuidorDashboard({ slug }) {
                         </div>
                       </div>
                       <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
-                        {(v.precio_venta || 0) > 0 ? fmt(v.precio_venta) : "—"}
+                        {mayoreo > 0 ? fmt(mayoreo * v.cantidad) : "—"}
                       </span>
                     </div>
                   );

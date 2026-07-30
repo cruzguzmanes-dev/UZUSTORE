@@ -125,7 +125,7 @@ Cada distribuidor en la tabla `distribuidores` tiene dos códigos:
 | Campo | Rol | Acceso |
 |-------|-----|--------|
 | `acceso_code` | `basic` (Normal) | Editar nombre y su precio de venta, marcar vendidos, restock, **ver saldo y solicitar pagos**, ver historiales de ventas y pagos. NO puede agregar inventario ni tocar el mayoreo. |
-| `acceso_admin` | `admin` (PRO) | Todo lo anterior + **agregar inventario** (con precio de mayoreo) + **aceptar/rechazar pagos** + corte con ganancia y total a cobrar |
+| `acceso_admin` | `admin` (PRO) | Todo lo anterior + **agregar inventario** (con precio de mayoreo) + **editar el mayoreo** de artículos + **aceptar/rechazar pagos** |
 
 Los historiales de **ventas** ("📋 Ventas") y de **pagos** ("🧾 Pagos") son botones arriba visibles para **ambos** roles.
 
@@ -314,7 +314,7 @@ Archivos: `src/pages/distribuidor/`
 | Ver saldo al proveedor + **solicitar** pago (total/parcial) | ✅ | ✅ |
 | Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
 | **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
-| Ver corte con ganancia + total a cobrar (📊 Mi Corte) | ❌ | ✅ |
+| Ver "💳 Pagos por aceptar" (aceptar/rechazar solicitudes) | ❌ | ✅ |
 | Ver el `precio_mayoreo` en la tarjeta (solo lectura, en chico junto al precio de venta) | ✅ | ✅ |
 | **Editar** el `precio_mayoreo` | ❌ | ✅ |
 | Ver historial de ventas y de pagos (botones "📋 Ventas" / "🧾 Pagos" arriba, no por celda) | ✅ | ✅ |
@@ -324,11 +324,9 @@ Solo el PRO ve el formulario de alta (`asOwner`), y captura **precio de mayoreo*
 
 **Card de saldo (todos los roles, es lo primero al entrar):** Normal ve **"Le debes al proveedor"** (con botón Pagar); PRO ve **"Te deben actualmente"** (sin botón Pagar, porque cobra, no paga). Valor = `precio_mayoreo × vendidas − pagos aceptados`. Solo aparece cuando el artículo tiene `precio_mayoreo` asignado — que el **PRO** puede fijar desde el ⚙ de cada artículo o al subirlo, o el dueño desde su panel. Muestra vendidas y total ya pagado. El botón **Pagar** (total/parcial) crea una **solicitud pendiente** (no descuenta hasta que el dueño/PRO la acepta); mientras hay una pendiente muestra "⏳ En revisión" y se bloquea pedir otra. **🧾 Mis pagos** lista pagos aceptados + pendientes. Solo aparece cuando el dueño ya configuró `precio_mayoreo`.
 
-**Corte extra (solo admin/PRO):**
-- "Total ventas" → solo si tiene `precio_venta` en algún artículo
-- "Total a cobrar (mayoreo)" → `precio_mayoreo × vendidas`
-- "Mi ganancia neta" → `total ventas − total a cobrar` (solo si tiene `precio_venta`)
-- **"💳 Pagos por aceptar"** → lista de solicitudes pendientes con botones Aceptar/Rechazar
+**"💳 Pagos por aceptar" (solo PRO):** lista de solicitudes pendientes con botones Aceptar/Rechazar. (La sección "📊 Mi Corte" con ganancia se quitó — no se usa por ahora.)
+
+**Historial de ventas ("📋 Ventas"):** cada venta muestra el **costo de mayoreo** del artículo (mapeado por `item_id` contra el inventario), no el precio de venta. El total es la suma de mayoreos = lo que se debe por esas ventas. Los artículos aún sin mayoreo asignado muestran "—".
 
 ---
 
@@ -352,6 +350,7 @@ El sistema es **append-only**: nunca se modifican ni eliminan pagos. El saldo si
 ## Notas de implementación importantes
 
 - **Fotos**: se comprimen a máx 400px, calidad JPEG 0.65, y se guardan como `base64` en la columna `foto_url`. No se usa storage externo.
+- **Carga lazy de fotos (portal del distribuidor)**: el listado se pide con `?light=1` (sin `foto_url`, solo datos ligeros → saldo, búsqueda y filtros instantáneos). Cada foto se carga sola cuando su tarjeta entra en pantalla, vía el componente `LazyFoto` (IntersectionObserver) que pide `?foto=ID` y cachea el base64 en un `Map` por id. Esto evita descargar ~10 MB de imágenes al abrir el portal con muchos artículos. El panel del dueño (`Distribuidores.jsx`) todavía trae las fotos completas (pendiente de optimizar si crece).
 - **FKs en Supabase**: `inventario_distribuidor.id` y `distribuidores.id` son `INTEGER` (SERIAL), **no UUID**. Al crear tablas relacionadas, usar `INTEGER` para las foreign keys.
 - **`sb()` helper**: wrapper de fetch para Supabase REST API, disponible en `src/utils.js`. Lanza error si `!res.ok`.
 - **Optimistic update** en toggle de `modo_precio`: la UI se actualiza antes de confirmar con el servidor; revierte si falla.

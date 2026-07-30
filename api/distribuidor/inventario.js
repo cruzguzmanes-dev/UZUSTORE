@@ -16,7 +16,22 @@ export default async function handler(req, res) {
   try {
     // GET /api/distribuidor/inventario?distribuidor=gaticueva
     if (req.method === 'GET') {
-      const { distribuidor, id } = req.query;
+      const { distribuidor, id, foto, light } = req.query;
+
+      // Foto de un solo artículo (carga lazy desde el portal)
+      if (foto) {
+        const r = await fetch(
+          `${SUPABASE_URL}/rest/v1/inventario_distribuidor?id=eq.${foto}&select=foto_url`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": SUPABASE_KEY,
+              "Authorization": `Bearer ${SUPABASE_KEY}`,
+            },
+          }
+        );
+        return res.status(r.status).json(await r.json());
+      }
 
       if (id) {
         // GET un artículo específico
@@ -55,9 +70,13 @@ export default async function handler(req, res) {
       }
       const distribuidor_id = slugData[0].id;
 
-      // Obtener inventario del distribuidor
+      // Obtener inventario del distribuidor.
+      // light=1 → sin foto_url (base64 pesado); las fotos se piden aparte con ?foto=ID
+      const selectLight = light
+        ? "&select=id,distribuidor_id,nombre,precio_venta,precio_mayoreo,cantidad,vendidas,lote_sku,created_at"
+        : "";
       const invRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/inventario_distribuidor?distribuidor_id=eq.${distribuidor_id}&order=created_at.desc`,
+        `${SUPABASE_URL}/rest/v1/inventario_distribuidor?distribuidor_id=eq.${distribuidor_id}${selectLight}&order=created_at.desc`,
         {
           headers: {
             "Content-Type": "application/json",
