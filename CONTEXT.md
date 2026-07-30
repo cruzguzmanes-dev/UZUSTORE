@@ -124,8 +124,12 @@ Cada distribuidor en la tabla `distribuidores` tiene dos códigos:
 
 | Campo | Rol | Acceso |
 |-------|-----|--------|
-| `acceso_code` | `basic` | Agregar artículos, editar nombre/precio, marcar vendidos, restock, **ver saldo y solicitar pagos** |
-| `acceso_admin` | `admin` (PRO) | Todo lo anterior + subir inventario con precio de mayoreo + **aceptar/rechazar pagos** + corte con ganancia y total a cobrar + historial de ventas por artículo |
+| `acceso_code` | `basic` (Normal) | Editar nombre y su precio de venta, marcar vendidos, restock, **ver saldo y solicitar pagos**, ver historiales de ventas y pagos. NO puede agregar inventario ni tocar el mayoreo. |
+| `acceso_admin` | `admin` (PRO) | Todo lo anterior + **agregar inventario** (con precio de mayoreo) + **aceptar/rechazar pagos** + corte con ganancia y total a cobrar |
+
+Los historiales de **ventas** ("📋 Ventas") y de **pagos** ("🧾 Pagos") son botones arriba visibles para **ambos** roles.
+
+El header del portal muestra un badge **NORMAL** / **PRO** junto a "Gestiona tu inventario" según el código con el que se entró.
 
 > **Ningún rol puede eliminar artículos.** Borrar es exclusivo del dueño desde su panel admin. El saldo pendiente y el flujo de pago (total/parcial) son visibles para **ambos** roles.
 
@@ -245,6 +249,7 @@ created_at          TIMESTAMPTZ
 
 ### `/api/distribuidor/historial`
 - `GET ?item_id=X` → historial de ventas de un artículo (`ventas_distribuidor` ordenado por fecha desc)
+- `GET ?distribuidor=slug` → historial de ventas de todo el distribuidor (usado por la sección "📋 Historial de ventas" del portal PRO)
 
 ### `/api/distribuidor/pagos`
 - `GET ?slug=X` → historial de pagos (solo aceptados) del distribuidor
@@ -291,8 +296,8 @@ Archivos: `src/pages/distribuidor/`
 **Flujo:**
 1. `DistribuidorLogin.jsx` — pantalla de código de acceso
 2. `DistribuidorDashboard.jsx` — carga inventario, pagos y datos del distribuidor; incluye card de saldo, flujo de pago y buscador
-3. `UploadForm.jsx` — formulario para agregar artículos (foto requerida; precio opcional según `modo_precio`)
-4. `InventarioTable.jsx` — grid de artículos con acciones (editar, vendido, restock; **sin eliminar**)
+3. `UploadForm.jsx` — formulario para agregar artículos. **Solo visible para PRO** (`{isAdmin && <UploadForm asOwner />}`); captura precio de mayoreo.
+4. `InventarioTable.jsx` — grid de artículos con acciones (editar nombre/precio, vendido, restock; **sin eliminar, sin historial por celda**)
 
 **Comportamiento por rol:**
 
@@ -300,7 +305,7 @@ Archivos: `src/pages/distribuidor/`
 |---------|-------|-------|
 | Ver inventario | ✅ | ✅ |
 | Buscar artículo por nombre | ✅ | ✅ |
-| Agregar artículos | ✅ | ✅ |
+| **Agregar artículos** (formulario de alta) | ❌ | ✅ |
 | Editar nombre y su precio de venta (⚙) | ✅ | ✅ |
 | Marcar vendido | ✅ | ✅ |
 | Restock (+ Stock) | ✅ | ✅ |
@@ -310,10 +315,10 @@ Archivos: `src/pages/distribuidor/`
 | **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
 | Ver corte con ganancia + total a cobrar (📊 Mi Corte) | ❌ | ✅ |
 | Ver precio asignado por dueño (`precio_mayoreo`) | ❌ | ✅ |
-| Ver historial de ventas por artículo | ❌ | ✅ |
+| Ver historial de ventas y de pagos (botones "📋 Ventas" / "🧾 Pagos" arriba, no por celda) | ✅ | ✅ |
 | Ver ganancia acumulada por artículo | ❌ | ✅ (si tiene precio_venta) |
 
-El formulario de alta usa `asOwner={isAdmin}`: el PRO captura **precio de mayoreo** (lo que cobra el dueño), el distribuidor normal captura su **precio de venta**.
+Solo el PRO ve el formulario de alta (`asOwner`), y captura **precio de mayoreo** (lo que cobra el dueño). El distribuidor normal no agrega inventario; solo edita nombre y su **precio de venta** en artículos existentes.
 
 **Card de saldo (todos los roles):** "Le debes al proveedor" = `precio_mayoreo × vendidas − pagos aceptados`. Muestra vendidas y total ya pagado. El botón **Pagar** (total/parcial) crea una **solicitud pendiente** (no descuenta hasta que el dueño/PRO la acepta); mientras hay una pendiente muestra "⏳ En revisión" y se bloquea pedir otra. **🧾 Mis pagos** lista pagos aceptados + pendientes. Solo aparece cuando el dueño ya configuró `precio_mayoreo`.
 

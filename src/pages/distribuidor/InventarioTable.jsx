@@ -1,14 +1,5 @@
 import React, { useState } from "react";
 import { fmt } from "../../utils";
-import Loader from "../../components/Loader";
-
-const fmtFecha = (iso) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("es-MX", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-};
 
 const CSS = `
   .inv-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
@@ -107,13 +98,6 @@ const CSS = `
     font-size: 14px; cursor: pointer; line-height: 1;
   }
   .inv-btn-gear:hover { background: rgba(255,255,255,0.12); color: #aaa; }
-  .inv-link-hist {
-    background: none; border: none; padding: 0;
-    font-family: 'Space Mono', monospace; font-size: 10px;
-    color: #555; cursor: pointer; text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-  .inv-link-hist:hover { color: #aaa; }
   .edit-inp {
     width: 100%; background: #111; border: 1px solid #2a2a2a;
     border-radius: 8px; padding: 11px 14px; color: #fff;
@@ -124,14 +108,6 @@ const CSS = `
     display: block; font-size: 9px; color: #666; letter-spacing: 2px;
     text-transform: uppercase; font-family: 'Space Mono', monospace; margin-bottom: 6px;
   }
-  .hist-row {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
-  }
-  .hist-row:last-child { border-bottom: none; }
-  .hist-fecha { font-family: 'Space Mono', monospace; font-size: 11px; color: #666; }
-  .hist-precio { font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; color: #7ecc7e; }
-  .hist-cant { font-family: 'Space Mono', monospace; font-size: 11px; color: #aaa; }
 `;
 
 export default function InventarioTable({ items, isAdmin = false, modoPrecio = "venta", onItemSold }) {
@@ -146,11 +122,6 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
   // Restock
   const [restockItem, setRestockItem]     = useState(null);
   const [restockQty, setRestockQty]       = useState("1");
-
-  // Historial (admin)
-  const [historialItem, setHistorialItem] = useState(null);
-  const [historialData, setHistorialData] = useState([]);
-  const [historialLoading, setHistorialLoading] = useState(false);
 
   /* ─── Venta ─── */
   const confirmSell = (item) => {
@@ -208,22 +179,6 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
       alert("Error: " + e.message);
     } finally {
       setRestockingId(null);
-    }
-  };
-
-  /* ─── Historial ─── */
-  const openHistorial = async (item) => {
-    setHistorialItem(item);
-    setHistorialData([]);
-    setHistorialLoading(true);
-    try {
-      const res = await fetch(`/api/distribuidor/historial?item_id=${item.id}`);
-      if (!res.ok) throw new Error("Error cargando historial");
-      setHistorialData(await res.json());
-    } catch (e) {
-      setHistorialData([]);
-    } finally {
-      setHistorialLoading(false);
     }
   };
 
@@ -344,55 +299,6 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
         </div>
       )}
 
-      {/* ── Sheet: Historial (admin) ── */}
-      {historialItem && (
-        <div className="confirm-overlay" onClick={() => setHistorialItem(null)}>
-          <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff" }}>
-                📋 Historial de ventas
-              </p>
-              <button onClick={() => setHistorialItem(null)}
-                style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer" }}>✕</button>
-            </div>
-            <p style={{ margin: "0 0 16px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666" }}>
-              {historialItem.nombre || "Sin nombre"}
-            </p>
-
-            {historialLoading ? (
-              <Loader size={80} message="Cargando historial" />
-            ) : historialData.length === 0 ? (
-              <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
-                Sin ventas registradas aún
-              </p>
-            ) : (
-              <>
-                {/* Resumen rápido */}
-                <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>
-                    Total vendidas
-                  </span>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
-                    {historialData.reduce((s, v) => s + v.cantidad, 0)} uds · {fmt(historialData.reduce((s, v) => s + (v.precio_venta * v.cantidad), 0))}
-                  </span>
-                </div>
-
-                {/* Lista */}
-                {historialData.map((v) => (
-                  <div key={v.id} className="hist-row">
-                    <div>
-                      <div className="hist-fecha">{fmtFecha(v.created_at)}</div>
-                      <div className="hist-cant">x{v.cantidad} unidad{v.cantidad !== 1 ? "es" : ""}</div>
-                    </div>
-                    <div className="hist-precio">{fmt(v.precio_venta)}</div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* ── Sheet: Editar artículo ── */}
       {editItem && (
         <div className="confirm-overlay" onClick={() => setEditItem(null)}>
@@ -490,13 +396,6 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
                     {restockingId === item.id ? "..." : "📦 + Stock"}
                   </button>
                 </div>
-
-                {/* Historial — solo admin */}
-                {isAdmin && (
-                  <button className="inv-link-hist" onClick={() => openHistorial(item)}>
-                    ver historial de ventas
-                  </button>
-                )}
               </div>
             </div>
           );

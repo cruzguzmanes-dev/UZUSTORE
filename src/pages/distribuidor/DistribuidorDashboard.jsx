@@ -44,7 +44,6 @@ const CSS = `
   .saldo-label { font-family: 'Space Mono', monospace; font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 4px 0; }
   .saldo-monto { font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700; margin: 0; }
   .saldo-sub { font-family: 'Space Mono', monospace; font-size: 11px; color: #666; margin: 6px 0 0 0; }
-  .saldo-pending { font-family: 'Space Mono', monospace; font-size: 11px; color: #555; font-style: italic; margin: 0; }
 
   /* Corte extra (solo admin) */
   .corte-card {
@@ -117,6 +116,11 @@ export default function DistribuidorDashboard({ slug }) {
   const [savingPay, setSavingPay]   = useState(false);
   const [resolviendo, setResolviendo] = useState(null); // id de solicitud en proceso
 
+  // Historial de ventas (sección arriba, PRO)
+  const [showHistVentas, setShowHistVentas] = useState(false);
+  const [histVentas, setHistVentas]         = useState([]);
+  const [histLoading, setHistLoading]       = useState(false);
+
   const fetchInventario = async () => {
     setLoading(true);
     setError("");
@@ -143,6 +147,19 @@ export default function DistribuidorDashboard({ slug }) {
       const res = await fetch(`/api/distribuidor/solicitudes?slug=${slug}`);
       if (res.ok) setSolicitudes(await res.json() || []);
     } catch {}
+  };
+
+  const abrirHistVentas = async () => {
+    setShowHistVentas(true);
+    setHistLoading(true);
+    try {
+      const res = await fetch(`/api/distribuidor/historial?distribuidor=${slug}`);
+      setHistVentas(res.ok ? (await res.json() || []) : []);
+    } catch {
+      setHistVentas([]);
+    } finally {
+      setHistLoading(false);
+    }
   };
 
   const fetchDistribuidor = async () => {
@@ -254,7 +271,18 @@ export default function DistribuidorDashboard({ slug }) {
         {/* Header */}
         <div className="dist-header">
           <h1 className="dist-title">📦 {distribuidor?.nombre || slug}</h1>
-          <p className="dist-sub">Gestiona tu inventario</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <p className="dist-sub" style={{ margin: 0 }}>Gestiona tu inventario</p>
+            <span style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: 1,
+              textTransform: "uppercase", padding: "2px 8px", borderRadius: 5,
+              background: isAdmin ? "rgba(255,224,0,0.12)" : "rgba(255,255,255,0.08)",
+              border: `1px solid ${isAdmin ? "rgba(255,224,0,0.35)" : "rgba(255,255,255,0.15)"}`,
+              color: isAdmin ? "#FFE000" : "#999",
+            }}>
+              {isAdmin ? "PRO" : "Normal"}
+            </span>
+          </div>
         </div>
 
         {/* Stats básicas */}
@@ -267,6 +295,20 @@ export default function DistribuidorDashboard({ slug }) {
             <p className="stat-label">Vendidas</p>
             <p className="stat-value">{totalVendidas}</p>
           </div>
+        </div>
+
+        {/* Historiales — sección arriba, ambos roles */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <button
+            onClick={abrirHistVentas}
+            style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "12px 10px", color: "#ccc", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer", textAlign: "center" }}>
+            📋 Ventas
+          </button>
+          <button
+            onClick={() => setPaySheet("historial")}
+            style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "12px 10px", color: "#ccc", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer", textAlign: "center" }}>
+            🧾 Pagos
+          </button>
         </div>
 
         {/* Saldo con proveedor — visible para todos */}
@@ -285,20 +327,11 @@ export default function DistribuidorDashboard({ slug }) {
                 ⏳ En revisión: {fmt(totalPendiente)} — esperando que el proveedor lo acepte
               </p>
             )}
-            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-              {saldo > 0 && pendientes.length === 0 && (
-                <button className="pay-btn primary" style={{ flex: 2 }} onClick={() => setPaySheet("menu")}>
-                  💳 Pagar
-                </button>
-              )}
-              <button className="pay-btn ghost" style={{ flex: 1 }} onClick={() => setPaySheet("historial")}>
-                🧾 Mis pagos
+            {saldo > 0 && pendientes.length === 0 && (
+              <button className="pay-btn primary" style={{ width: "100%", marginTop: 14 }} onClick={() => setPaySheet("menu")}>
+                💳 Pagar
               </button>
-            </div>
-          </div>
-        ) : totalVendidas > 0 && !mayoreoSet ? (
-          <div className="saldo-card debe">
-            <p className="saldo-pending">El proveedor aún no ha configurado tu precio. Pronto verás aquí cuánto le debes.</p>
+            )}
           </div>
         ) : null}
 
@@ -363,10 +396,12 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         )}
 
-        {/* Upload Form — PRO sube con precio de mayoreo (como dueño) */}
-        <div style={{ marginBottom: 28 }}>
-          <UploadForm slug={slug} onSuccess={fetchInventario} modoPrecio={modoPrecio} asOwner={isAdmin} />
-        </div>
+        {/* Upload Form — solo PRO, sube con precio de mayoreo (como dueño) */}
+        {isAdmin && (
+          <div style={{ marginBottom: 28 }}>
+            <UploadForm slug={slug} onSuccess={fetchInventario} modoPrecio={modoPrecio} asOwner />
+          </div>
+        )}
 
         {/* Inventario */}
         <div>
@@ -550,6 +585,56 @@ export default function DistribuidorDashboard({ slug }) {
                   </span>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sheet: historial de ventas (PRO) ── */}
+      {showHistVentas && (
+        <div className="pay-overlay" onClick={() => setShowHistVentas(false)}>
+          <div className="pay-sheet" onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff" }}>
+                📋 Historial de ventas
+              </p>
+              <button onClick={() => setShowHistVentas(false)}
+                style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer" }}>✕</button>
+            </div>
+
+            {histLoading ? (
+              <Loader size={80} message="Cargando historial" />
+            ) : histVentas.length === 0 ? (
+              <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
+                Sin ventas registradas aún
+              </p>
+            ) : (
+              <>
+                <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>Total</span>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
+                    {histVentas.reduce((s, v) => s + v.cantidad, 0)} uds · {fmt(histVentas.reduce((s, v) => s + ((v.precio_venta || 0) * v.cantidad), 0))}
+                  </span>
+                </div>
+                {histVentas.map(v => {
+                  const item = inventario.find(i => i.id === v.item_id);
+                  return (
+                    <div key={v.id} className="pay-hist-row">
+                      <div>
+                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#fff", marginBottom: 2 }}>
+                          {item?.nombre || "Artículo"}
+                        </div>
+                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+                          {fmtFecha(v.created_at)} · x{v.cantidad}
+                        </div>
+                      </div>
+                      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
+                        {(v.precio_venta || 0) > 0 ? fmt(v.precio_venta) : "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </div>
