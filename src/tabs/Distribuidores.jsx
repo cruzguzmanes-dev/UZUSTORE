@@ -99,6 +99,28 @@ export default function Distribuidores() {
     await fetchAll();
   };
 
+  const eliminarArticulo = async (id) => {
+    const res = await fetch(`/api/distribuidor/inventario?id=${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Error eliminando");
+    }
+    await fetchAll();
+  };
+
+  const actualizarFoto = async (id, foto_url) => {
+    const res = await fetch(`/api/distribuidor/inventario?id=${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ foto_url }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Error actualizando foto");
+    }
+    await fetchAll();
+  };
+
   const registrarPago = async (slug, monto, tipo, notas) => {
     const res = await fetch("/api/distribuidor/pagos", {
       method: "POST",
@@ -203,6 +225,8 @@ export default function Distribuidores() {
           onSetMayoreo={setMayoreo}
           onRegistrarPago={registrarPago}
           onUpdateModoPrecio={updateModoPrecio}
+          onEliminar={eliminarArticulo}
+          onActualizarFoto={actualizarFoto}
         />
       )}
 
@@ -467,7 +491,7 @@ function Toggle({ checked, onChange, color = "#FFE000" }) {
 }
 
 /* ─────────────────────────────────────────── */
-function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, modoPrecio = "venta", onSetMayoreo, onRegistrarPago, onUpdateModoPrecio }) {
+function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, modoPrecio = "venta", onSetMayoreo, onRegistrarPago, onUpdateModoPrecio, onEliminar, onActualizarFoto }) {
   const [pagoSheet,    setPagoSheet]    = useState(null); // null | 'completo' | 'parcial' | 'historial'
   const [parcialMonto, setParcialMonto] = useState("");
   const [parcialNotas, setParcialNotas] = useState("");
@@ -759,7 +783,7 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, modoPr
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {items.map(item => (
-            <ItemRow key={item.id} item={item} color={color} lotes={lotes} onSetMayoreo={onSetMayoreo} />
+            <ItemRow key={item.id} item={item} color={color} lotes={lotes} onSetMayoreo={onSetMayoreo} onEliminar={onEliminar} onActualizarFoto={onActualizarFoto} />
           ))}
         </div>
       )}
@@ -768,10 +792,13 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, modoPr
 }
 
 /* ─────────────────────────────────────────── */
-function ItemRow({ item, color, lotes, onSetMayoreo }) {
+function ItemRow({ item, color, lotes, onSetMayoreo, onEliminar, onActualizarFoto }) {
   const [editando,     setEditando]     = useState(false);
   const [val,          setVal]          = useState(item.precio_mayoreo || "");
   const [selectedSku,  setSelectedSku]  = useState(item.lote_sku || "");
+  const [confirmDel,   setConfirmDel]   = useState(false);
+  const [borrando,     setBorrando]     = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
 
   const vendidas = item.vendidas || 0;
   const mayoreo  = item.precio_mayoreo || 0;
@@ -807,19 +834,82 @@ function ItemRow({ item, color, lotes, onSetMayoreo }) {
     setEditando(false);
   };
 
+  const handleFoto = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !onActualizarFoto) return;
+    setSubiendoFoto(true);
+    try {
+      const b64 = await compressImage(file);
+      await onActualizarFoto(item.id, b64);
+    } catch (err) {
+      alert("Error con la foto: " + (err.message || err));
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
+
+  const handleEliminar = async () => {
+    setBorrando(true);
+    try {
+      await onEliminar(item.id);
+    } catch (err) {
+      alert("Error: " + err.message);
+      setBorrando(false);
+      setConfirmDel(false);
+    }
+  };
+
+  const fotoId = `foto-admin-${item.id}`;
+
   return (
     <div style={{
       background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
       borderRadius: 12, padding: 14, display: "flex", gap: 12, alignItems: "flex-start",
     }}>
-      {item.foto_url
-        ? <img src={item.foto_url} alt={item.nombre} style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />
-        : <div style={{ width: 56, height: 56, borderRadius: 8, background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", color: "#444", fontSize: 22, flexShrink: 0 }}>📦</div>
-      }
+      {/* Foto — clic para cambiarla (solo dueño) */}
+      <label htmlFor={fotoId} style={{ position: "relative", flexShrink: 0, cursor: onActualizarFoto ? "pointer" : "default", display: "block", width: 56, height: 56 }}>
+        {item.foto_url
+          ? <img src={item.foto_url} alt={item.nombre} style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", display: "block" }} />
+          : <div style={{ width: 56, height: 56, borderRadius: 8, background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", color: "#444", fontSize: 22 }}>📦</div>
+        }
+        {onActualizarFoto && (
+          <span style={{
+            position: "absolute", bottom: 0, left: 0, right: 0,
+            background: "rgba(0,0,0,0.6)", color: "#ddd", fontSize: 8,
+            textAlign: "center", padding: "2px 0", borderRadius: "0 0 8px 8px",
+            fontFamily: "'Space Mono', monospace", letterSpacing: 0.5,
+          }}>
+            {subiendoFoto ? "..." : "cambiar"}
+          </span>
+        )}
+        <input id={fotoId} type="file" accept="image/*" onChange={handleFoto} style={{ display: "none" }} disabled={subiendoFoto} />
+      </label>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "#fff", marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {item.nombre || "Sin nombre"}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+            {item.nombre || "Sin nombre"}
+          </div>
+          {onEliminar && (
+            confirmDel ? (
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                <button onClick={handleEliminar} disabled={borrando}
+                  style={{ background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
+                  {borrando ? "..." : "Sí, borrar"}
+                </button>
+                <button onClick={() => setConfirmDel(false)} disabled={borrando}
+                  style={{ background: "none", border: "1px solid #333", color: "#888", borderRadius: 6, padding: "3px 8px", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
+                  No
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDel(true)}
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#888", borderRadius: 6, padding: "3px 8px", fontSize: 12, cursor: "pointer", flexShrink: 0, lineHeight: 1 }}>
+                🗑
+              </button>
+            )
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8, fontSize: 11, fontFamily: "'Space Mono', monospace" }}>

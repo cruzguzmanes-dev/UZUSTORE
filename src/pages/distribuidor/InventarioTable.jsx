@@ -100,11 +100,6 @@ const CSS = `
     font-size: 11px; font-family: 'Space Mono', monospace;
     cursor: pointer; font-weight: 700;
   }
-  .inv-btn-delete {
-    background: rgba(42,26,26,0.8); border: 1px solid #4a2a2a;
-    color: #ff8080; border-radius: 8px; padding: 6px 12px;
-    font-size: 13px; font-family: 'Space Mono', monospace; cursor: pointer;
-  }
   .inv-btn-gear {
     position: absolute; top: 10px; right: 10px;
     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
@@ -139,12 +134,10 @@ const CSS = `
   .hist-cant { font-family: 'Space Mono', monospace; font-size: 11px; color: #aaa; }
 `;
 
-export default function InventarioTable({ items, isAdmin = false, modoPrecio = "venta", onItemDeleted, onItemSold }) {
-  const [deletingId, setDeletingId]       = useState(null);
+export default function InventarioTable({ items, isAdmin = false, modoPrecio = "venta", onItemSold }) {
   const [sellingId, setSellingId]         = useState(null);
   const [restockingId, setRestockingId]   = useState(null);
   const [confirmItem, setConfirmItem]     = useState(null);
-  const [deleteItem, setDeleteItem]       = useState(null);
   const [editItem, setEditItem]           = useState(null);
   const [editNombre, setEditNombre]       = useState("");
   const [editPrecio, setEditPrecio]       = useState("");
@@ -231,23 +224,6 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
       setHistorialData([]);
     } finally {
       setHistorialLoading(false);
-    }
-  };
-
-  /* ─── Delete ─── */
-  const handleDelete = async () => {
-    const item = deleteItem;
-    setDeleteItem(null);
-    if (!item) return;
-    setDeletingId(item.id);
-    try {
-      const res = await fetch(`/api/distribuidor/inventario?id=${item.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Error eliminando");
-      onItemDeleted();
-    } catch (e) {
-      alert("Error: " + e.message);
-    } finally {
-      setDeletingId(null);
     }
   };
 
@@ -417,41 +393,6 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
         </div>
       )}
 
-      {/* ── Sheet: Confirmar borrado ── */}
-      {deleteItem && (
-        <div className="confirm-overlay" onClick={() => setDeleteItem(null)}>
-          <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
-              {deleteItem.foto_url
-                ? <img src={deleteItem.foto_url} alt="" className="confirm-foto" />
-                : <div className="confirm-foto-placeholder">📦</div>
-              }
-              <div>
-                <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#fff" }}>
-                  {deleteItem.nombre || "Sin nombre"}
-                </p>
-                <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#888" }}>
-                  Stock: {deleteItem.cantidad} · {fmt(deleteItem.precio_venta)}
-                </p>
-              </div>
-            </div>
-            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666", textAlign: "center" }}>
-              ¿Eliminar este artículo? Esta acción no se puede deshacer.
-            </p>
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setDeleteItem(null)}
-                style={{ flex: 2, background: "#222", border: "1px solid #333", color: "#888", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
-                Cancelar
-              </button>
-              <button onClick={handleDelete}
-                style={{ flex: 1, background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 12, padding: 14, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-                ✕ Eliminar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Sheet: Editar artículo ── */}
       {editItem && (
         <div className="confirm-overlay" onClick={() => setEditItem(null)}>
@@ -547,11 +488,6 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
                     onClick={() => openRestock(item)}
                     disabled={restockingId === item.id}>
                     {restockingId === item.id ? "..." : "📦 + Stock"}
-                  </button>
-                  <button className="inv-btn-delete"
-                    onClick={() => setDeleteItem(item)}
-                    disabled={deletingId === item.id}>
-                    {deletingId === item.id ? "..." : "✕"}
                   </button>
                 </div>
 

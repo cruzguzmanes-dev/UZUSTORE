@@ -4,7 +4,7 @@ import { REDIRECT_URI, GS } from "../constants";
 const TOKEN_KEY = "ml_access_token";
 const TOKEN_EXP_KEY = "ml_token_expires_at";
 
-export default function AdminLogin({ onConnect, onMock }) {
+export default function AdminLogin({ onConnect }) {
   const [mode, setMode] = useState("login"); // "login" | "ml_connect"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -198,13 +198,6 @@ export default function AdminLogin({ onConnect, onMock }) {
                 style={{ width: "100%", background: loading ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 10, padding: 14, fontSize: 14, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: loading ? "not-allowed" : "pointer", marginBottom: 12 }}
               >
                 {loading ? "Verificando..." : "Entrar →"}
-              </button>
-              <button
-                type="button"
-                onClick={onMock}
-                style={{ width: "100%", background: "transparent", color: "#555", border: "1px solid #222", borderRadius: 10, padding: 12, fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}
-              >
-                Ver demo con datos de feb 2026
               </button>
             </form>
           )}

@@ -6,6 +6,9 @@ import InventarioTable from "./InventarioTable";
 import DistribuidorLogin, { getDistribuidorSession, getDistribuidorRole } from "./DistribuidorLogin";
 import Loader from "../../components/Loader";
 
+const fmtFecha = (iso) =>
+  new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+
 const CSS = `
   ${GS}
   .dist-wrap {
@@ -31,30 +34,86 @@ const CSS = `
   .stat-label { font-family: 'Space Mono', monospace; font-size: 8px; color: #666; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 5px 0; }
   .stat-value { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; margin: 0; color: #fff; }
   .stat-value.money { font-size: 16px; }
-  .corte-card {
-    background: rgba(255,224,0,0.04);
-    border: 1px solid rgba(255,224,0,0.15);
+
+  /* Saldo con proveedor (todos los roles) */
+  .saldo-card {
     border-radius: 14px; padding: 18px; margin-bottom: 20px;
   }
-  .corte-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #FFE000; margin: 0 0 14px 0; }
+  .saldo-card.debe { background: rgba(255,224,0,0.05); border: 1px solid rgba(255,224,0,0.22); }
+  .saldo-card.ok   { background: rgba(0,200,100,0.05); border: 1px solid rgba(0,200,100,0.2); }
+  .saldo-label { font-family: 'Space Mono', monospace; font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 4px 0; }
+  .saldo-monto { font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700; margin: 0; }
+  .saldo-sub { font-family: 'Space Mono', monospace; font-size: 11px; color: #666; margin: 6px 0 0 0; }
+  .saldo-pending { font-family: 'Space Mono', monospace; font-size: 11px; color: #555; font-style: italic; margin: 0; }
+
+  /* Corte extra (solo admin) */
+  .corte-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px; padding: 18px; margin-bottom: 20px;
+  }
+  .corte-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #fff; margin: 0 0 14px 0; }
   .corte-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
   .corte-row:last-child { border-bottom: none; }
   .corte-label { font-family: 'Space Mono', monospace; font-size: 11px; color: #888; }
   .corte-val { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; color: #fff; }
   .corte-val.green { color: #7ecc7e; }
-  .corte-val.red { color: #ff8080; }
-  .corte-pending { font-family: 'Space Mono', monospace; font-size: 11px; color: #555; font-style: italic; }
+
   .dist-section-title { font-size: 16px; font-weight: 700; margin: 0 0 14px 0; font-family: 'Syne', sans-serif; color: #fff; }
+  .dist-search {
+    width: 100%; background: #111; border: 1px solid #2a2a2a; border-radius: 10px;
+    padding: 12px 14px; color: #fff; font-size: 16px; font-family: 'Space Mono', monospace;
+    outline: none; box-sizing: border-box; margin-bottom: 14px;
+  }
+  .dist-search::placeholder { color: #444; }
   .dist-empty { color: #555; font-family: 'Space Mono', monospace; font-size: 13px; text-align: center; padding: 32px 0; }
+
+  /* Botones de pago */
+  .pay-btn {
+    width: 100%; border-radius: 10px; padding: 12px 0; font-weight: 700;
+    font-family: 'Syne', sans-serif; font-size: 14px; cursor: pointer; border: none;
+  }
+  .pay-btn.primary { background: #FFE000; color: #000; }
+  .pay-btn.ghost { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-family: 'Space Mono', monospace; font-size: 12px; }
+
+  /* Sheet de pago */
+  .pay-overlay {
+    position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.7);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+    animation: payFade 0.15s ease;
+  }
+  .pay-sheet {
+    background: #1a1a1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px;
+    padding: 22px; width: calc(100% - 32px); max-width: 420px;
+    max-height: 82vh; overflow-y: auto; animation: paySlide 0.2s ease;
+  }
+  @keyframes payFade { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes paySlide { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+  .pay-inp {
+    width: 100%; background: #111; border: 1px solid #2a2a2a; border-radius: 8px;
+    padding: 12px 14px; color: #fff; font-size: 16px; font-family: 'Space Mono', monospace;
+    outline: none; box-sizing: border-box; margin-bottom: 12px;
+  }
+  .pay-lbl { display: block; font-size: 9px; color: #666; letter-spacing: 2px; text-transform: uppercase; font-family: 'Space Mono', monospace; margin-bottom: 6px; }
+  .pay-hist-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .pay-hist-row:last-child { border-bottom: none; }
 `;
 
 export default function DistribuidorDashboard({ slug }) {
   const [authed, setAuthed]         = useState(() => !!getDistribuidorSession(slug));
   const [role, setRole]             = useState(() => getDistribuidorRole(slug));
   const [inventario, setInventario] = useState([]);
+  const [pagos, setPagos]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [distribuidor, setDistribuidor] = useState(null);
   const [error, setError]           = useState("");
+  const [search, setSearch]         = useState("");
+
+  // Pago
+  const [paySheet, setPaySheet]     = useState(null); // null | 'menu' | 'parcial' | 'historial'
+  const [parcialMonto, setParcialMonto] = useState("");
+  const [savingPay, setSavingPay]   = useState(false);
 
   const fetchInventario = async () => {
     setLoading(true);
@@ -70,6 +129,13 @@ export default function DistribuidorDashboard({ slug }) {
     }
   };
 
+  const fetchPagos = async () => {
+    try {
+      const res = await fetch(`/api/distribuidor/pagos?slug=${slug}`);
+      if (res.ok) setPagos(await res.json() || []);
+    } catch {}
+  };
+
   const fetchDistribuidor = async () => {
     try {
       const res = await fetch(`/api/distribuidor/auth?slug=${slug}`);
@@ -81,6 +147,7 @@ export default function DistribuidorDashboard({ slug }) {
     if (!authed) return;
     fetchDistribuidor();
     fetchInventario();
+    fetchPagos();
   }, [slug, authed]);
 
   if (!authed) {
@@ -104,10 +171,45 @@ export default function DistribuidorDashboard({ slug }) {
   const totalVendidas = inventario.reduce((s, i) => s + (i.vendidas || 0), 0);
   const mayoreoSet    = inventario.some(i => (i.precio_mayoreo || 0) > 0);
   const totalDebo     = inventario.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0);
+  const totalPagado   = pagos.reduce((s, p) => s + p.monto, 0);
+  const saldo         = totalDebo - totalPagado;
   // Ventas y ganancia solo si hay precio_venta registrado
   const tienePrecio   = inventario.some(i => (i.precio_venta || 0) > 0);
   const totalVentas   = tienePrecio ? inventario.reduce((s, i) => s + ((i.precio_venta || 0) * (i.vendidas || 0)), 0) : null;
   const totalGanancia = totalVentas !== null ? totalVentas - totalDebo : null;
+
+  // Filtro de búsqueda
+  const q = search.trim().toLowerCase();
+  const inventarioFiltrado = q
+    ? inventario.filter(i => (i.nombre || "").toLowerCase().includes(q))
+    : inventario;
+
+  // Registrar pago
+  const registrarPago = async (monto, tipo, notas) => {
+    if (!monto || monto <= 0) return;
+    setSavingPay(true);
+    try {
+      const res = await fetch("/api/distribuidor/pagos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, monto, tipo, notas: notas || null }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error registrando pago");
+      }
+      await fetchPagos();
+      setPaySheet(null);
+      setParcialMonto("");
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setSavingPay(false);
+    }
+  };
+
+  // ¿Mostramos la sección de saldo? Solo cuando ya hay algo que cobrar o pagos hechos
+  const mostrarSaldo = totalDebo > 0 || totalPagado > 0;
 
   return (
     <div className="dist-wrap">
@@ -132,35 +234,48 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         </div>
 
-        {/* Corte — solo para admin y si hay vendidas */}
-        {isAdmin && totalVendidas > 0 && (
+        {/* Saldo con proveedor — visible para todos */}
+        {mostrarSaldo ? (
+          <div className={`saldo-card ${saldo > 0 ? "debe" : "ok"}`}>
+            <p className="saldo-label">Le debes al proveedor</p>
+            <p className="saldo-monto" style={{ color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>
+              {fmt(Math.max(0, saldo))}
+              {saldo <= 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
+            </p>
+            <p className="saldo-sub">
+              {totalVendidas} vendidas · Ya pagaste {fmt(totalPagado)}
+            </p>
+            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+              {saldo > 0 && (
+                <button className="pay-btn primary" style={{ flex: 2 }} onClick={() => setPaySheet("menu")}>
+                  💳 Pagar
+                </button>
+              )}
+              <button className="pay-btn ghost" style={{ flex: 1 }} onClick={() => setPaySheet("historial")}>
+                🧾 Mis pagos
+              </button>
+            </div>
+          </div>
+        ) : totalVendidas > 0 && !mayoreoSet ? (
+          <div className="saldo-card debe">
+            <p className="saldo-pending">El proveedor aún no ha configurado tu precio. Pronto verás aquí cuánto le debes.</p>
+          </div>
+        ) : null}
+
+        {/* Corte extra — solo admin (ganancia) */}
+        {isAdmin && totalVendidas > 0 && (totalVentas !== null || totalGanancia !== null) && (
           <div className="corte-card">
             <p className="corte-title">📊 Mi Corte</p>
-
-            {/* Total ventas — solo si el distribuidor registró su precio de venta */}
             {totalVentas !== null && (
               <div className="corte-row">
                 <span className="corte-label">Total ventas</span>
                 <span className="corte-val">{fmt(totalVentas)}</span>
               </div>
             )}
-
-            {mayoreoSet ? (
-              <>
-                <div className="corte-row">
-                  <span className="corte-label">Saldo al proveedor</span>
-                  <span className="corte-val red">{fmt(totalDebo)}</span>
-                </div>
-                {totalGanancia !== null && (
-                  <div className="corte-row">
-                    <span className="corte-label">Mi ganancia neta</span>
-                    <span className="corte-val green">{fmt(totalGanancia)}</span>
-                  </div>
-                )}
-              </>
-            ) : (
+            {totalGanancia !== null && (
               <div className="corte-row">
-                <span className="corte-pending">El proveedor aún no ha configurado tu precio. Pronto verás tu saldo aquí.</span>
+                <span className="corte-label">Mi ganancia neta</span>
+                <span className="corte-val green">{fmt(totalGanancia)}</span>
               </div>
             )}
           </div>
@@ -185,22 +300,169 @@ export default function DistribuidorDashboard({ slug }) {
         {/* Inventario */}
         <div>
           <h2 className="dist-section-title">Artículos</h2>
+
+          {inventario.length > 0 && (
+            <input
+              className="dist-search"
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="🔍 Buscar artículo por nombre..."
+            />
+          )}
+
           {loading ? (
             <Loader size={100} message="Cargando artículos" />
           ) : inventario.length === 0 ? (
             <p className="dist-empty">No hay artículos aún.<br />¡Agrega el primero arriba!</p>
+          ) : inventarioFiltrado.length === 0 ? (
+            <p className="dist-empty">Sin resultados para "{search}".</p>
           ) : (
             <InventarioTable
-              items={inventario}
+              items={inventarioFiltrado}
               isAdmin={isAdmin}
               modoPrecio={modoPrecio}
-              onItemDeleted={fetchInventario}
-              onItemSold={fetchInventario}
+              onItemSold={() => { fetchInventario(); }}
             />
           )}
         </div>
 
       </div>
+
+      {/* ── Sheet: menú de pago (total / parcial) ── */}
+      {paySheet === "menu" && (
+        <div className="pay-overlay" onClick={() => setPaySheet(null)}>
+          <div className="pay-sheet" onClick={e => e.stopPropagation()}>
+            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+              💳 Registrar pago
+            </p>
+            <p style={{ margin: "0 0 20px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666" }}>
+              Saldo pendiente: <span style={{ color: "#FFE000" }}>{fmt(saldo)}</span>
+            </p>
+
+            <button
+              className="pay-btn"
+              style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", marginBottom: 10 }}
+              disabled={savingPay || saldo <= 0}
+              onClick={() => registrarPago(saldo, "completo", null)}
+            >
+              {savingPay ? "Registrando..." : `Pagar todo (${fmt(saldo)})`}
+            </button>
+
+            <button
+              className="pay-btn"
+              style={{ background: "#1a2a3a", border: "1px solid #2a4a5a", color: "#7ec5cc", marginBottom: 10, fontFamily: "'Space Mono', monospace", fontSize: 13 }}
+              disabled={savingPay}
+              onClick={() => { setParcialMonto(""); setPaySheet("parcial"); }}
+            >
+              Pagar una parte
+            </button>
+
+            <button
+              className="pay-btn ghost"
+              onClick={() => setPaySheet(null)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sheet: pago parcial ── */}
+      {paySheet === "parcial" && (
+        <div className="pay-overlay" onClick={() => setPaySheet(null)}>
+          <div className="pay-sheet" onClick={e => e.stopPropagation()}>
+            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+              💸 Pagar una parte
+            </p>
+            <p style={{ margin: "0 0 20px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666" }}>
+              Saldo pendiente: <span style={{ color: "#FFE000" }}>{fmt(saldo)}</span>
+            </p>
+
+            <label className="pay-lbl">Monto a pagar $</label>
+            <input
+              className="pay-inp" type="number" inputMode="decimal" step="0.01" min="1"
+              value={parcialMonto} onChange={e => setParcialMonto(e.target.value)}
+              placeholder="Ej: 500" autoFocus
+            />
+
+            {parcialMonto && parseFloat(parcialMonto) > 0 && (
+              <p style={{ margin: "0 0 16px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", textAlign: "center" }}>
+                Te quedará pendiente:{" "}
+                <strong style={{ color: saldo - parseFloat(parcialMonto) <= 0 ? "#7ecc7e" : "#FFE000" }}>
+                  {fmt(Math.max(0, saldo - parseFloat(parcialMonto)))}
+                </strong>
+              </p>
+            )}
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="pay-btn ghost" style={{ flex: 1 }}
+                onClick={() => { setPaySheet("menu"); setParcialMonto(""); }}>
+                ← Volver
+              </button>
+              <button className="pay-btn primary" style={{ flex: 2 }}
+                disabled={savingPay || !parcialMonto || parseFloat(parcialMonto) <= 0}
+                onClick={() => registrarPago(parseFloat(parcialMonto), "parcial", null)}>
+                {savingPay ? "Registrando..." : "✓ Registrar pago"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sheet: historial de mis pagos ── */}
+      {paySheet === "historial" && (
+        <div className="pay-overlay" onClick={() => setPaySheet(null)}>
+          <div className="pay-sheet" onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <p style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff" }}>
+                🧾 Mis pagos
+              </p>
+              <button onClick={() => setPaySheet(null)}
+                style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer" }}>✕</button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+              <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                <p className="pay-lbl" style={{ marginBottom: 4 }}>Total pagado</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: "#7ecc7e" }}>{fmt(totalPagado)}</p>
+              </div>
+              <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                <p className="pay-lbl" style={{ marginBottom: 4 }}>Saldo</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>{fmt(Math.max(0, saldo))}</p>
+              </div>
+            </div>
+
+            {pagos.length === 0 ? (
+              <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
+                Aún no has registrado pagos
+              </p>
+            ) : (
+              pagos.map(p => (
+                <div key={p.id} className="pay-hist-row">
+                  <div>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666", marginBottom: 2 }}>
+                      {fmtFecha(p.created_at)}
+                    </div>
+                    <span style={{
+                      background: p.tipo === "completo" ? "rgba(126,204,126,0.12)" : "rgba(126,197,204,0.12)",
+                      border: `1px solid ${p.tipo === "completo" ? "rgba(126,204,126,0.3)" : "rgba(126,197,204,0.3)"}`,
+                      color: p.tipo === "completo" ? "#7ecc7e" : "#7ec5cc",
+                      borderRadius: 4, padding: "1px 7px",
+                      fontSize: 9, fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1,
+                    }}>
+                      {p.tipo}
+                    </span>
+                  </div>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "#7ecc7e" }}>
+                    {fmt(p.monto)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

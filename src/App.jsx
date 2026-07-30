@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { TAX, MOCK_ORDERS, GS, VERSION } from "./constants";
+import { TAX, GS, VERSION } from "./constants";
 import { sb, aplicarCostosManuales } from "./utils";
 import AdminLogin from "./components/AdminLogin";
 import ModalLote from "./components/ModalLote";
@@ -120,12 +120,10 @@ export default function App() {
   const [lotes, setLotes] = useState([]);
   const [costosOrden, setCostosOrden] = useState({}); // { [order_id]: row }
   const [activeTab, setActiveTab] = useState("resumen");
-  const [useMock, setUseMock] = useState(false);
   const [connectedUser, setConnectedUser] = useState("");
   const [showModalLote, setShowModalLote] = useState(false);
   const [loadingLotes, setLoadingLotes] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(false);
-  const [debugInfo, setDebugInfo] = useState(null);
   const [enrichedMonths, setEnrichedMonths] = useState(new Set());
   const [enrichingMonth, setEnrichingMonth] = useState(null);
   const tokenRef = React.useRef(null);
@@ -192,32 +190,6 @@ export default function App() {
   }, [fetchLotes, fetchCostosOrden]);
 
   // Enriquecer un mes específico bajo demanda
-  const handleDebug = React.useCallback(async (orderId) => {
-    if (!tokenRef.current) return;
-    setDebugInfo("Consultando orden " + orderId + "...");
-    const r1 = await fetch(`/api/ml?path=${encodeURIComponent("orders/" + orderId)}`, {
-      headers: { Authorization: `Bearer ${tokenRef.current}` }
-    });
-    const order = await r1.json();
-    const shippingId = order.shipping?.id;
-    let shipment = null;
-    if (shippingId) {
-      const r2 = await fetch(`/api/ml?path=${encodeURIComponent("shipments/" + shippingId)}`, {
-        headers: { Authorization: `Bearer ${tokenRef.current}` }
-      });
-      shipment = await r2.json();
-    }
-    setDebugInfo(JSON.stringify({
-      order_id: order.id,
-      total_amount: order.total_amount,
-      pack_id: order.pack_id,
-      order_items: order.order_items?.map(i => ({ sku: i.item?.id, title: i.item?.title?.slice(0,40), unit_price: i.unit_price, qty: i.quantity, sale_fee: i.sale_fee })),
-      shipping_id: shippingId,
-      shipping_list_cost: shipment?.shipping_option?.list_cost,
-      shipping_items_count: shipment?.shipping_items?.length,
-    }, null, 2));
-  }, []);
-
   const enrichMonth = useCallback(async (monthKey) => {
     if (!tokenRef.current || enrichedMonths.has(monthKey)) return;
     setEnrichingMonth(monthKey);
@@ -256,12 +228,6 @@ export default function App() {
     finally { setEnrichingMonth(null); }
   }, [enrichedMonths]);
 
-  const connectMock = async () => {
-    setUseMock(true); setConnected(true);
-    setConnectedUser("UZUSTORE"); setOrders(MOCK_ORDERS);
-    await Promise.all([fetchLotes(), fetchCostosOrden()]);
-  };
-
   const paidOrders = orders.filter(o => o.status === "paid" && o.salePrice > 0);
   const ordersWithFIFO = aplicarCostosManuales(paidOrders, costosOrden);
 
@@ -278,7 +244,7 @@ export default function App() {
 
   const skusUnicos = [...new Map(paidOrders.map(o => [o.sku, { sku: o.sku, title: o.title }])).values()];
 
-  if (!connected) return <AdminLogin onConnect={fetchOrders} onMock={connectMock} />;
+  if (!connected) return <AdminLogin onConnect={fetchOrders} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#fff", fontFamily: "'Syne', sans-serif" }}>
@@ -313,44 +279,14 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ width: 7, height: 7, borderRadius: "50%", background: loadingOrders ? "#FFE000" : "#00FF94", boxShadow: `0 0 8px ${loadingOrders ? "#FFE000" : "#00FF94"}` }} />
               <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555" }}>
-                {loadingOrders ? `Cargando... ${orders.length} órdenes` : useMock ? "DEMO" : `${orders.length} órdenes`}
+                {loadingOrders ? `Cargando... ${orders.length} órdenes` : `${orders.length} órdenes`}
               </span>
             </div>
             <button onClick={() => setShowModalLote(true)}
               style={{ background: "#FFE000", border: "none", borderRadius: 8, padding: "7px 14px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
               + Agregar Lote
             </button>
-            <button onClick={async () => {
-                const orderId = prompt("ID de la orden a debuggear:", orders[0]?.orderId || orders[0]?.id || "");
-                if (!orderId || !tokenRef.current) return;
-                setDebugInfo("Consultando orden " + orderId + "...");
-                const r1 = await fetch(`/api/ml?path=${encodeURIComponent("orders/" + orderId)}`, {
-                  headers: { Authorization: `Bearer ${tokenRef.current}` }
-                });
-                const order = await r1.json();
-                const shippingId = order.shipping?.id;
-                let shipment = null;
-                if (shippingId) {
-                  const r2 = await fetch(`/api/ml?path=${encodeURIComponent("shipments/" + shippingId)}`, {
-                    headers: { Authorization: `Bearer ${tokenRef.current}` }
-                  });
-                  shipment = await r2.json();
-                }
-                setDebugInfo(JSON.stringify({
-                  order_id: order.id,
-                  total_amount: order.total_amount,
-                  order_items: order.order_items?.map(i => ({ sku: i.item?.id, title: i.item?.title, unit_price: i.unit_price, qty: i.quantity, sale_fee: i.sale_fee })),
-                  pack_id: order.pack_id,
-                  shipping_id: shippingId,
-                  shipping_list_cost: shipment?.shipping_option?.list_cost,
-                  shipping_base_cost: shipment?.base_cost,
-                  shipping_items_count: shipment?.shipping_items?.length,
-                }, null, 2));
-              }}
-              style={{ background: "rgba(0,200,255,0.1)", border: "1px solid rgba(0,200,255,0.3)", borderRadius: 8, padding: "6px 12px", color: "#00C9FF", fontSize: 11, fontFamily: "'Space Mono', monospace", cursor: "pointer", whiteSpace: "nowrap" }}>
-              🔍 Debug
-            </button>
-            <button onClick={() => { setConnected(false); setUseMock(false); setOrders([]); }}
+            <button onClick={() => { setConnected(false); setOrders([]); }}
               style={{ background: "transparent", border: "1px solid #222", borderRadius: 8, padding: "6px 12px", color: "#555", fontSize: 11, fontFamily: "'Space Mono', monospace", cursor: "pointer", whiteSpace: "nowrap" }}>
               Desconectar
             </button>
@@ -367,17 +303,6 @@ export default function App() {
           <span style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#FFE000" }}>
             Descargando órdenes y desglose de comisiones... {orders.length} procesadas
           </span>
-        </div>
-      )}
-
-      {/* Debug panel */}
-      {debugInfo && (
-        <div style={{ background: "#0d1117", border: "1px solid #00C9FF", margin: "0 32px", borderRadius: 12, padding: 20, maxHeight: 400, overflow: "auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-            <span style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#00C9FF", letterSpacing: 2 }}>DEBUG · ORDEN DETALLE RAW</span>
-            <button onClick={() => setDebugInfo(null)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 16 }}>×</button>
-          </div>
-          <pre style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#aaa", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{debugInfo}</pre>
         </div>
       )}
 
@@ -423,7 +348,7 @@ export default function App() {
           />
         )}
         {activeTab === "ordenes" && (
-          <Ordenes ordersWithFIFO={ordersWithFIFO} orders={orders} onLoteAdded={fetchLotes} onCostoSaved={fetchCostosOrden} enrichedMonths={enrichedMonths} enrichMonth={enrichMonth} enrichingMonth={enrichingMonth} onDebug={handleDebug} />
+          <Ordenes ordersWithFIFO={ordersWithFIFO} orders={orders} onLoteAdded={fetchLotes} onCostoSaved={fetchCostosOrden} enrichedMonths={enrichedMonths} enrichMonth={enrichMonth} enrichingMonth={enrichingMonth} />
         )}
         {activeTab === "distribuidores" && (
           <Distribuidores />

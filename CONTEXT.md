@@ -113,8 +113,8 @@ Cada artículo del inventario tiene (opcionalmente) 3 precios:
 
 ### Ganancias calculadas
 - **Ganancia del dueño** = `precio_mayoreo − costo_unitario` (visible en panel admin, cuando item tiene lote vinculado)
-- **Ganancia del distribuidor** = `precio_venta − precio_mayoreo` (visible en su dashboard si tienen `precio_venta`)
-- **Saldo al proveedor** = `precio_mayoreo × vendidas − pagos_registrados`
+- **Ganancia del distribuidor** = `precio_venta − precio_mayoreo` (visible en su dashboard, solo rol `admin`, si tienen `precio_venta`)
+- **Saldo al proveedor** = `precio_mayoreo × vendidas − pagos_registrados` (visible para el dueño y para el distribuidor de cualquier rol)
 
 ---
 
@@ -124,8 +124,10 @@ Cada distribuidor en la tabla `distribuidores` tiene dos códigos:
 
 | Campo | Rol | Acceso |
 |-------|-----|--------|
-| `acceso_code` | `basic` | Agregar artículos, marcar vendidos, restock |
-| `acceso_admin` | `admin` | Todo lo anterior + corte financiero + historial de ventas + precio asignado por dueño |
+| `acceso_code` | `basic` | Agregar artículos, editar nombre/precio, marcar vendidos, restock, **ver saldo y registrar pagos** |
+| `acceso_admin` | `admin` | Todo lo anterior + corte con ganancia neta + historial de ventas por artículo + precio asignado por dueño |
+
+> **Ningún rol puede eliminar artículos.** Borrar es exclusivo del dueño desde su panel admin. El saldo pendiente y el flujo de pago (total/parcial) son visibles para **ambos** roles.
 
 Los códigos actuales:
 - Gaticueva: básico `GATI2026`, admin `GATI2026PRO`
@@ -223,9 +225,9 @@ created_at          TIMESTAMPTZ
 ### `/api/distribuidor/inventario`
 - `GET ?distribuidor=slug` → lista inventario completo del distribuidor
 - `GET ?id=X` → obtiene un artículo específico
-- `POST { distribuidor, nombre?, foto_url, precio_venta?, cantidad }` → crea artículo
-- `PUT ?id=X { cantidad?, vendidas?, precio_mayoreo?, nombre?, precio_venta?, lote_sku?, log_venta? }` → actualiza; si `log_venta` presente, inserta en `ventas_distribuidor`
-- `DELETE ?id=X` → elimina artículo
+- `POST { distribuidor, nombre?, foto_url?, precio_venta?, precio_mayoreo?, cantidad }` → crea artículo (el dueño usa `precio_mayoreo` en el alta rápida; el distribuidor usa `precio_venta`)
+- `PUT ?id=X { cantidad?, vendidas?, precio_mayoreo?, nombre?, precio_venta?, lote_sku?, foto_url?, log_venta? }` → actualiza; si `log_venta` presente, inserta en `ventas_distribuidor`
+- `DELETE ?id=X` → elimina artículo (solo se invoca desde el panel del dueño; el portal del distribuidor ya no expone borrado)
 
 ### `/api/distribuidor/historial`
 - `GET ?item_id=X` → historial de ventas de un artículo (`ventas_distribuidor` ordenado por fecha desc)
@@ -247,16 +249,19 @@ Archivo: `src/tabs/Distribuidores.jsx`
 **Lo que muestra:**
 - Banner superior con saldo pendiente por distribuidor + total global
 - Tabs por distribuidor (Gaticueva / Friki)
+- **Botón flotante `+`** (abajo a la derecha, mobile-first) → alta rápida de artículo al distribuidor del tab activo (foto con cámara, nombre, precio de mayoreo, unidades). Botones "Guardar y agregar otro" / "Guardar y cerrar".
 - Por distribuidor:
   - Toggle "Modo de inventario" (Su precio ↔ Mi precio)
   - Corte: stock, vendidas, sus ventas, total a cobrar, ya pagado
   - Saldo pendiente + botones "💸 Pago parcial" / "💰 Pago completo" (se ocultan cuando saldo ≤ 0)
-  - Botón "🧾 Ver pagos" con historial completo
+  - Botón "🧾 Ver pagos" con historial completo (incluye los pagos que registra el propio distribuidor)
   - Lista de artículos con:
     - Precio del distribuidor (o badge "Precio privado" si no tiene)
     - Mayoreo editable inline + lote picker (vincula a tabla `lotes`, auto-rellena precio)
     - SKU del lote vinculado
     - "Te debe / Su gan. / Mi gan." cuando aplica
+    - **Cambiar foto** (clic en la imagen → cámara/galería, se comprime y guarda vía `PUT foto_url`) — exclusivo del dueño
+    - **Eliminar** artículo (botón 🗑 con confirmación inline) — exclusivo del dueño
 
 ---
 
@@ -266,37 +271,43 @@ Archivos: `src/pages/distribuidor/`
 
 **Flujo:**
 1. `DistribuidorLogin.jsx` — pantalla de código de acceso
-2. `DistribuidorDashboard.jsx` — carga inventario y datos del distribuidor
+2. `DistribuidorDashboard.jsx` — carga inventario, pagos y datos del distribuidor; incluye card de saldo, flujo de pago y buscador
 3. `UploadForm.jsx` — formulario para agregar artículos (foto requerida; precio opcional según `modo_precio`)
-4. `InventarioTable.jsx` — grid de artículos con acciones
+4. `InventarioTable.jsx` — grid de artículos con acciones (editar, vendido, restock; **sin eliminar**)
 
 **Comportamiento por rol:**
 
 | Feature | basic | admin |
 |---------|-------|-------|
 | Ver inventario | ✅ | ✅ |
+| Buscar artículo por nombre | ✅ | ✅ |
 | Agregar artículos | ✅ | ✅ |
+| Editar nombre y su precio de venta (⚙) | ✅ | ✅ |
 | Marcar vendido | ✅ | ✅ |
 | Restock (+ Stock) | ✅ | ✅ |
-| Ver corte (📊 Mi Corte) | ❌ | ✅ |
+| **Eliminar artículos** | ❌ | ❌ |
+| Ver saldo al proveedor + registrar pago | ✅ | ✅ |
+| Ver corte con ganancia (📊 Mi Corte) | ❌ | ✅ |
 | Ver precio asignado por dueño (`precio_mayoreo`) | ❌ | ✅ |
 | Ver historial de ventas por artículo | ❌ | ✅ |
 | Ver ganancia acumulada por artículo | ❌ | ✅ (si tiene precio_venta) |
 
-**Corte del distribuidor (admin):**
+**Card de saldo (todos los roles):** "Le debes al proveedor" = `precio_mayoreo × vendidas − pagos`. Muestra vendidas y total ya pagado, más botones **Pagar** (total/parcial) y **🧾 Mis pagos**. Se actualiza al marcar vendido. Solo aparece cuando el dueño ya configuró `precio_mayoreo` (si no, muestra mensaje pendiente).
+
+**Corte extra (solo admin):**
 - "Total ventas" → solo si tiene `precio_venta` en algún artículo
-- "Saldo al proveedor" → `precio_mayoreo × vendidas`
-- "Mi ganancia neta" → solo si tiene `precio_venta` Y `precio_mayoreo`
-- Si el dueño aún no configuró `precio_mayoreo` → mensaje pendiente
+- "Mi ganancia neta" → `total ventas − saldo al proveedor` (solo si tiene `precio_venta`)
 
 ---
 
 ## Funcionalidad de pagos
 
-Desde el panel del dueño (tab Distribuidores), el dueño puede registrar:
-- **Pago completo** — registra exactamente el saldo pendiente actual
-- **Pago parcial** — con monto libre + nota opcional; muestra preview "quedará pendiente: $X"
-- **Historial de pagos** — lista todos los pagos con badge de tipo (parcial/completo) y notas
+Los pagos los puede registrar **tanto el dueño** (tab Distribuidores) **como el propio distribuidor** (desde su portal). Ambos escriben en la misma tabla `pagos_distribuidor`, así que un pago registrado por el distribuidor aparece automáticamente en el historial del dueño y descuenta del saldo.
+
+Tipos de pago:
+- **Pago completo / "Pagar todo"** — registra exactamente el saldo pendiente actual (`tipo: 'completo'`)
+- **Pago parcial / "Pagar una parte"** — con monto libre; muestra preview "quedará pendiente: $X" (`tipo: 'parcial'`)
+- **Historial de pagos** — lista todos los pagos con badge de tipo (parcial/completo); el dueño ve además las notas
 
 El sistema es **append-only**: nunca se modifican ni eliminan pagos. El saldo siempre se recalcula como `suma(precio_mayoreo × vendidas) − suma(todos los pagos)`.
 

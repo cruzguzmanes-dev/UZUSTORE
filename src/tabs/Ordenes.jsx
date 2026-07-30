@@ -83,7 +83,7 @@ function ModalCostoOrden({ orden, onClose, onSaved }) {
   );
 }
 
-export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, onCostoSaved, enrichedMonths = new Set(), enrichMonth, enrichingMonth, onDebug }) {
+export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, onCostoSaved, enrichedMonths = new Set(), enrichMonth, enrichingMonth }) {
   const [page, setPage] = useState(1);
   const [mesSeleccionado, setMesSeleccionado] = useState("todos");
   const [ordenParaCosto, setOrdenParaCosto] = useState(null);
@@ -311,7 +311,7 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, onCostoSa
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-              {["#", "Fecha", "ID Orden", "Producto", "Precio Venta", "Neto ML", "Neto SAT", "Costo FIFO", "Caja", "Utilidad", "Lote", ""].map(h => (
+              {["#", "Fecha", "ID Orden", "Producto", "Precio Venta", "Neto ML", "Neto SAT", "Costo FIFO", "Caja", "Utilidad", "Lote"].map(h => (
                 <th key={h} style={thStyle}>{h}</th>
               ))}
             </tr>
@@ -439,14 +439,6 @@ export default function Ordenes({ ordersWithFIFO, orders, onLoteAdded, onCostoSa
                   </td>
                   <td style={{ padding: "12px 16px", fontSize: 10, color: "#555", fontFamily: "'Space Mono', monospace" }}>
                     {sinLote ? <span style={{ color: "#333" }}>—</span> : (o.costoNotas || <span style={{ color: "#444" }}>manual</span>)}
-                  </td>
-                  <td style={{ padding: "8px" }}>
-                    {onDebug && (
-                      <button onClick={() => onDebug(o.orderId || o.id)}
-                        style={{ background: "rgba(0,200,255,0.08)", border: "1px solid rgba(0,200,255,0.2)", borderRadius: 5, padding: "3px 8px", color: "#00C9FF", fontSize: 9, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
-                        🔍
-                      </button>
-                    )}
                   </td>
                 </tr>
               );
