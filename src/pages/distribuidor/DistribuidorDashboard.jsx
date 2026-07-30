@@ -105,6 +105,7 @@ export default function DistribuidorDashboard({ slug }) {
   const [role, setRole]             = useState(() => getDistribuidorRole(slug));
   const [inventario, setInventario] = useState([]);
   const [pagos, setPagos]           = useState([]);
+  const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [distribuidor, setDistribuidor] = useState(null);
   const [error, setError]           = useState("");
@@ -114,6 +115,7 @@ export default function DistribuidorDashboard({ slug }) {
   const [paySheet, setPaySheet]     = useState(null); // null | 'menu' | 'parcial' | 'historial'
   const [parcialMonto, setParcialMonto] = useState("");
   const [savingPay, setSavingPay]   = useState(false);
+  const [resolviendo, setResolviendo] = useState(null); // id de solicitud en proceso
 
   const fetchInventario = async () => {
     setLoading(true);
@@ -136,6 +138,13 @@ export default function DistribuidorDashboard({ slug }) {
     } catch {}
   };
 
+  const fetchSolicitudes = async () => {
+    try {
+      const res = await fetch(`/api/distribuidor/solicitudes?slug=${slug}`);
+      if (res.ok) setSolicitudes(await res.json() || []);
+    } catch {}
+  };
+
   const fetchDistribuidor = async () => {
     try {
       const res = await fetch(`/api/distribuidor/auth?slug=${slug}`);
@@ -148,6 +157,7 @@ export default function DistribuidorDashboard({ slug }) {
     fetchDistribuidor();
     fetchInventario();
     fetchPagos();
+    fetchSolicitudes();
   }, [slug, authed]);
 
   if (!authed) {
@@ -184,27 +194,52 @@ export default function DistribuidorDashboard({ slug }) {
     ? inventario.filter(i => (i.nombre || "").toLowerCase().includes(q))
     : inventario;
 
-  // Registrar pago
-  const registrarPago = async (monto, tipo, notas) => {
+  // Solicitudes de pago pendientes
+  const pendientes     = solicitudes.filter(s => s.estado === "pendiente");
+  const totalPendiente = pendientes.reduce((s, x) => s + x.monto, 0);
+
+  // El distribuidor SOLICITA un pago (queda pendiente de aceptación)
+  const solicitarPago = async (monto, tipo, notas) => {
     if (!monto || monto <= 0) return;
     setSavingPay(true);
     try {
-      const res = await fetch("/api/distribuidor/pagos", {
+      const res = await fetch("/api/distribuidor/solicitudes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug, monto, tipo, notas: notas || null }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Error registrando pago");
+        throw new Error(d.error || "Error enviando solicitud");
       }
-      await fetchPagos();
+      await fetchSolicitudes();
       setPaySheet(null);
       setParcialMonto("");
     } catch (e) {
       alert("Error: " + e.message);
     } finally {
       setSavingPay(false);
+    }
+  };
+
+  // El PRO acepta / rechaza una solicitud
+  const resolverSolicitud = async (id, estado) => {
+    setResolviendo(id);
+    try {
+      const res = await fetch(`/api/distribuidor/solicitudes?id=${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error procesando");
+      }
+      await Promise.all([fetchSolicitudes(), fetchPagos()]);
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setResolviendo(null);
     }
   };
 
@@ -245,8 +280,13 @@ export default function DistribuidorDashboard({ slug }) {
             <p className="saldo-sub">
               {totalVendidas} vendidas · Ya pagaste {fmt(totalPagado)}
             </p>
+            {totalPendiente > 0 && (
+              <p className="saldo-sub" style={{ color: "#7ec5cc", marginTop: 8 }}>
+                ⏳ En revisión: {fmt(totalPendiente)} — esperando que el proveedor lo acepte
+              </p>
+            )}
             <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-              {saldo > 0 && (
+              {saldo > 0 && pendientes.length === 0 && (
                 <button className="pay-btn primary" style={{ flex: 2 }} onClick={() => setPaySheet("menu")}>
                   💳 Pagar
                 </button>
@@ -262,14 +302,45 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         ) : null}
 
-        {/* Corte extra — solo admin (ganancia) */}
-        {isAdmin && totalVendidas > 0 && (totalVentas !== null || totalGanancia !== null) && (
+        {/* PRO: solicitudes de pago por aceptar */}
+        {isAdmin && pendientes.length > 0 && (
+          <div className="corte-card" style={{ borderColor: "rgba(126,197,204,0.35)", background: "rgba(126,197,204,0.05)" }}>
+            <p className="corte-title" style={{ color: "#7ec5cc" }}>💳 Pagos por aceptar ({pendientes.length})</p>
+            {pendientes.map(s => (
+              <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fff" }}>{fmt(s.monto)}</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>{s.tipo} · {fmtFecha(s.created_at)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "aceptado")}
+                    style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: "pointer" }}>
+                    {resolviendo === s.id ? "..." : "✓ Aceptar"}
+                  </button>
+                  <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "rechazado")}
+                    style={{ background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Corte extra — solo admin (total a cobrar + ganancia) */}
+        {isAdmin && totalVendidas > 0 && (totalVentas !== null || mayoreoSet) && (
           <div className="corte-card">
             <p className="corte-title">📊 Mi Corte</p>
             {totalVentas !== null && (
               <div className="corte-row">
                 <span className="corte-label">Total ventas</span>
                 <span className="corte-val">{fmt(totalVentas)}</span>
+              </div>
+            )}
+            {mayoreoSet && (
+              <div className="corte-row">
+                <span className="corte-label">Total a cobrar (mayoreo)</span>
+                <span className="corte-val">{fmt(totalDebo)}</span>
               </div>
             )}
             {totalGanancia !== null && (
@@ -292,9 +363,9 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         )}
 
-        {/* Upload Form */}
+        {/* Upload Form — PRO sube con precio de mayoreo (como dueño) */}
         <div style={{ marginBottom: 28 }}>
-          <UploadForm slug={slug} onSuccess={fetchInventario} modoPrecio={modoPrecio} />
+          <UploadForm slug={slug} onSuccess={fetchInventario} modoPrecio={modoPrecio} asOwner={isAdmin} />
         </div>
 
         {/* Inventario */}
@@ -334,19 +405,22 @@ export default function DistribuidorDashboard({ slug }) {
         <div className="pay-overlay" onClick={() => setPaySheet(null)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
             <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
-              💳 Registrar pago
+              💳 Pagar al proveedor
             </p>
-            <p style={{ margin: "0 0 20px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666" }}>
+            <p style={{ margin: "0 0 14px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666" }}>
               Saldo pendiente: <span style={{ color: "#FFE000" }}>{fmt(saldo)}</span>
+            </p>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#7ec5cc" }}>
+              ⏳ Tu pago quedará en revisión hasta que el proveedor lo acepte.
             </p>
 
             <button
               className="pay-btn"
               style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", marginBottom: 10 }}
               disabled={savingPay || saldo <= 0}
-              onClick={() => registrarPago(saldo, "completo", null)}
+              onClick={() => solicitarPago(saldo, "completo", null)}
             >
-              {savingPay ? "Registrando..." : `Pagar todo (${fmt(saldo)})`}
+              {savingPay ? "Enviando..." : `Pagar todo (${fmt(saldo)})`}
             </button>
 
             <button
@@ -402,8 +476,8 @@ export default function DistribuidorDashboard({ slug }) {
               </button>
               <button className="pay-btn primary" style={{ flex: 2 }}
                 disabled={savingPay || !parcialMonto || parseFloat(parcialMonto) <= 0}
-                onClick={() => registrarPago(parseFloat(parcialMonto), "parcial", null)}>
-                {savingPay ? "Registrando..." : "✓ Registrar pago"}
+                onClick={() => solicitarPago(parseFloat(parcialMonto), "parcial", null)}>
+                {savingPay ? "Enviando..." : "✓ Enviar pago"}
               </button>
             </div>
           </div>
@@ -432,6 +506,23 @@ export default function DistribuidorDashboard({ slug }) {
                 <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>{fmt(Math.max(0, saldo))}</p>
               </div>
             </div>
+
+            {pendientes.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <p className="pay-lbl" style={{ marginBottom: 8 }}>En revisión</p>
+                {pendientes.map(s => (
+                  <div key={s.id} className="pay-hist-row">
+                    <div>
+                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666", marginBottom: 2 }}>{fmtFecha(s.created_at)}</div>
+                      <span style={{ background: "rgba(126,197,204,0.12)", border: "1px solid rgba(126,197,204,0.3)", color: "#7ec5cc", borderRadius: 4, padding: "1px 7px", fontSize: 9, fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1 }}>
+                        ⏳ pendiente
+                      </span>
+                    </div>
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "#7ec5cc" }}>{fmt(s.monto)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {pagos.length === 0 ? (
               <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>

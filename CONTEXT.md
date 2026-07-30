@@ -124,8 +124,8 @@ Cada distribuidor en la tabla `distribuidores` tiene dos códigos:
 
 | Campo | Rol | Acceso |
 |-------|-----|--------|
-| `acceso_code` | `basic` | Agregar artículos, editar nombre/precio, marcar vendidos, restock, **ver saldo y registrar pagos** |
-| `acceso_admin` | `admin` | Todo lo anterior + corte con ganancia neta + historial de ventas por artículo + precio asignado por dueño |
+| `acceso_code` | `basic` | Agregar artículos, editar nombre/precio, marcar vendidos, restock, **ver saldo y solicitar pagos** |
+| `acceso_admin` | `admin` (PRO) | Todo lo anterior + subir inventario con precio de mayoreo + **aceptar/rechazar pagos** + corte con ganancia y total a cobrar + historial de ventas por artículo |
 
 > **Ningún rol puede eliminar artículos.** Borrar es exclusivo del dueño desde su panel admin. El saldo pendiente y el flujo de pago (total/parcial) son visibles para **ambos** roles.
 
@@ -201,7 +201,21 @@ tipo            TEXT CHECK (tipo IN ('parcial', 'completo'))
 notas           TEXT
 created_at      TIMESTAMPTZ DEFAULT NOW()
 ```
-Append-only: el saldo nunca se resetea, siempre es `sum(precio_mayoreo × vendidas) − sum(pagos)`.
+Append-only: el saldo nunca se resetea, siempre es `sum(precio_mayoreo × vendidas) − sum(pagos)`. Un pago entra aquí de dos formas: registrado directo por el dueño, o al **aceptar** una `solicitudes_pago`.
+
+### `solicitudes_pago`
+```sql
+id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
+distribuidor_id INTEGER REFERENCES distribuidores(id)
+monto           DECIMAL(10,2) NOT NULL
+tipo            TEXT CHECK (tipo IN ('parcial', 'completo'))
+estado          TEXT DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aceptado', 'rechazado'))
+notas           TEXT
+pago_id         UUID          -- id del pago creado en pagos_distribuidor al aceptar
+created_at      TIMESTAMPTZ DEFAULT NOW()
+resolved_at     TIMESTAMPTZ   -- cuándo se aceptó/rechazó
+```
+Flujo de pagos en 2 fases: el distribuidor crea la solicitud (`pendiente`); el dueño o el PRO la acepta (inserta pago real + marca `aceptado`) o la rechaza. Migración: `migrations/006-solicitudes-pago.sql`.
 
 ### `lotes`
 ```sql
@@ -233,8 +247,13 @@ created_at          TIMESTAMPTZ
 - `GET ?item_id=X` → historial de ventas de un artículo (`ventas_distribuidor` ordenado por fecha desc)
 
 ### `/api/distribuidor/pagos`
-- `GET ?slug=X` → historial de pagos del distribuidor
-- `POST { slug, monto, tipo, notas? }` → registra un pago
+- `GET ?slug=X` → historial de pagos (solo aceptados) del distribuidor
+- `POST { slug, monto, tipo, notas? }` → registra un pago directo (lo usa el dueño)
+
+### `/api/distribuidor/solicitudes`
+- `GET ?slug=X [&estado=pendiente]` → lista solicitudes de pago del distribuidor
+- `POST { slug, monto, tipo, notas? }` → el distribuidor crea una solicitud (`estado='pendiente'`)
+- `PATCH ?id=X { estado: 'aceptado'|'rechazado' }` → el dueño/PRO resuelve; al aceptar inserta el pago en `pagos_distribuidor` y enlaza `pago_id`
 
 ### `/api/distribuidor/settings`
 - `GET ?slug=X` → lee `modo_precio` del distribuidor
@@ -286,30 +305,40 @@ Archivos: `src/pages/distribuidor/`
 | Marcar vendido | ✅ | ✅ |
 | Restock (+ Stock) | ✅ | ✅ |
 | **Eliminar artículos** | ❌ | ❌ |
-| Ver saldo al proveedor + registrar pago | ✅ | ✅ |
-| Ver corte con ganancia (📊 Mi Corte) | ❌ | ✅ |
+| Ver saldo al proveedor + **solicitar** pago (total/parcial) | ✅ | ✅ |
+| Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
+| **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
+| Ver corte con ganancia + total a cobrar (📊 Mi Corte) | ❌ | ✅ |
 | Ver precio asignado por dueño (`precio_mayoreo`) | ❌ | ✅ |
 | Ver historial de ventas por artículo | ❌ | ✅ |
 | Ver ganancia acumulada por artículo | ❌ | ✅ (si tiene precio_venta) |
 
-**Card de saldo (todos los roles):** "Le debes al proveedor" = `precio_mayoreo × vendidas − pagos`. Muestra vendidas y total ya pagado, más botones **Pagar** (total/parcial) y **🧾 Mis pagos**. Se actualiza al marcar vendido. Solo aparece cuando el dueño ya configuró `precio_mayoreo` (si no, muestra mensaje pendiente).
+El formulario de alta usa `asOwner={isAdmin}`: el PRO captura **precio de mayoreo** (lo que cobra el dueño), el distribuidor normal captura su **precio de venta**.
 
-**Corte extra (solo admin):**
+**Card de saldo (todos los roles):** "Le debes al proveedor" = `precio_mayoreo × vendidas − pagos aceptados`. Muestra vendidas y total ya pagado. El botón **Pagar** (total/parcial) crea una **solicitud pendiente** (no descuenta hasta que el dueño/PRO la acepta); mientras hay una pendiente muestra "⏳ En revisión" y se bloquea pedir otra. **🧾 Mis pagos** lista pagos aceptados + pendientes. Solo aparece cuando el dueño ya configuró `precio_mayoreo`.
+
+**Corte extra (solo admin/PRO):**
 - "Total ventas" → solo si tiene `precio_venta` en algún artículo
-- "Mi ganancia neta" → `total ventas − saldo al proveedor` (solo si tiene `precio_venta`)
+- "Total a cobrar (mayoreo)" → `precio_mayoreo × vendidas`
+- "Mi ganancia neta" → `total ventas − total a cobrar` (solo si tiene `precio_venta`)
+- **"💳 Pagos por aceptar"** → lista de solicitudes pendientes con botones Aceptar/Rechazar
 
 ---
 
 ## Funcionalidad de pagos
 
-Los pagos los puede registrar **tanto el dueño** (tab Distribuidores) **como el propio distribuidor** (desde su portal). Ambos escriben en la misma tabla `pagos_distribuidor`, así que un pago registrado por el distribuidor aparece automáticamente en el historial del dueño y descuenta del saldo.
+**Flujo en 2 fases (pendiente → aceptado):**
 
-Tipos de pago:
-- **Pago completo / "Pagar todo"** — registra exactamente el saldo pendiente actual (`tipo: 'completo'`)
-- **Pago parcial / "Pagar una parte"** — con monto libre; muestra preview "quedará pendiente: $X" (`tipo: 'parcial'`)
-- **Historial de pagos** — lista todos los pagos con badge de tipo (parcial/completo); el dueño ve además las notas
+1. El **distribuidor** (cualquier rol) da "Pagar" (total o parcial) → crea una **solicitud** en `solicitudes_pago` con `estado='pendiente'`. Aún **no** descuenta del saldo; se muestra "⏳ En revisión" y se bloquea pedir otro pago mientras haya uno pendiente.
+2. El **dueño** (tab Distribuidores) **o** el **PRO** (portal del distribuidor con código admin) ve los "💳 Pagos por aceptar" y **acepta** o **rechaza**.
+3. Al **aceptar**, el endpoint inserta el pago real en `pagos_distribuidor` (fuente de verdad del saldo) y marca la solicitud `aceptado` con `pago_id`. Recién ahí baja el saldo y aparece en el historial visible para los tres (distribuidor normal, PRO, admin).
+4. Al **rechazar**, la solicitud queda `rechazado` y no afecta el saldo.
 
-El sistema es **append-only**: nunca se modifican ni eliminan pagos. El saldo siempre se recalcula como `suma(precio_mayoreo × vendidas) − suma(todos los pagos)`.
+El dueño además puede registrar un pago **directo** desde su panel (POST a `pagos_distribuidor`), sin pasar por solicitud, para cuando cobra en persona.
+
+Tipos: `completo` (todo el saldo) / `parcial` (monto libre, con preview "te quedará pendiente: $X").
+
+El sistema es **append-only**: nunca se modifican ni eliminan pagos. El saldo siempre se recalcula como `suma(precio_mayoreo × vendidas) − suma(pagos_distribuidor)` (solo pagos aceptados).
 
 ---
 

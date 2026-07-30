@@ -56,7 +56,7 @@ function compressImage(file, maxSize = 400, quality = 0.65) {
   });
 }
 
-export default function UploadForm({ slug, onSuccess, modoPrecio = "venta" }) {
+export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOwner = false }) {
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
   const [cantidad, setCantidad] = useState("1");
@@ -93,7 +93,10 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta" }) {
           distribuidor: slug,
           nombre: nombre || null,
           foto_url: fotoBase64,
-          precio_venta: precio ? parseFloat(precio) : null,
+          // El PRO/dueño define el precio de mayoreo; el distribuidor normal, su precio de venta
+          ...(asOwner
+            ? { precio_mayoreo: precio ? parseFloat(precio) : null }
+            : { precio_venta: precio ? parseFloat(precio) : null }),
           cantidad: parseInt(cantidad) || 1,
         }),
       });
@@ -133,7 +136,7 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta" }) {
           }}
         >
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15 }}>
-            ➕ Agregar Artículo
+            ➕ Agregar Artículo{asOwner ? " (mayoreo)" : ""}
           </span>
           <span style={{ color: "#666", fontSize: 18 }}>{open ? "−" : "+"}</span>
         </button>
@@ -153,7 +156,13 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta" }) {
               </div>
             </div>
 
-            {modoPrecio === "venta" && (
+            {asOwner ? (
+              <div style={{ marginBottom: 14 }}>
+                <label style={lbl}>Precio de Mayoreo $ <span style={{ color: "#444", letterSpacing: 0, textTransform: "none" }}>(lo que cobras)</span></label>
+                <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
+                  placeholder="Ej: 350" style={inp} />
+              </div>
+            ) : modoPrecio === "venta" && (
               <div style={{ marginBottom: 14 }}>
                 <label style={lbl}>Tu Precio de Venta $ <span style={{ color: "#444", letterSpacing: 0, textTransform: "none" }}>(opcional)</span></label>
                 <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}

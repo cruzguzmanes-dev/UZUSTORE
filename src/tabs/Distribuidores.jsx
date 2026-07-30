@@ -14,6 +14,7 @@ const fmtFecha = (iso) =>
 export default function Distribuidores() {
   const [data,         setData]         = useState({ gaticueva: [], friki: [] });
   const [pagos,        setPagos]        = useState({ gaticueva: [], friki: [] });
+  const [solicitudes,  setSolicitudes]  = useState({ gaticueva: [], friki: [] });
   const [lotes,        setLotes]        = useState([]);
   const [distSettings, setDistSettings] = useState({ gaticueva: { modo_precio: "venta" }, friki: { modo_precio: "venta" } });
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,7 @@ export default function Distribuidores() {
     setLoading(true);
     setError("");
     try {
-      const [results, lotesData, pagosGati, pagosFriki, settingsGati, settingsFriki] = await Promise.all([
+      const [results, lotesData, pagosGati, pagosFriki, settingsGati, settingsFriki, solGati, solFriki] = await Promise.all([
         Promise.all(
           SLUGS.map(s => fetch(`/api/distribuidor/inventario?distribuidor=${s}`).then(r => r.ok ? r.json() : []))
         ),
@@ -34,10 +35,13 @@ export default function Distribuidores() {
         fetch("/api/distribuidor/pagos?slug=friki").then(r => r.ok ? r.json() : []),
         fetch("/api/distribuidor/settings?slug=gaticueva").then(r => r.ok ? r.json() : {}),
         fetch("/api/distribuidor/settings?slug=friki").then(r => r.ok ? r.json() : {}),
+        fetch("/api/distribuidor/solicitudes?slug=gaticueva&estado=pendiente").then(r => r.ok ? r.json() : []),
+        fetch("/api/distribuidor/solicitudes?slug=friki&estado=pendiente").then(r => r.ok ? r.json() : []),
       ]);
       setData({ gaticueva: results[0] || [], friki: results[1] || [] });
       setLotes(lotesData || []);
       setPagos({ gaticueva: pagosGati || [], friki: pagosFriki || [] });
+      setSolicitudes({ gaticueva: solGati || [], friki: solFriki || [] });
       setDistSettings({
         gaticueva: { modo_precio: settingsGati?.modo_precio || "venta" },
         friki:     { modo_precio: settingsFriki?.modo_precio || "venta" },
@@ -117,6 +121,19 @@ export default function Distribuidores() {
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
       throw new Error(d.error || "Error actualizando foto");
+    }
+    await fetchAll();
+  };
+
+  const resolverSolicitud = async (id, estado) => {
+    const res = await fetch(`/api/distribuidor/solicitudes?id=${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estado }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || "Error procesando solicitud");
     }
     await fetchAll();
   };
@@ -221,12 +238,14 @@ export default function Distribuidores() {
           color={COLORS[tab]}
           lotes={lotes}
           pagos={pagos[tab] || []}
+          solicitudes={solicitudes[tab] || []}
           modoPrecio={distSettings[tab]?.modo_precio || "venta"}
           onSetMayoreo={setMayoreo}
           onRegistrarPago={registrarPago}
           onUpdateModoPrecio={updateModoPrecio}
           onEliminar={eliminarArticulo}
           onActualizarFoto={actualizarFoto}
+          onResolverSolicitud={resolverSolicitud}
         />
       )}
 
@@ -491,11 +510,25 @@ function Toggle({ checked, onChange, color = "#FFE000" }) {
 }
 
 /* ─────────────────────────────────────────── */
-function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, modoPrecio = "venta", onSetMayoreo, onRegistrarPago, onUpdateModoPrecio, onEliminar, onActualizarFoto }) {
+function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solicitudes = [], modoPrecio = "venta", onSetMayoreo, onRegistrarPago, onUpdateModoPrecio, onEliminar, onActualizarFoto, onResolverSolicitud }) {
   const [pagoSheet,    setPagoSheet]    = useState(null); // null | 'completo' | 'parcial' | 'historial'
   const [parcialMonto, setParcialMonto] = useState("");
   const [parcialNotas, setParcialNotas] = useState("");
   const [saving,       setSaving]       = useState(false);
+  const [resolviendo,  setResolviendo]  = useState(null);
+
+  const pendientes = solicitudes.filter(s => s.estado === "pendiente");
+
+  const handleResolver = async (id, estado) => {
+    setResolviendo(id);
+    try {
+      await onResolverSolicitud(id, estado);
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setResolviendo(null);
+    }
+  };
 
   const { teDeben, totalPagado, saldo } = resumen;
 
@@ -735,6 +768,40 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, modoPr
         <CorteItem label="Total a cobrar"    value={fmt(teDeben)} />
         <CorteItem label="Ya pagado"         value={fmt(totalPagado)} color="#7ecc7e" style={{ gridColumn: "1 / -1" }} />
       </div>
+
+      {/* ─── Pagos por aceptar (solicitudes del distribuidor) ─── */}
+      {pendientes.length > 0 && (
+        <div style={{
+          background: "rgba(126,197,204,0.05)", border: "1px solid rgba(126,197,204,0.3)",
+          borderRadius: 14, padding: 18, marginBottom: 16,
+        }}>
+          <p style={{ margin: "0 0 8px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "#7ec5cc" }}>
+            💳 Pagos por aceptar ({pendientes.length})
+          </p>
+          {pendientes.map(s => (
+            <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div>
+                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fff" }}>
+                  {fmt(s.monto)} <span style={{ fontSize: 10, color: "#666" }}>({s.tipo})</span>
+                </div>
+                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+                  Solicitado {fmtFecha(s.created_at)}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button disabled={resolviendo === s.id} onClick={() => handleResolver(s.id, "aceptado")}
+                  style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: resolviendo === s.id ? "not-allowed" : "pointer" }}>
+                  {resolviendo === s.id ? "..." : "✓ Aceptar"}
+                </button>
+                <button disabled={resolviendo === s.id} onClick={() => handleResolver(s.id, "rechazado")}
+                  style={{ background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: resolviendo === s.id ? "not-allowed" : "pointer" }}>
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ─── Saldo pendiente + botones de pago ─── */}
       <div style={{
