@@ -315,7 +315,8 @@ Archivos: `src/pages/distribuidor/`
 | Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
 | **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
 | Ver corte con ganancia + total a cobrar (📊 Mi Corte) | ❌ | ✅ |
-| Ver precio asignado por dueño (`precio_mayoreo`) | ❌ | ✅ |
+| Ver el `precio_mayoreo` en la tarjeta (solo lectura, en chico junto al precio de venta) | ✅ | ✅ |
+| **Editar** el `precio_mayoreo` | ❌ | ✅ |
 | Ver historial de ventas y de pagos (botones "📋 Ventas" / "🧾 Pagos" arriba, no por celda) | ✅ | ✅ |
 | Ver ganancia acumulada por artículo | ❌ | ✅ (si tiene precio_venta) |
 

@@ -369,26 +369,29 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
               }
               <div className="inv-info">
                 <div className="inv-name" style={{ paddingRight: 28 }}>{item.nombre || "Sin nombre"}</div>
-                <div className="inv-row">
-                  {tienePrecioV && (
-                    <span className="inv-precio">{fmt(item.precio_venta)}</span>
+
+                {/* Precios: venta en grande, mayoreo (lo que debe) en chico */}
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                  {tienePrecioV ? (
+                    <span style={{ color: "#FFE000", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontSize: 18 }}>
+                      {fmt(item.precio_venta)}
+                    </span>
+                  ) : (
+                    <span style={{ color: "#666", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                      Sin precio de venta
+                    </span>
                   )}
+                  {mayoreo > 0 && (
+                    <span style={{ color: "#7ec5cc", fontFamily: "'Space Mono', monospace", fontSize: 10 }}>
+                      mayoreo {fmt(mayoreo)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="inv-row">
                   <div className="inv-badge">Stock <strong>{item.cantidad}</strong></div>
                   <div className="inv-badge">Vendidas <strong>{vendidas}</strong></div>
                 </div>
-
-                {/* Precio asignado por dueño — solo admin */}
-                {isAdmin && mayoreo > 0 && (
-                  <div style={{
-                    background: "rgba(255,224,0,0.06)",
-                    border: "1px solid rgba(255,224,0,0.18)",
-                    borderRadius: 7, padding: "5px 10px",
-                    marginBottom: 8, fontSize: 11,
-                    fontFamily: "'Space Mono', monospace", color: "#FFE000",
-                  }}>
-                    💰 Precio asignado: {fmt(mayoreo)}
-                  </div>
-                )}
 
                 {/* Ganancia acumulada — solo admin con precio propio */}
                 {isAdmin && gananciaTotal !== null && (
