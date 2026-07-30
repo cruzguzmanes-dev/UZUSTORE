@@ -109,6 +109,7 @@ export default function DistribuidorDashboard({ slug }) {
   const [distribuidor, setDistribuidor] = useState(null);
   const [error, setError]           = useState("");
   const [search, setSearch]         = useState("");
+  const [showSinStock, setShowSinStock] = useState(false);
 
   // Pago
   const [paySheet, setPaySheet]     = useState(null); // null | 'menu' | 'parcial' | 'historial'
@@ -210,6 +211,8 @@ export default function DistribuidorDashboard({ slug }) {
   const inventarioFiltrado = q
     ? inventario.filter(i => (i.nombre || "").toLowerCase().includes(q))
     : inventario;
+  const conStock = inventarioFiltrado.filter(i => (i.cantidad || 0) > 0);
+  const sinStock = inventarioFiltrado.filter(i => (i.cantidad || 0) <= 0);
 
   // Solicitudes de pago pendientes
   const pendientes     = solicitudes.filter(s => s.estado === "pendiente");
@@ -297,7 +300,31 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         </div>
 
-        {/* Historiales — sección arriba, ambos roles */}
+        {/* Saldo con proveedor — lo primero al entrar, ambos roles */}
+        {mostrarSaldo ? (
+          <div className={`saldo-card ${saldo > 0 ? "debe" : "ok"}`}>
+            <p className="saldo-label">{isAdmin ? "Te deben actualmente" : "Le debes al proveedor"}</p>
+            <p className="saldo-monto" style={{ color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>
+              {fmt(Math.max(0, saldo))}
+              {saldo <= 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
+            </p>
+            <p className="saldo-sub">
+              {totalVendidas} vendidas · {isAdmin ? "Ya te pagaron" : "Ya pagaste"} {fmt(totalPagado)}
+            </p>
+            {totalPendiente > 0 && (
+              <p className="saldo-sub" style={{ color: "#7ec5cc", marginTop: 8 }}>
+                ⏳ En revisión: {fmt(totalPendiente)} — {isAdmin ? "acéptalo abajo" : "esperando que el proveedor lo acepte"}
+              </p>
+            )}
+            {!isAdmin && saldo > 0 && pendientes.length === 0 && (
+              <button className="pay-btn primary" style={{ width: "100%", marginTop: 14 }} onClick={() => setPaySheet("menu")}>
+                💳 Pagar
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {/* Historiales — ambos roles */}
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           <button
             onClick={abrirHistVentas}
@@ -310,30 +337,6 @@ export default function DistribuidorDashboard({ slug }) {
             🧾 Pagos
           </button>
         </div>
-
-        {/* Saldo con proveedor — visible para todos */}
-        {mostrarSaldo ? (
-          <div className={`saldo-card ${saldo > 0 ? "debe" : "ok"}`}>
-            <p className="saldo-label">Le debes al proveedor</p>
-            <p className="saldo-monto" style={{ color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>
-              {fmt(Math.max(0, saldo))}
-              {saldo <= 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
-            </p>
-            <p className="saldo-sub">
-              {totalVendidas} vendidas · Ya pagaste {fmt(totalPagado)}
-            </p>
-            {totalPendiente > 0 && (
-              <p className="saldo-sub" style={{ color: "#7ec5cc", marginTop: 8 }}>
-                ⏳ En revisión: {fmt(totalPendiente)} — esperando que el proveedor lo acepte
-              </p>
-            )}
-            {saldo > 0 && pendientes.length === 0 && (
-              <button className="pay-btn primary" style={{ width: "100%", marginTop: 14 }} onClick={() => setPaySheet("menu")}>
-                💳 Pagar
-              </button>
-            )}
-          </div>
-        ) : null}
 
         {/* PRO: solicitudes de pago por aceptar */}
         {isAdmin && pendientes.length > 0 && (
@@ -424,12 +427,38 @@ export default function DistribuidorDashboard({ slug }) {
           ) : inventarioFiltrado.length === 0 ? (
             <p className="dist-empty">Sin resultados para "{search}".</p>
           ) : (
-            <InventarioTable
-              items={inventarioFiltrado}
-              isAdmin={isAdmin}
-              modoPrecio={modoPrecio}
-              onItemSold={() => { fetchInventario(); }}
-            />
+            <>
+              {conStock.length > 0 ? (
+                <InventarioTable
+                  items={conStock}
+                  isAdmin={isAdmin}
+                  modoPrecio={modoPrecio}
+                  onItemSold={() => { fetchInventario(); }}
+                />
+              ) : (
+                <p className="dist-empty">No hay artículos con stock.</p>
+              )}
+
+              {/* Artículos sin stock — sección colapsable (historial de agotados) */}
+              {sinStock.length > 0 && (
+                <div style={{ marginTop: 24 }}>
+                  <button
+                    onClick={() => setShowSinStock(v => !v)}
+                    style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 16px", color: "#888", fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showSinStock ? 14 : 0 }}>
+                    <span>📦 Artículos sin stock ({sinStock.length})</span>
+                    <span style={{ color: "#555", fontSize: 18, lineHeight: 1 }}>{showSinStock ? "−" : "+"}</span>
+                  </button>
+                  {showSinStock && (
+                    <InventarioTable
+                      items={sinStock}
+                      isAdmin={isAdmin}
+                      modoPrecio={modoPrecio}
+                      onItemSold={() => { fetchInventario(); }}
+                    />
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
 

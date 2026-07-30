@@ -295,7 +295,7 @@ Archivos: `src/pages/distribuidor/`
 
 **Flujo:**
 1. `DistribuidorLogin.jsx` — pantalla de código de acceso
-2. `DistribuidorDashboard.jsx` — carga inventario, pagos y datos del distribuidor; incluye card de saldo, flujo de pago y buscador
+2. `DistribuidorDashboard.jsx` — carga inventario, pagos y datos del distribuidor; incluye card de saldo, flujo de pago y buscador. El inventario se separa en **"Artículos"** (cantidad > 0) y **"Artículos sin stock"** (cantidad ≤ 0, sección colapsable = historial de agotados) para que la vista principal quede limpia
 3. `UploadForm.jsx` — formulario para agregar artículos. **Solo visible para PRO** (`{isAdmin && <UploadForm asOwner />}`); captura precio de mayoreo.
 4. `InventarioTable.jsx` — grid de artículos con acciones (editar nombre/precio, vendido, restock; **sin eliminar, sin historial por celda**)
 
@@ -307,6 +307,7 @@ Archivos: `src/pages/distribuidor/`
 | Buscar artículo por nombre | ✅ | ✅ |
 | **Agregar artículos** (formulario de alta) | ❌ | ✅ |
 | Editar nombre y su precio de venta (⚙) | ✅ | ✅ |
+| Editar el **precio de mayoreo** de un artículo (⚙) | ❌ | ✅ |
 | Marcar vendido | ✅ | ✅ |
 | Restock (+ Stock) | ✅ | ✅ |
 | **Eliminar artículos** | ❌ | ❌ |
@@ -320,7 +321,7 @@ Archivos: `src/pages/distribuidor/`
 
 Solo el PRO ve el formulario de alta (`asOwner`), y captura **precio de mayoreo** (lo que cobra el dueño). El distribuidor normal no agrega inventario; solo edita nombre y su **precio de venta** en artículos existentes.
 
-**Card de saldo (todos los roles):** "Le debes al proveedor" = `precio_mayoreo × vendidas − pagos aceptados`. Muestra vendidas y total ya pagado. El botón **Pagar** (total/parcial) crea una **solicitud pendiente** (no descuenta hasta que el dueño/PRO la acepta); mientras hay una pendiente muestra "⏳ En revisión" y se bloquea pedir otra. **🧾 Mis pagos** lista pagos aceptados + pendientes. Solo aparece cuando el dueño ya configuró `precio_mayoreo`.
+**Card de saldo (todos los roles, es lo primero al entrar):** Normal ve **"Le debes al proveedor"** (con botón Pagar); PRO ve **"Te deben actualmente"** (sin botón Pagar, porque cobra, no paga). Valor = `precio_mayoreo × vendidas − pagos aceptados`. Solo aparece cuando el artículo tiene `precio_mayoreo` asignado — que el **PRO** puede fijar desde el ⚙ de cada artículo o al subirlo, o el dueño desde su panel. Muestra vendidas y total ya pagado. El botón **Pagar** (total/parcial) crea una **solicitud pendiente** (no descuenta hasta que el dueño/PRO la acepta); mientras hay una pendiente muestra "⏳ En revisión" y se bloquea pedir otra. **🧾 Mis pagos** lista pagos aceptados + pendientes. Solo aparece cuando el dueño ya configuró `precio_mayoreo`.
 
 **Corte extra (solo admin/PRO):**
 - "Total ventas" → solo si tiene `precio_venta` en algún artículo

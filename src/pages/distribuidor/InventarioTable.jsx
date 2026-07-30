@@ -117,6 +117,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
   const [editItem, setEditItem]           = useState(null);
   const [editNombre, setEditNombre]       = useState("");
   const [editPrecio, setEditPrecio]       = useState("");
+  const [editMayoreo, setEditMayoreo]     = useState("");
   const [saving, setSaving]               = useState(false);
 
   // Restock
@@ -186,6 +187,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
   const openEdit = (item) => {
     setEditNombre(item.nombre || "");
     setEditPrecio(item.precio_venta || "");
+    setEditMayoreo(item.precio_mayoreo || "");
     setEditItem(item);
   };
 
@@ -198,6 +200,8 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
         body: JSON.stringify({
           nombre: editNombre || null,
           ...(editPrecio && { precio_venta: parseFloat(editPrecio) }),
+          // Solo el PRO puede fijar/editar el mayoreo
+          ...(isAdmin && { precio_mayoreo: parseFloat(editMayoreo) || 0 }),
         }),
       });
       if (!res.ok) throw new Error("Error guardando");
@@ -309,6 +313,18 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             <label className="edit-lbl">Nombre</label>
             <input className="edit-inp" type="text" value={editNombre}
               onChange={e => setEditNombre(e.target.value)} placeholder="Ej: Goku Ultra Instinct" />
+
+            {/* Mayoreo — solo PRO (el precio que cobra el dueño) */}
+            {isAdmin && (
+              <>
+                <label className="edit-lbl">
+                  Precio de Mayoreo $ <span style={{ color: "#FFE000", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(lo que cobras)</span>
+                </label>
+                <input className="edit-inp" type="number" step="0.01" value={editMayoreo}
+                  onChange={e => setEditMayoreo(e.target.value)} placeholder="Ej: 300" />
+              </>
+            )}
+
             {modoPrecio === "venta" && (
               <>
                 <label className="edit-lbl">
