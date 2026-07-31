@@ -64,7 +64,8 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
   const [preview, setPreview] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [open, setOpen] = useState(true);
+  // La propuesta de inventario (normal) arranca colapsada; el alta del PRO, abierta
+  const [open, setOpen] = useState(!proposal);
 
   const handleFotoChange = (e) => {
     const file = e.target.files?.[0];

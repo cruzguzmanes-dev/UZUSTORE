@@ -124,12 +124,12 @@ Cada distribuidor en la tabla `distribuidores` tiene dos códigos:
 
 | Campo | Rol | Acceso |
 |-------|-----|--------|
-| `acceso_code` | `basic` (Normal) | Editar nombre y su precio de venta, marcar vendidos, restock, **ver saldo y solicitar pagos**, ver historiales de ventas y pagos. NO puede agregar inventario ni tocar el mayoreo. |
+| `acceso_code` | `basic` (**Vendedor**) | Editar nombre y su precio de venta, marcar vendidos, **ver saldo y solicitar pagos**, ver historiales, proponer inventario, registrar venta suelta. NO agrega inventario con precio, ni toca el costo distribuidor, ni hace restock. En el header **no ve badge** (solo el PRO muestra "PRO"). |
 | `acceso_admin` | `admin` (PRO) | Todo lo anterior + **agregar inventario** (con precio de mayoreo) + **editar el mayoreo** de artículos + **aceptar/rechazar pagos** |
 
 Los historiales de **ventas** ("📋 Ventas") y de **pagos** ("🧾 Pagos") son botones arriba visibles para **ambos** roles.
 
-El header del portal muestra un badge **NORMAL** / **PRO** junto a "Gestiona tu inventario" según el código con el que se entró.
+El header del portal muestra el badge **"PRO"** junto a "Gestiona tu inventario" solo cuando se entró con el código admin. El **Vendedor** (código básico) no ve ningún badge. Además, su formulario "📸 Inventariar pieza pasada" arranca **colapsado**.
 
 > **Ningún rol puede eliminar artículos.** Borrar es exclusivo del dueño desde su panel admin. El saldo pendiente y el flujo de pago (total/parcial) son visibles para **ambos** roles.
 

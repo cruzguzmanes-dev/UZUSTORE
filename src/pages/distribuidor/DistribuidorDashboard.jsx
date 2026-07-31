@@ -423,15 +423,16 @@ export default function DistribuidorDashboard({ slug }) {
           <h1 className="dist-title">📦 {distribuidor?.nombre || slug}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <p className="dist-sub" style={{ margin: 0 }}>Gestiona tu inventario</p>
-            <span style={{
-              fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: 1,
-              textTransform: "uppercase", padding: "2px 8px", borderRadius: 5,
-              background: isAdmin ? "rgba(255,224,0,0.12)" : "rgba(255,255,255,0.08)",
-              border: `1px solid ${isAdmin ? "rgba(255,224,0,0.35)" : "rgba(255,255,255,0.15)"}`,
-              color: isAdmin ? "#FFE000" : "#999",
-            }}>
-              {isAdmin ? "PRO" : "Normal"}
-            </span>
+            {/* El badge solo se muestra al PRO; el vendedor no ve etiqueta */}
+            {isAdmin && (
+              <span style={{
+                fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: 1,
+                textTransform: "uppercase", padding: "2px 8px", borderRadius: 5,
+                background: "rgba(255,224,0,0.12)", border: "1px solid rgba(255,224,0,0.35)", color: "#FFE000",
+              }}>
+                PRO
+              </span>
+            )}
           </div>
         </div>
 
