@@ -105,6 +105,7 @@ export default function DistribuidorDashboard({ slug }) {
   const [inventario, setInventario] = useState([]);
   const [pagos, setPagos]           = useState([]);
   const [solicitudes, setSolicitudes] = useState([]);
+  const [sueltas, setSueltas]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [distribuidor, setDistribuidor] = useState(null);
   const [error, setError]           = useState("");
@@ -121,6 +122,12 @@ export default function DistribuidorDashboard({ slug }) {
   const [showHistVentas, setShowHistVentas] = useState(false);
   const [histVentas, setHistVentas]         = useState([]);
   const [histLoading, setHistLoading]       = useState(false);
+
+  // Venta suelta (pieza no inventariada)
+  const [ventaSheet, setVentaSheet] = useState(false);
+  const [ventaNombre, setVentaNombre] = useState("");
+  const [savingVenta, setSavingVenta] = useState(false);
+  const [resolviendoSuelta, setResolviendoSuelta] = useState(null);
 
   const fetchInventario = async () => {
     setLoading(true);
@@ -151,6 +158,13 @@ export default function DistribuidorDashboard({ slug }) {
     } catch {}
   };
 
+  const fetchSueltas = async () => {
+    try {
+      const res = await fetch(`/api/distribuidor/historial?sueltas=${slug}`);
+      if (res.ok) setSueltas(await res.json() || []);
+    } catch {}
+  };
+
   const abrirHistVentas = async () => {
     setShowHistVentas(true);
     setHistLoading(true);
@@ -177,6 +191,7 @@ export default function DistribuidorDashboard({ slug }) {
     fetchInventario();
     fetchPagos();
     fetchSolicitudes();
+    fetchSueltas();
   }, [slug, authed]);
 
   if (!authed) {
@@ -197,8 +212,15 @@ export default function DistribuidorDashboard({ slug }) {
 
   // Cálculos
   const totalStock    = inventario.reduce((s, i) => s + i.cantidad, 0);
-  const totalVendidas = inventario.reduce((s, i) => s + (i.vendidas || 0), 0);
-  const totalDebo     = inventario.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0);
+
+  // Ventas sueltas (piezas no inventariadas)
+  const sueltasPendientes  = sueltas.filter(v => v.estado === "pendiente");
+  const sueltasConfirmadas = sueltas.filter(v => v.estado === "confirmada");
+  const vendidasSueltas    = sueltasConfirmadas.reduce((s, v) => s + (v.cantidad || 1), 0);
+  const deboSueltas        = sueltasConfirmadas.reduce((s, v) => s + ((v.precio_mayoreo || 0) * (v.cantidad || 1)), 0);
+
+  const totalVendidas = inventario.reduce((s, i) => s + (i.vendidas || 0), 0) + vendidasSueltas;
+  const totalDebo     = inventario.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0) + deboSueltas;
   const totalPagado   = pagos.reduce((s, p) => s + p.monto, 0);
   const saldo         = totalDebo - totalPagado;
 
@@ -209,6 +231,18 @@ export default function DistribuidorDashboard({ slug }) {
     : inventario;
   const conStock = inventarioFiltrado.filter(i => (i.cantidad || 0) > 0);
   const sinStock = inventarioFiltrado.filter(i => (i.cantidad || 0) <= 0);
+
+  // Historial combinado: ventas de inventario + ventas sueltas (confirmadas + pendientes)
+  const histAll = [
+    ...histVentas.map(v => {
+      const it = inventario.find(i => i.id === v.item_id);
+      return { key: "inv-" + v.id, nombre: it?.nombre || "Artículo", fecha: v.created_at, cantidad: v.cantidad, mayoreo: it?.precio_mayoreo || 0, suelta: false, pendiente: false };
+    }),
+    ...sueltasConfirmadas.map(s => ({ key: "sc-" + s.id, nombre: s.nombre, fecha: s.created_at, cantidad: s.cantidad || 1, mayoreo: s.precio_mayoreo || 0, suelta: true, pendiente: false })),
+    ...sueltasPendientes.map(s => ({ key: "sp-" + s.id, nombre: s.nombre, fecha: s.created_at, cantidad: s.cantidad || 1, mayoreo: 0, suelta: true, pendiente: true })),
+  ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  const histUds      = histAll.filter(h => !h.pendiente).reduce((s, h) => s + h.cantidad, 0);
+  const histTotalMay = histAll.filter(h => !h.pendiente).reduce((s, h) => s + h.mayoreo * h.cantidad, 0);
 
   // Solicitudes de pago pendientes
   const pendientes     = solicitudes.filter(s => s.estado === "pendiente");
@@ -256,6 +290,56 @@ export default function DistribuidorDashboard({ slug }) {
       alert("Error: " + e.message);
     } finally {
       setResolviendo(null);
+    }
+  };
+
+  // El NORMAL registra una venta de una pieza no inventariada (solo nombre)
+  const registrarVentaSuelta = async () => {
+    const nombre = ventaNombre.trim();
+    if (!nombre) return;
+    setSavingVenta(true);
+    try {
+      const res = await fetch("/api/distribuidor/historial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, nombre }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error registrando la venta");
+      }
+      await fetchSueltas();
+      setVentaSheet(false);
+      setVentaNombre("");
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setSavingVenta(false);
+    }
+  };
+
+  // El PRO confirma (con mayoreo) o rechaza una venta suelta
+  const resolverSuelta = async (id, estado, precioMayoreo) => {
+    if (estado === "confirmada" && (!precioMayoreo || parseFloat(precioMayoreo) <= 0)) {
+      alert("Pon el costo de mayoreo para confirmar.");
+      return;
+    }
+    setResolviendoSuelta(id);
+    try {
+      const res = await fetch(`/api/distribuidor/historial?id=${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado, ...(estado === "confirmada" && { precio_mayoreo: parseFloat(precioMayoreo) }) }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error procesando");
+      }
+      await fetchSueltas();
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setResolviendoSuelta(null);
     }
   };
 
@@ -333,6 +417,26 @@ export default function DistribuidorDashboard({ slug }) {
             🧾 Pagos
           </button>
         </div>
+
+        {/* Registrar venta de pieza NO inventariada — ambos roles */}
+        <button
+          onClick={() => { setVentaNombre(""); setVentaSheet(true); }}
+          style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.18)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#aaa", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer" }}>
+          ➕ Registrar venta de pieza sin inventario
+        </button>
+
+        {/* PRO: ventas sueltas por confirmar */}
+        {isAdmin && sueltasPendientes.length > 0 && (
+          <div className="corte-card" style={{ borderColor: "rgba(255,184,77,0.35)", background: "rgba(255,184,77,0.05)" }}>
+            <p className="corte-title" style={{ color: "#ffb84d", marginBottom: 4 }}>🧾 Ventas por confirmar ({sueltasPendientes.length})</p>
+            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+              Ponle el costo de mayoreo para sumarla a lo que te deben.
+            </p>
+            {sueltasPendientes.map(s => (
+              <SueltaConfirmRow key={s.id} suelta={s} resolviendo={resolviendoSuelta} onResolver={resolverSuelta} />
+            ))}
+          </div>
+        )}
 
         {/* PRO: solicitudes de pago por aceptar */}
         {isAdmin && pendientes.length > 0 && (
@@ -604,7 +708,7 @@ export default function DistribuidorDashboard({ slug }) {
 
             {histLoading ? (
               <Loader size={80} message="Cargando historial" />
-            ) : histVentas.length === 0 ? (
+            ) : histAll.length === 0 ? (
               <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
                 Sin ventas registradas aún
               </p>
@@ -613,36 +717,96 @@ export default function DistribuidorDashboard({ slug }) {
                 <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>Total mayoreo</span>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
-                    {histVentas.reduce((s, v) => s + v.cantidad, 0)} uds · {fmt(histVentas.reduce((s, v) => {
-                      const it = inventario.find(i => i.id === v.item_id);
-                      return s + ((it?.precio_mayoreo || 0) * v.cantidad);
-                    }, 0))}
+                    {histUds} uds · {fmt(histTotalMay)}
                   </span>
                 </div>
-                {histVentas.map(v => {
-                  const item = inventario.find(i => i.id === v.item_id);
-                  const mayoreo = item?.precio_mayoreo || 0;
-                  return (
-                    <div key={v.id} className="pay-hist-row">
-                      <div>
-                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#fff", marginBottom: 2 }}>
-                          {item?.nombre || "Artículo"}
-                        </div>
-                        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
-                          {fmtFecha(v.created_at)} · x{v.cantidad}
-                        </div>
+                {histAll.map(h => (
+                  <div key={h.key} className="pay-hist-row">
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#fff", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        {h.nombre}
+                        {h.suelta && (
+                          <span style={{ background: "rgba(255,184,77,0.12)", border: "1px solid rgba(255,184,77,0.3)", color: "#ffb84d", borderRadius: 4, padding: "0 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: 1 }}>
+                            sin inv.
+                          </span>
+                        )}
                       </div>
-                      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
-                        {mayoreo > 0 ? fmt(mayoreo * v.cantidad) : "—"}
-                      </span>
+                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+                        {fmtFecha(h.fecha)} · x{h.cantidad}{h.pendiente ? " · ⏳ por confirmar" : ""}
+                      </div>
                     </div>
-                  );
-                })}
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: h.pendiente ? "#666" : "#7ecc7e" }}>
+                      {!h.pendiente && h.mayoreo > 0 ? fmt(h.mayoreo * h.cantidad) : "—"}
+                    </span>
+                  </div>
+                ))}
               </>
             )}
           </div>
         </div>
       )}
+
+      {/* ── Sheet: registrar venta suelta (pieza sin inventario) ── */}
+      {ventaSheet && (
+        <div className="pay-overlay" onClick={() => setVentaSheet(false)}>
+          <div className="pay-sheet" onClick={e => e.stopPropagation()}>
+            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+              ➕ Registrar venta
+            </p>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>
+              Para piezas que vendiste y no están en tu inventario. El proveedor le pondrá el costo de mayoreo.
+            </p>
+
+            <label className="pay-lbl">¿Qué vendiste?</label>
+            <input
+              className="pay-inp" type="text" value={ventaNombre}
+              onChange={e => setVentaNombre(e.target.value)}
+              placeholder="Ej: Luffy KOA" autoFocus
+            />
+
+            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+              <button className="pay-btn ghost" style={{ flex: 1 }}
+                onClick={() => { setVentaSheet(false); setVentaNombre(""); }}>
+                Cancelar
+              </button>
+              <button className="pay-btn primary" style={{ flex: 2 }}
+                disabled={savingVenta || !ventaNombre.trim()}
+                onClick={registrarVentaSuelta}>
+                {savingVenta ? "Enviando..." : "Enviar al proveedor →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Fila de venta suelta por confirmar (PRO pone el costo de mayoreo) */
+function SueltaConfirmRow({ suelta, resolviendo, onResolver }) {
+  const [costo, setCosto] = useState("");
+  const busy = resolviendo === suelta.id;
+  return (
+    <div style={{ padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "#fff" }}>{suelta.nombre}</div>
+        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>{fmtFecha(suelta.created_at)} · x{suelta.cantidad}</div>
+      </div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="number" inputMode="decimal" step="0.01" min="0" value={costo}
+          onChange={e => setCosto(e.target.value)} placeholder="Costo mayoreo $"
+          style={{ flex: 1, minWidth: 0, background: "#111", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 14, fontFamily: "'Space Mono', monospace", outline: "none" }}
+        />
+        <button disabled={busy || !costo || parseFloat(costo) <= 0} onClick={() => onResolver(suelta.id, "confirmada", costo)}
+          style={{ background: busy || !costo ? "#333" : "#1e3a1e", border: "1px solid #2d5a2d", color: busy || !costo ? "#666" : "#7ecc7e", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: busy || !costo ? "not-allowed" : "pointer", flexShrink: 0 }}>
+          {busy ? "..." : "✓"}
+        </button>
+        <button disabled={busy} onClick={() => onResolver(suelta.id, "rechazada")}
+          style={{ background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer", flexShrink: 0 }}>
+          ✕
+        </button>
+      </div>
     </div>
   );
 }

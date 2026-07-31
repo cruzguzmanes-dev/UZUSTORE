@@ -15,6 +15,7 @@ export default function Distribuidores() {
   const [data,         setData]         = useState({ gaticueva: [], friki: [] });
   const [pagos,        setPagos]        = useState({ gaticueva: [], friki: [] });
   const [solicitudes,  setSolicitudes]  = useState({ gaticueva: [], friki: [] });
+  const [sueltas,      setSueltas]      = useState({ gaticueva: [], friki: [] });
   const [lotes,        setLotes]        = useState([]);
   const [distSettings, setDistSettings] = useState({ gaticueva: { modo_precio: "venta" }, friki: { modo_precio: "venta" } });
   const [loading, setLoading] = useState(true);
@@ -26,7 +27,7 @@ export default function Distribuidores() {
     setLoading(true);
     setError("");
     try {
-      const [results, lotesData, pagosGati, pagosFriki, settingsGati, settingsFriki, solGati, solFriki] = await Promise.all([
+      const [results, lotesData, pagosGati, pagosFriki, settingsGati, settingsFriki, solGati, solFriki, sueltasGati, sueltasFriki] = await Promise.all([
         Promise.all(
           SLUGS.map(s => fetch(`/api/distribuidor/inventario?distribuidor=${s}`).then(r => r.ok ? r.json() : []))
         ),
@@ -37,11 +38,14 @@ export default function Distribuidores() {
         fetch("/api/distribuidor/settings?slug=friki").then(r => r.ok ? r.json() : {}),
         fetch("/api/distribuidor/solicitudes?slug=gaticueva&estado=pendiente").then(r => r.ok ? r.json() : []),
         fetch("/api/distribuidor/solicitudes?slug=friki&estado=pendiente").then(r => r.ok ? r.json() : []),
+        fetch("/api/distribuidor/historial?sueltas=gaticueva&estado=confirmada").then(r => r.ok ? r.json() : []),
+        fetch("/api/distribuidor/historial?sueltas=friki&estado=confirmada").then(r => r.ok ? r.json() : []),
       ]);
       setData({ gaticueva: results[0] || [], friki: results[1] || [] });
       setLotes(lotesData || []);
       setPagos({ gaticueva: pagosGati || [], friki: pagosFriki || [] });
       setSolicitudes({ gaticueva: solGati || [], friki: solFriki || [] });
+      setSueltas({ gaticueva: sueltasGati || [], friki: sueltasFriki || [] });
       setDistSettings({
         gaticueva: { modo_precio: settingsGati?.modo_precio || "venta" },
         friki:     { modo_precio: settingsFriki?.modo_precio || "venta" },
@@ -154,10 +158,15 @@ export default function Distribuidores() {
   // Resumen total
   const resumen = SLUGS.map(slug => {
     const items       = data[slug] || [];
-    const vendidas    = items.reduce((s, i) => s + (i.vendidas || 0), 0);
+    const sueltasConf = sueltas[slug] || [];
+    const vendidasInv = items.reduce((s, i) => s + (i.vendidas || 0), 0);
+    const vendidasSue = sueltasConf.reduce((s, v) => s + (v.cantidad || 1), 0);
+    const vendidas    = vendidasInv + vendidasSue;
     const totalVentas = items.reduce((s, i) => s + (i.precio_venta * (i.vendidas || 0)), 0);
-    const teDeben     = items.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0);
-    const ganancia    = totalVentas - teDeben;
+    const teDebenInv  = items.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0);
+    const teDebenSue  = sueltasConf.reduce((s, v) => s + ((v.precio_mayoreo || 0) * (v.cantidad || 1)), 0);
+    const teDeben     = teDebenInv + teDebenSue;
+    const ganancia    = totalVentas - teDebenInv;
     const stock       = items.reduce((s, i) => s + i.cantidad, 0);
     const totalPagado = (pagos[slug] || []).reduce((s, p) => s + p.monto, 0);
     const saldo       = teDeben - totalPagado;
@@ -764,7 +773,7 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
       }}>
         <CorteItem label="En stock"          value={resumen.stock} />
         <CorteItem label="Vendidas"          value={resumen.vendidas} />
-        <CorteItem label="Sus ventas totales" value={fmt(teDeben + resumen.ganancia)} />
+        <CorteItem label="Sus ventas totales" value={fmt(resumen.totalVentas)} />
         <CorteItem label="Total a cobrar"    value={fmt(teDeben)} />
         <CorteItem label="Ya pagado"         value={fmt(totalPagado)} color="#7ecc7e" style={{ gridColumn: "1 / -1" }} />
       </div>

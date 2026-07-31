@@ -221,6 +221,19 @@ resolved_at     TIMESTAMPTZ   -- cuándo se aceptó/rechazó
 ```
 Flujo de pagos en 2 fases: el distribuidor crea la solicitud (`pendiente`); el dueño o el PRO la acepta (inserta pago real + marca `aceptado`) o la rechaza. Migración: `migrations/006-solicitudes-pago.sql`.
 
+### `ventas_sueltas`
+```sql
+id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
+distribuidor_id INTEGER REFERENCES distribuidores(id)
+nombre          TEXT NOT NULL
+cantidad        INT NOT NULL DEFAULT 1
+precio_mayoreo  DECIMAL(10,2)   -- lo pone el PRO al confirmar
+estado          TEXT DEFAULT 'pendiente' CHECK (estado IN ('pendiente','confirmada','rechazada'))
+created_at      TIMESTAMPTZ DEFAULT NOW()
+confirmed_at    TIMESTAMPTZ
+```
+Ventas de piezas **no inventariadas** (stock viejo que el dueño dejó). El NORMAL registra **solo el nombre** → queda `pendiente`. El PRO ve la sección **"🧾 Ventas por confirmar (N)"** (aviso in-app), le pone el **precio de mayoreo** y la `confirma` → suma a `totalDebo`/saldo (y al conteo de vendidas y al historial "📋 Ventas" con badge "sin inv."). Solo el PRO confirma. El saldo del panel del dueño también incluye estas ventas confirmadas. Endpoints en `historial.js`. Migración: `migrations/007-ventas-sueltas.sql`.
+
 ### `lotes`
 ```sql
 id                  SERIAL PRIMARY KEY
@@ -247,9 +260,12 @@ created_at          TIMESTAMPTZ
 - `PUT ?id=X { cantidad?, vendidas?, precio_mayoreo?, nombre?, precio_venta?, lote_sku?, foto_url?, log_venta? }` → actualiza; si `log_venta` presente, inserta en `ventas_distribuidor`
 - `DELETE ?id=X` → elimina artículo (solo se invoca desde el panel del dueño; el portal del distribuidor ya no expone borrado)
 
-### `/api/distribuidor/historial`
-- `GET ?item_id=X` → historial de ventas de un artículo (`ventas_distribuidor` ordenado por fecha desc)
-- `GET ?distribuidor=slug` → historial de ventas de todo el distribuidor (usado por la sección "📋 Historial de ventas" del portal PRO)
+### `/api/distribuidor/historial` (dominio "ventas")
+- `GET ?item_id=X` → historial de ventas de un artículo (`ventas_distribuidor`)
+- `GET ?distribuidor=slug` → historial de ventas inventariadas del distribuidor
+- `GET ?sueltas=slug [&estado=X]` → ventas sueltas (piezas no inventariadas)
+- `POST { slug, nombre, cantidad? }` → el NORMAL registra una venta suelta (`estado='pendiente'`)
+- `PATCH ?id=X { estado: 'confirmada'|'rechazada', precio_mayoreo? }` → el PRO confirma (con mayoreo, suma al saldo) o rechaza
 
 ### `/api/distribuidor/pagos`
 - `GET ?slug=X` → historial de pagos (solo aceptados) del distribuidor
@@ -314,6 +330,8 @@ Archivos: `src/pages/distribuidor/`
 | Ver saldo al proveedor + **solicitar** pago (total/parcial) | ✅ | ✅ |
 | Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
 | **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
+| Registrar **venta suelta** (pieza sin inventario, solo nombre) | ✅ | ✅ |
+| **Confirmar ventas sueltas** (ponerles el mayoreo) | ❌ | ✅ |
 | Ver "💳 Pagos por aceptar" (aceptar/rechazar solicitudes) | ❌ | ✅ |
 | Ver el `precio_mayoreo` en la tarjeta (solo lectura, en chico junto al precio de venta) | ✅ | ✅ |
 | **Editar** el `precio_mayoreo` | ❌ | ✅ |
