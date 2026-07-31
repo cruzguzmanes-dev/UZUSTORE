@@ -5,7 +5,7 @@ import { fmt } from "../../utils";
 const fotoCache = new Map();
 
 /* Carga la foto de un artículo solo cuando su tarjeta entra en pantalla */
-function LazyFoto({ itemId, imgClass, phClass, alt = "" }) {
+export function LazyFoto({ itemId, imgClass, phClass, alt = "" }) {
   const [src, setSrc] = useState(() => fotoCache.get(itemId) || null);
   const ref = useRef(null);
 
@@ -145,7 +145,7 @@ const CSS = `
   }
 `;
 
-export default function InventarioTable({ items, isAdmin = false, modoPrecio = "venta", onItemSold }) {
+export default function InventarioTable({ items, isAdmin = false, modoPrecio = "venta", verVenta = true, onItemSold }) {
   const [sellingId, setSellingId]         = useState(null);
   const [restockingId, setRestockingId]   = useState(null);
   const [confirmItem, setConfirmItem]     = useState(null);
@@ -343,18 +343,18 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             <input className="edit-inp" type="text" value={editNombre}
               onChange={e => setEditNombre(e.target.value)} placeholder="Ej: Goku Ultra Instinct" />
 
-            {/* Mayoreo — solo PRO (el precio que cobra el dueño) */}
+            {/* Costo distribuidor — solo PRO (lo que le cobra el dueño) */}
             {isAdmin && (
               <>
                 <label className="edit-lbl">
-                  Precio de Mayoreo $ <span style={{ color: "#FFE000", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(lo que cobras)</span>
+                  Costo Distribuidor $ <span style={{ color: "#FFE000", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(lo que le cobras)</span>
                 </label>
                 <input className="edit-inp" type="number" step="0.01" value={editMayoreo}
                   onChange={e => setEditMayoreo(e.target.value)} placeholder="Ej: 300" />
               </>
             )}
 
-            {modoPrecio === "venta" && (
+            {verVenta && modoPrecio === "venta" && (
               <>
                 <label className="edit-lbl">
                   Tu Precio de Venta $ <span style={{ color: "#444", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(opcional)</span>
@@ -396,21 +396,37 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
               <div className="inv-info">
                 <div className="inv-name" style={{ paddingRight: 28 }}>{item.nombre || "Sin nombre"}</div>
 
-                {/* Precios: venta en grande, mayoreo (lo que debe) en chico */}
+                {/* Precios: con costo de venta prendido → venta grande + costo dist. chico.
+                    Apagado → costo distribuidor grande y sin venta. */}
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
-                  {tienePrecioV ? (
-                    <span style={{ color: "#FFE000", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontSize: 18 }}>
-                      {fmt(item.precio_venta)}
-                    </span>
+                  {verVenta ? (
+                    <>
+                      {tienePrecioV ? (
+                        <span style={{ color: "#FFE000", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontSize: 18 }}>
+                          {fmt(item.precio_venta)}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#666", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                          Sin precio de venta
+                        </span>
+                      )}
+                      {mayoreo > 0 && (
+                        <span style={{ color: "#7ec5cc", fontFamily: "'Space Mono', monospace", fontSize: 10 }}>
+                          costo dist. {fmt(mayoreo)}
+                        </span>
+                      )}
+                    </>
                   ) : (
-                    <span style={{ color: "#666", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
-                      Sin precio de venta
-                    </span>
-                  )}
-                  {mayoreo > 0 && (
-                    <span style={{ color: "#7ec5cc", fontFamily: "'Space Mono', monospace", fontSize: 10 }}>
-                      mayoreo {fmt(mayoreo)}
-                    </span>
+                    mayoreo > 0 ? (
+                      <span style={{ color: "#7ec5cc", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontSize: 18 }}>
+                        {fmt(mayoreo)}
+                        <span style={{ color: "#666", fontSize: 9, marginLeft: 6, fontWeight: 400 }}>costo dist.</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: "#666", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                        Costo pendiente
+                      </span>
+                    )
                   )}
                 </div>
 
@@ -433,14 +449,16 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
                   {sellingId === item.id ? "..." : "✓ Vendido"}
                 </button>
 
-                {/* Acciones secundarias */}
-                <div className="inv-actions-secondary">
-                  <button className="inv-btn-restock"
-                    onClick={() => openRestock(item)}
-                    disabled={restockingId === item.id}>
-                    {restockingId === item.id ? "..." : "📦 + Stock"}
-                  </button>
-                </div>
+                {/* Acciones secundarias — restock solo para PRO */}
+                {isAdmin && (
+                  <div className="inv-actions-secondary">
+                    <button className="inv-btn-restock"
+                      onClick={() => openRestock(item)}
+                      disabled={restockingId === item.id}>
+                      {restockingId === item.id ? "..." : "📦 + Stock"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );

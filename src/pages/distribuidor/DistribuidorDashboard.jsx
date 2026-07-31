@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { fmt } from "../../utils";
 import { GS } from "../../constants";
 import UploadForm from "./UploadForm";
-import InventarioTable from "./InventarioTable";
+import InventarioTable, { LazyFoto } from "./InventarioTable";
 import DistribuidorLogin, { getDistribuidorSession, getDistribuidorRole } from "./DistribuidorLogin";
 import Loader from "../../components/Loader";
 
@@ -44,6 +44,8 @@ const CSS = `
   .saldo-label { font-family: 'Space Mono', monospace; font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 4px 0; }
   .saldo-monto { font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700; margin: 0; }
   .saldo-sub { font-family: 'Space Mono', monospace; font-size: 11px; color: #666; margin: 6px 0 0 0; }
+  .inv-thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #1a1a1a; display: block; }
+  .inv-thumb-ph { width: 56px; height: 56px; border-radius: 8px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; color: #444; font-size: 22px; flex-shrink: 0; }
 
   /* Corte extra (solo admin) */
   .corte-card {
@@ -111,6 +113,11 @@ export default function DistribuidorDashboard({ slug }) {
   const [error, setError]           = useState("");
   const [search, setSearch]         = useState("");
   const [showSinStock, setShowSinStock] = useState(false);
+  // Preferencia del normal: mostrar su precio de venta (localStorage, por dispositivo)
+  const [verVenta, setVerVenta]     = useState(() => {
+    const v = localStorage.getItem(`dist_ver_venta_${slug}`);
+    return v === null ? true : v === "true";
+  });
 
   // Pago
   const [paySheet, setPaySheet]     = useState(null); // null | 'menu' | 'parcial' | 'historial'
@@ -128,6 +135,9 @@ export default function DistribuidorDashboard({ slug }) {
   const [ventaNombre, setVentaNombre] = useState("");
   const [savingVenta, setSavingVenta] = useState(false);
   const [resolviendoSuelta, setResolviendoSuelta] = useState(null);
+
+  // Inventario propuesto por el normal (aprobación del PRO)
+  const [aprobandoInv, setAprobandoInv] = useState(null);
 
   const fetchInventario = async () => {
     setLoading(true);
@@ -211,7 +221,11 @@ export default function DistribuidorDashboard({ slug }) {
   const modoPrecio = distribuidor?.modo_precio || "venta";
 
   // Cálculos
-  const totalStock    = inventario.reduce((s, i) => s + i.cantidad, 0);
+  // Inventario: activos vs pendientes de aprobación (propuestos por el normal)
+  const activos       = inventario.filter(i => (i.estado || "activo") === "activo");
+  const pendientesInv = inventario.filter(i => i.estado === "pendiente");
+
+  const totalStock    = activos.reduce((s, i) => s + i.cantidad, 0);
 
   // Ventas sueltas (piezas no inventariadas)
   const sueltasPendientes  = sueltas.filter(v => v.estado === "pendiente");
@@ -219,16 +233,16 @@ export default function DistribuidorDashboard({ slug }) {
   const vendidasSueltas    = sueltasConfirmadas.reduce((s, v) => s + (v.cantidad || 1), 0);
   const deboSueltas        = sueltasConfirmadas.reduce((s, v) => s + ((v.precio_mayoreo || 0) * (v.cantidad || 1)), 0);
 
-  const totalVendidas = inventario.reduce((s, i) => s + (i.vendidas || 0), 0) + vendidasSueltas;
-  const totalDebo     = inventario.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0) + deboSueltas;
+  const totalVendidas = activos.reduce((s, i) => s + (i.vendidas || 0), 0) + vendidasSueltas;
+  const totalDebo     = activos.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0) + deboSueltas;
   const totalPagado   = pagos.reduce((s, p) => s + p.monto, 0);
   const saldo         = totalDebo - totalPagado;
 
   // Filtro de búsqueda
   const q = search.trim().toLowerCase();
   const inventarioFiltrado = q
-    ? inventario.filter(i => (i.nombre || "").toLowerCase().includes(q))
-    : inventario;
+    ? activos.filter(i => (i.nombre || "").toLowerCase().includes(q))
+    : activos;
   const conStock = inventarioFiltrado.filter(i => (i.cantidad || 0) > 0);
   const sinStock = inventarioFiltrado.filter(i => (i.cantidad || 0) <= 0);
 
@@ -321,7 +335,7 @@ export default function DistribuidorDashboard({ slug }) {
   // El PRO confirma (con mayoreo) o rechaza una venta suelta
   const resolverSuelta = async (id, estado, precioMayoreo) => {
     if (estado === "confirmada" && (!precioMayoreo || parseFloat(precioMayoreo) <= 0)) {
-      alert("Pon el costo de mayoreo para confirmar.");
+      alert("Pon el costo distribuidor para confirmar.");
       return;
     }
     setResolviendoSuelta(id);
@@ -341,6 +355,59 @@ export default function DistribuidorDashboard({ slug }) {
     } finally {
       setResolviendoSuelta(null);
     }
+  };
+
+  // El PRO aprueba (con mayoreo) o rechaza inventario propuesto por el normal
+  const aprobarInventario = async (id, precioMayoreo) => {
+    if (!precioMayoreo || parseFloat(precioMayoreo) <= 0) {
+      alert("Pon el costo distribuidor para aprobar.");
+      return;
+    }
+    setAprobandoInv(id);
+    try {
+      const res = await fetch(`/api/distribuidor/inventario?id=${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: "activo", precio_mayoreo: parseFloat(precioMayoreo) }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error aprobando");
+      }
+      await fetchInventario();
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setAprobandoInv(null);
+    }
+  };
+
+  const rechazarInventario = async (id) => {
+    setAprobandoInv(id);
+    try {
+      const res = await fetch(`/api/distribuidor/inventario?id=${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: "rechazada" }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error rechazando");
+      }
+      await fetchInventario();
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setAprobandoInv(null);
+    }
+  };
+
+  const toggleVerVenta = () => {
+    setVerVenta(prev => {
+      const next = !prev;
+      localStorage.setItem(`dist_ver_venta_${slug}`, String(next));
+      return next;
+    });
   };
 
   // ¿Mostramos la sección de saldo? Solo cuando ya hay algo que cobrar o pagos hechos
@@ -373,7 +440,7 @@ export default function DistribuidorDashboard({ slug }) {
           <div className="corte-card" style={{ borderColor: "rgba(255,184,77,0.35)", background: "rgba(255,184,77,0.05)" }}>
             <p className="corte-title" style={{ color: "#ffb84d", marginBottom: 4 }}>🧾 Ventas por confirmar ({sueltasPendientes.length})</p>
             <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
-              Ponle el costo de mayoreo para sumarla a lo que te deben.
+              Ponle el costo distribuidor para sumarla a lo que te deben.
             </p>
             {sueltasPendientes.map(s => (
               <SueltaConfirmRow key={s.id} suelta={s} resolviendo={resolviendoSuelta} onResolver={resolverSuelta} />
@@ -401,6 +468,19 @@ export default function DistribuidorDashboard({ slug }) {
                   </button>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+
+        {/* PRO: inventario propuesto por el normal, por aprobar */}
+        {isAdmin && pendientesInv.length > 0 && (
+          <div className="corte-card" style={{ borderColor: "rgba(126,204,126,0.35)", background: "rgba(126,204,126,0.05)" }}>
+            <p className="corte-title" style={{ color: "#7ecc7e", marginBottom: 4 }}>📦 Inventario por aprobar ({pendientesInv.length})</p>
+            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+              El normal inventarió estas piezas. Ponles el costo distribuidor para activarlas.
+            </p>
+            {pendientesInv.map(it => (
+              <InvApproveRow key={it.id} item={it} busy={aprobandoInv === it.id} onAprobar={aprobarInventario} onRechazar={rechazarInventario} />
             ))}
           </div>
         )}
@@ -482,6 +562,41 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         )}
 
+        {/* Inventariar pieza pasada — solo NORMAL, va a aprobación del PRO */}
+        {!isAdmin && (
+          <div style={{ marginBottom: 20 }}>
+            <UploadForm slug={slug} onSuccess={fetchInventario} proposal />
+          </div>
+        )}
+
+        {/* NORMAL: sus piezas esperando aprobación */}
+        {!isAdmin && pendientesInv.length > 0 && (
+          <div style={{ background: "rgba(255,184,77,0.05)", border: "1px solid rgba(255,184,77,0.2)", borderRadius: 12, padding: 14, marginBottom: 20 }}>
+            <p style={{ margin: "0 0 8px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13, color: "#ffb84d" }}>
+              ⏳ Esperando aprobación ({pendientesInv.length})
+            </p>
+            {pendientesInv.map(it => (
+              <div key={it.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                <span style={{ color: "#ccc" }}>{it.nombre || "Sin nombre"}</span>
+                <span style={{ color: "#666" }}>x{it.cantidad}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Toggle: ver mi precio de venta — solo NORMAL */}
+        {!isAdmin && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
+            <div>
+              <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#ccc" }}>Ver mi precio de venta</p>
+              <p style={{ margin: "2px 0 0 0", fontFamily: "'Space Mono', monospace", fontSize: 9, color: "#666" }}>
+                {verVenta ? "Muestra tu precio y el costo distribuidor" : "Solo muestra el costo distribuidor"}
+              </p>
+            </div>
+            <ToggleSwitch on={verVenta} onToggle={toggleVerVenta} />
+          </div>
+        )}
+
         {/* Inventario */}
         <div>
           <h2 className="dist-section-title">Artículos</h2>
@@ -509,6 +624,7 @@ export default function DistribuidorDashboard({ slug }) {
                   items={conStock}
                   isAdmin={isAdmin}
                   modoPrecio={modoPrecio}
+                  verVenta={isAdmin ? true : verVenta}
                   onItemSold={() => { fetchInventario(); }}
                 />
               ) : (
@@ -529,6 +645,7 @@ export default function DistribuidorDashboard({ slug }) {
                       items={sinStock}
                       isAdmin={isAdmin}
                       modoPrecio={modoPrecio}
+                      verVenta={isAdmin ? true : verVenta}
                       onItemSold={() => { fetchInventario(); }}
                     />
                   )}
@@ -716,7 +833,7 @@ export default function DistribuidorDashboard({ slug }) {
             ) : (
               <>
                 <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>Total mayoreo</span>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>Total costo dist.</span>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
                     {histUds} uds · {fmt(histTotalMay)}
                   </span>
@@ -755,7 +872,7 @@ export default function DistribuidorDashboard({ slug }) {
               ➕ Registrar venta
             </p>
             <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>
-              Para piezas que vendiste y no están en tu inventario. El proveedor le pondrá el costo de mayoreo.
+              Para piezas que vendiste y no están en tu inventario. El proveedor le pondrá el costo distribuidor.
             </p>
 
             <label className="pay-lbl">¿Qué vendiste?</label>
@@ -796,7 +913,7 @@ function SueltaConfirmRow({ suelta, resolviendo, onResolver }) {
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input
           type="number" inputMode="decimal" step="0.01" min="0" value={costo}
-          onChange={e => setCosto(e.target.value)} placeholder="Costo mayoreo $"
+          onChange={e => setCosto(e.target.value)} placeholder="Costo distribuidor $"
           style={{ flex: 1, minWidth: 0, background: "#111", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 14, fontFamily: "'Space Mono', monospace", outline: "none" }}
         />
         <button disabled={busy || !costo || parseFloat(costo) <= 0} onClick={() => onResolver(suelta.id, "confirmada", costo)}
@@ -809,5 +926,46 @@ function SueltaConfirmRow({ suelta, resolviendo, onResolver }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/* Fila de inventario propuesto por el normal, por aprobar (PRO pone el mayoreo) */
+function InvApproveRow({ item, busy, onAprobar, onRechazar }) {
+  const [costo, setCosto] = useState("");
+  return (
+    <div style={{ padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "center" }}>
+        <LazyFoto itemId={item.id} imgClass="inv-thumb" phClass="inv-thumb-ph" alt={item.nombre} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre || "Sin nombre"}</div>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>Cantidad: {item.cantidad}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          type="number" inputMode="decimal" step="0.01" min="0" value={costo}
+          onChange={e => setCosto(e.target.value)} placeholder="Costo distribuidor $"
+          style={{ flex: 1, minWidth: 0, background: "#111", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 14, fontFamily: "'Space Mono', monospace", outline: "none" }}
+        />
+        <button disabled={busy || !costo || parseFloat(costo) <= 0} onClick={() => onAprobar(item.id, costo)}
+          style={{ background: busy || !costo ? "#333" : "#1e3a1e", border: "1px solid #2d5a2d", color: busy || !costo ? "#666" : "#7ecc7e", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: busy || !costo ? "not-allowed" : "pointer", flexShrink: 0 }}>
+          {busy ? "..." : "✓"}
+        </button>
+        <button disabled={busy} onClick={() => onRechazar(item.id)}
+          style={{ background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer", flexShrink: 0 }}>
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Interruptor on/off */
+function ToggleSwitch({ on, onToggle }) {
+  return (
+    <button type="button" onClick={onToggle}
+      style={{ width: 44, height: 24, borderRadius: 12, border: "none", background: on ? "#FFE000" : "#2a2a2a", cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.2s" }}>
+      <div style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: on ? "#000" : "#555", transition: "left 0.2s" }} />
+    </button>
   );
 }

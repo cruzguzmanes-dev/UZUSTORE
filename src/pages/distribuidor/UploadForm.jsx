@@ -56,7 +56,7 @@ function compressImage(file, maxSize = 400, quality = 0.65) {
   });
 }
 
-export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOwner = false }) {
+export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOwner = false, proposal = false }) {
   const [nombre, setNombre] = useState("");
   const [precio, setPrecio] = useState("");
   const [cantidad, setCantidad] = useState("1");
@@ -93,11 +93,14 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
           distribuidor: slug,
           nombre: nombre || null,
           foto_url: fotoBase64,
-          // El PRO/dueño define el precio de mayoreo; el distribuidor normal, su precio de venta
-          ...(asOwner
-            ? { precio_mayoreo: precio ? parseFloat(precio) : null }
-            : { precio_venta: precio ? parseFloat(precio) : null }),
           cantidad: parseInt(cantidad) || 1,
+          // proposal: el NORMAL propone inventario (sin precio) → queda pendiente de aprobación.
+          // Si no, el PRO/dueño define mayoreo; el distribuidor normal, su precio de venta.
+          ...(proposal
+            ? { estado: "pendiente" }
+            : asOwner
+              ? { precio_mayoreo: precio ? parseFloat(precio) : null }
+              : { precio_venta: precio ? parseFloat(precio) : null }),
         }),
       });
 
@@ -136,7 +139,7 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
           }}
         >
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15 }}>
-            ➕ Agregar Artículo{asOwner ? " (mayoreo)" : ""}
+            {proposal ? "📸 Inventariar pieza pasada" : `➕ Agregar Artículo${asOwner ? " (costo dist.)" : ""}`}
           </span>
           <span style={{ color: "#666", fontSize: 18 }}>{open ? "−" : "+"}</span>
         </button>
@@ -156,9 +159,17 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
               </div>
             </div>
 
-            {asOwner ? (
+            {proposal ? (
+              <div style={{
+                background: "rgba(255,184,77,0.06)", border: "1px solid rgba(255,184,77,0.2)",
+                borderRadius: 8, padding: "10px 12px", marginBottom: 14,
+                fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#ffb84d",
+              }}>
+                El proveedor le pondrá el precio y lo aprobará. Aparecerá en tu inventario cuando lo apruebe.
+              </div>
+            ) : asOwner ? (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Precio de Mayoreo $ <span style={{ color: "#444", letterSpacing: 0, textTransform: "none" }}>(lo que cobras)</span></label>
+                <label style={lbl}>Costo Distribuidor $ <span style={{ color: "#444", letterSpacing: 0, textTransform: "none" }}>(lo que le cobras)</span></label>
                 <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
                   placeholder="Ej: 350" style={inp} />
               </div>
@@ -226,7 +237,7 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
                 cursor: loading ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Guardando..." : "Guardar Artículo →"}
+              {loading ? "Guardando..." : proposal ? "Enviar a aprobación →" : "Guardar Artículo →"}
             </button>
           </form>
         )}

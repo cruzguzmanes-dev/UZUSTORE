@@ -182,8 +182,11 @@ precio_mayoreo  DECIMAL(10,2)  -- precio que cobra el dueño al distribuidor
 cantidad        INT DEFAULT 1   -- stock actual
 vendidas        INT DEFAULT 0
 lote_sku        TEXT            -- SKU del lote vinculado (tabla lotes)
+estado          TEXT DEFAULT 'activo'  -- 'activo' | 'pendiente' (propuesto por el normal) | 'rechazada'
 created_at      TIMESTAMPTZ DEFAULT NOW()
 ```
+
+**Inventario propuesto por el normal** (migración `008-inventario-estado.sql`): el NORMAL puede **"📸 Inventariar pieza pasada"** (foto + nombre + cantidad, sin precio) → crea la fila con `estado='pendiente'`. El PRO la ve en **"📦 Inventario por aprobar (N)"** (arriba), le pone el **costo distribuidor** y la aprueba (`PUT estado='activo' + precio_mayoreo`) → pasa a inventario real (aparece en "Artículos"). Rechazar = `PUT estado='rechazada'` (se guarda, no se borra; se decide después qué hacer con ellas). Los items `pendiente`/`rechazada` no cuentan en stock/saldo/vendidas ni se muestran en la lista principal (ni en el panel del dueño); el normal ve los `pendiente` suyos en "⏳ Esperando aprobación".
 
 ### `ventas_distribuidor`
 ```sql
@@ -256,7 +259,7 @@ created_at          TIMESTAMPTZ
 ### `/api/distribuidor/inventario`
 - `GET ?distribuidor=slug` → lista inventario completo del distribuidor
 - `GET ?id=X` → obtiene un artículo específico
-- `POST { distribuidor, nombre?, foto_url?, precio_venta?, precio_mayoreo?, cantidad }` → crea artículo (el dueño usa `precio_mayoreo` en el alta rápida; el distribuidor usa `precio_venta`)
+- `POST { distribuidor, nombre?, foto_url?, precio_venta?, precio_mayoreo?, cantidad, estado? }` → crea artículo (el dueño/PRO usa `precio_mayoreo`; el normal al proponer inventario manda `estado:'pendiente'` sin precio)
 - `PUT ?id=X { cantidad?, vendidas?, precio_mayoreo?, nombre?, precio_venta?, lote_sku?, foto_url?, log_venta? }` → actualiza; si `log_venta` presente, inserta en `ventas_distribuidor`
 - `DELETE ?id=X` → elimina artículo (solo se invoca desde el panel del dueño; el portal del distribuidor ya no expone borrado)
 
@@ -325,13 +328,16 @@ Archivos: `src/pages/distribuidor/`
 | Editar nombre y su precio de venta (⚙) | ✅ | ✅ |
 | Editar el **precio de mayoreo** de un artículo (⚙) | ❌ | ✅ |
 | Marcar vendido | ✅ | ✅ |
-| Restock (+ Stock) | ✅ | ✅ |
+| Restock (+ Stock) | ❌ | ✅ |
+| Toggle "ver mi precio de venta" (localStorage) | ✅ | — |
 | **Eliminar artículos** | ❌ | ❌ |
 | Ver saldo al proveedor + **solicitar** pago (total/parcial) | ✅ | ✅ |
 | Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
 | **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
 | Registrar **venta suelta** (pieza sin inventario, solo nombre) | ✅ | ❌ |
 | **Confirmar ventas sueltas** (ponerles el mayoreo) | ❌ | ✅ |
+| **Inventariar pieza pasada** (foto + nombre + cantidad → a aprobación) | ✅ | ❌ |
+| **Aprobar inventario propuesto** (ponerle el mayoreo) | ❌ | ✅ |
 
 Para el **PRO**, las solicitudes entrantes ("🧾 Ventas por confirmar" y "💳 Pagos por aceptar") se muestran **hasta arriba de todo** (después del header, antes de las stats), para que las vea al abrir.
 | Ver "💳 Pagos por aceptar" (aceptar/rechazar solicitudes) | ❌ | ✅ |
@@ -340,7 +346,12 @@ Para el **PRO**, las solicitudes entrantes ("🧾 Ventas por confirmar" y "💳 
 | Ver historial de ventas y de pagos (botones "📋 Ventas" / "🧾 Pagos" arriba, no por celda) | ✅ | ✅ |
 | Ver ganancia acumulada por artículo | ❌ | ✅ (si tiene precio_venta) |
 
-Solo el PRO ve el formulario de alta (`asOwner`), y captura **precio de mayoreo** (lo que cobra el dueño). El distribuidor normal no agrega inventario; solo edita nombre y su **precio de venta** en artículos existentes.
+El PRO ve el formulario de alta con precio (`asOwner`, captura **costo distribuidor** = `precio_mayoreo`). El normal no agrega inventario con precio, pero sí puede **proponerlo** (`UploadForm proposal`, foto+nombre+cantidad → pendiente). En la UI, `precio_mayoreo` se muestra como **"Costo distribuidor"**.
+
+**Toggle "ver mi precio de venta" (solo NORMAL, `localStorage` key `dist_ver_venta_${slug}`, default ON)** — controla solo la vista del normal, sin tocar el `modo_precio` del dueño:
+- **ON**: precio de venta en grande + "costo dist." en chico + campo de venta editable (tarjeta actual).
+- **OFF**: solo el **costo distribuidor** en grande, sin precio de venta (ni campo de venta en el ⚙).
+Para el PRO siempre es ON. El normal ya **no** ve "+ Stock" (solo "✓ Vendido"); el restock es solo del PRO.
 
 **Card de saldo (todos los roles, es lo primero al entrar):** Normal ve **"Le debes al proveedor"** (con botón Pagar); PRO ve **"Te deben actualmente"** (sin botón Pagar, porque cobra, no paga). Valor = `precio_mayoreo × vendidas − pagos aceptados`. Solo aparece cuando el artículo tiene `precio_mayoreo` asignado — que el **PRO** puede fijar desde el ⚙ de cada artículo o al subirlo, o el dueño desde su panel. Muestra vendidas y total ya pagado. El botón **Pagar** (total/parcial) crea una **solicitud pendiente** (no descuenta hasta que el dueño/PRO la acepta); mientras hay una pendiente muestra "⏳ En revisión" y se bloquea pedir otra. **🧾 Mis pagos** lista pagos aceptados + pendientes. Solo aparece cuando el dueño ya configuró `precio_mayoreo`.
 

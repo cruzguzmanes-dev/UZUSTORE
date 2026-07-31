@@ -73,7 +73,7 @@ export default async function handler(req, res) {
       // Obtener inventario del distribuidor.
       // light=1 → sin foto_url (base64 pesado); las fotos se piden aparte con ?foto=ID
       const selectLight = light
-        ? "&select=id,distribuidor_id,nombre,precio_venta,precio_mayoreo,cantidad,vendidas,lote_sku,created_at"
+        ? "&select=id,distribuidor_id,nombre,precio_venta,precio_mayoreo,cantidad,vendidas,lote_sku,estado,created_at"
         : "";
       const invRes = await fetch(
         `${SUPABASE_URL}/rest/v1/inventario_distribuidor?distribuidor_id=eq.${distribuidor_id}${selectLight}&order=created_at.desc`,
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
 
     // POST /api/distribuidor/inventario
     if (req.method === 'POST') {
-      const { distribuidor, nombre, foto_url, precio_venta, precio_mayoreo, cantidad } = req.body;
+      const { distribuidor, nombre, foto_url, precio_venta, precio_mayoreo, cantidad, estado } = req.body;
 
       if (!distribuidor) {
         return res.status(400).json({ error: "Falta el campo 'distribuidor'" });
@@ -134,6 +134,8 @@ export default async function handler(req, res) {
             // precio_mayoreo lo asigna el dueño (alta rápida desde el admin); nullable
             precio_mayoreo: (precio_mayoreo != null && precio_mayoreo !== "") ? parseFloat(precio_mayoreo) : null,
             cantidad: parseInt(cantidad) || 1,
+            // estado: 'pendiente' cuando el NORMAL propone inventario; 'activo' por default
+            ...(estado && { estado }),
           }),
         }
       );
@@ -151,7 +153,7 @@ export default async function handler(req, res) {
       const { id } = req.query;
       if (!id) return res.status(400).json({ error: "Falta parámetro 'id'" });
 
-      const { cantidad, vendidas, precio_mayoreo, nombre, precio_venta, lote_sku, foto_url, log_venta } = req.body;
+      const { cantidad, vendidas, precio_mayoreo, nombre, precio_venta, lote_sku, foto_url, estado, log_venta } = req.body;
 
       const updateRes = await fetch(
         `${SUPABASE_URL}/rest/v1/inventario_distribuidor?id=eq.${id}`,
@@ -171,6 +173,7 @@ export default async function handler(req, res) {
             ...(precio_venta !== undefined && { precio_venta: parseFloat(precio_venta) }),
             ...(lote_sku !== undefined && { lote_sku }),
             ...(foto_url !== undefined && { foto_url }),
+            ...(estado !== undefined && { estado }),
           }),
         }
       );

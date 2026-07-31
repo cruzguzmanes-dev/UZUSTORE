@@ -157,7 +157,8 @@ export default function Distribuidores() {
 
   // Resumen total
   const resumen = SLUGS.map(slug => {
-    const items       = data[slug] || [];
+    // Solo inventario activo (excluye piezas que el normal propuso y aún no se aprueban)
+    const items       = (data[slug] || []).filter(i => (i.estado || "activo") === "activo");
     const sueltasConf = sueltas[slug] || [];
     const vendidasInv = items.reduce((s, i) => s + (i.vendidas || 0), 0);
     const vendidasSue = sueltasConf.reduce((s, v) => s + (v.cantidad || 1), 0);
@@ -242,7 +243,7 @@ export default function Distribuidores() {
       ) : (
         <DistribuidorDetalle
           slug={tab}
-          items={data[tab] || []}
+          items={(data[tab] || []).filter(i => (i.estado || "activo") === "activo")}
           resumen={resumen.find(r => r.slug === tab)}
           color={COLORS[tab]}
           lotes={lotes}
