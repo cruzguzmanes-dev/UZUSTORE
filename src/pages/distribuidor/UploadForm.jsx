@@ -165,7 +165,7 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
                 borderRadius: 8, padding: "10px 12px", marginBottom: 14,
                 fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#ffb84d",
               }}>
-                El proveedor le pondrá el precio y lo aprobará. Aparecerá en tu inventario cuando lo apruebe.
+                El proveedor le pondrá el precio y aparecerá en tu inventario.
               </div>
             ) : asOwner ? (
               <div style={{ marginBottom: 14 }}>
@@ -205,12 +205,27 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
                   </div>
                 ) : (
                   <>
-                    <input type="file" accept="image/*" onChange={handleFotoChange}
-                      style={{ display: "none" }} id="fotoInput" />
-                    <label htmlFor="fotoInput" style={{ cursor: "pointer", display: "block" }}>
-                      <p style={{ margin: "0 0 6px 0", color: "#888", fontSize: 14 }}>📸 Toca para agregar foto</p>
-                      <p style={{ margin: 0, color: "#555", fontSize: 11, fontFamily: "'Space Mono', monospace" }}>PNG, JPG, máx 5MB</p>
-                    </label>
+                    <p style={{ margin: "0 0 12px 0", color: "#888", fontSize: 14 }}>📸 Agregar foto</p>
+                    <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                      {/* Cámara */}
+                      <input type="file" accept="image/*" capture="environment" onChange={handleFotoChange}
+                        style={{ display: "none" }} id="fotoCam" />
+                      <label htmlFor="fotoCam" style={{
+                        cursor: "pointer", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 8, padding: "10px 16px", color: "#ccc", fontSize: 13, fontFamily: "'Space Mono', monospace",
+                      }}>
+                        📷 Cámara
+                      </label>
+                      {/* Galería */}
+                      <input type="file" accept="image/*" onChange={handleFotoChange}
+                        style={{ display: "none" }} id="fotoGal" />
+                      <label htmlFor="fotoGal" style={{
+                        cursor: "pointer", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 8, padding: "10px 16px", color: "#ccc", fontSize: 13, fontFamily: "'Space Mono', monospace",
+                      }}>
+                        🖼️ Galería
+                      </label>
+                    </div>
                   </>
                 )}
               </div>
@@ -237,7 +252,7 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
                 cursor: loading ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Guardando..." : proposal ? "Enviar a aprobación →" : "Guardar Artículo →"}
+              {loading ? "Guardando..." : proposal ? "Enviar →" : "Guardar Artículo →"}
             </button>
           </form>
         )}

@@ -573,7 +573,10 @@ export default function DistribuidorDashboard({ slug }) {
         {!isAdmin && pendientesInv.length > 0 && (
           <div style={{ background: "rgba(255,184,77,0.05)", border: "1px solid rgba(255,184,77,0.2)", borderRadius: 12, padding: 14, marginBottom: 20 }}>
             <p style={{ margin: "0 0 8px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13, color: "#ffb84d" }}>
-              ⏳ Esperando aprobación ({pendientesInv.length})
+              ⏳ En proceso ({pendientesInv.length})
+            </p>
+            <p style={{ margin: "0 0 8px 0", fontFamily: "'Space Mono', monospace", fontSize: 9, color: "#666" }}>
+              El proveedor les pondrá precio y entrarán a tu inventario.
             </p>
             {pendientesInv.map(it => (
               <div key={it.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
