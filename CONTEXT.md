@@ -330,8 +330,10 @@ Archivos: `src/pages/distribuidor/`
 | Ver saldo al proveedor + **solicitar** pago (total/parcial) | ✅ | ✅ |
 | Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
 | **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
-| Registrar **venta suelta** (pieza sin inventario, solo nombre) | ✅ | ✅ |
+| Registrar **venta suelta** (pieza sin inventario, solo nombre) | ✅ | ❌ |
 | **Confirmar ventas sueltas** (ponerles el mayoreo) | ❌ | ✅ |
+
+Para el **PRO**, las solicitudes entrantes ("🧾 Ventas por confirmar" y "💳 Pagos por aceptar") se muestran **hasta arriba de todo** (después del header, antes de las stats), para que las vea al abrir.
 | Ver "💳 Pagos por aceptar" (aceptar/rechazar solicitudes) | ❌ | ✅ |
 | Ver el `precio_mayoreo` en la tarjeta (solo lectura, en chico junto al precio de venta) | ✅ | ✅ |
 | **Editar** el `precio_mayoreo` | ❌ | ✅ |

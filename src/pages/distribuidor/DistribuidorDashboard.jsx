@@ -368,6 +368,43 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         </div>
 
+        {/* PRO: solicitudes entrantes — hasta arriba de todo */}
+        {isAdmin && sueltasPendientes.length > 0 && (
+          <div className="corte-card" style={{ borderColor: "rgba(255,184,77,0.35)", background: "rgba(255,184,77,0.05)" }}>
+            <p className="corte-title" style={{ color: "#ffb84d", marginBottom: 4 }}>🧾 Ventas por confirmar ({sueltasPendientes.length})</p>
+            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+              Ponle el costo de mayoreo para sumarla a lo que te deben.
+            </p>
+            {sueltasPendientes.map(s => (
+              <SueltaConfirmRow key={s.id} suelta={s} resolviendo={resolviendoSuelta} onResolver={resolverSuelta} />
+            ))}
+          </div>
+        )}
+
+        {isAdmin && pendientes.length > 0 && (
+          <div className="corte-card" style={{ borderColor: "rgba(126,197,204,0.35)", background: "rgba(126,197,204,0.05)" }}>
+            <p className="corte-title" style={{ color: "#7ec5cc" }}>💳 Pagos por aceptar ({pendientes.length})</p>
+            {pendientes.map(s => (
+              <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                <div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fff" }}>{fmt(s.monto)}</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>{s.tipo} · {fmtFecha(s.created_at)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "aceptado")}
+                    style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: "pointer" }}>
+                    {resolviendo === s.id ? "..." : "✓ Aceptar"}
+                  </button>
+                  <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "rechazado")}
+                    style={{ background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Stats básicas */}
         <div className="dist-stats">
           <div className="stat-card">
@@ -418,49 +455,13 @@ export default function DistribuidorDashboard({ slug }) {
           </button>
         </div>
 
-        {/* Registrar venta de pieza NO inventariada — ambos roles */}
-        <button
-          onClick={() => { setVentaNombre(""); setVentaSheet(true); }}
-          style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.18)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#aaa", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer" }}>
-          ➕ Registrar venta de pieza sin inventario
-        </button>
-
-        {/* PRO: ventas sueltas por confirmar */}
-        {isAdmin && sueltasPendientes.length > 0 && (
-          <div className="corte-card" style={{ borderColor: "rgba(255,184,77,0.35)", background: "rgba(255,184,77,0.05)" }}>
-            <p className="corte-title" style={{ color: "#ffb84d", marginBottom: 4 }}>🧾 Ventas por confirmar ({sueltasPendientes.length})</p>
-            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
-              Ponle el costo de mayoreo para sumarla a lo que te deben.
-            </p>
-            {sueltasPendientes.map(s => (
-              <SueltaConfirmRow key={s.id} suelta={s} resolviendo={resolviendoSuelta} onResolver={resolverSuelta} />
-            ))}
-          </div>
-        )}
-
-        {/* PRO: solicitudes de pago por aceptar */}
-        {isAdmin && pendientes.length > 0 && (
-          <div className="corte-card" style={{ borderColor: "rgba(126,197,204,0.35)", background: "rgba(126,197,204,0.05)" }}>
-            <p className="corte-title" style={{ color: "#7ec5cc" }}>💳 Pagos por aceptar ({pendientes.length})</p>
-            {pendientes.map(s => (
-              <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                <div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fff" }}>{fmt(s.monto)}</div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>{s.tipo} · {fmtFecha(s.created_at)}</div>
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "aceptado")}
-                    style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: "pointer" }}>
-                    {resolviendo === s.id ? "..." : "✓ Aceptar"}
-                  </button>
-                  <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "rechazado")}
-                    style={{ background: "#3a1a1a", border: "1px solid #5a2a2a", color: "#ff8080", borderRadius: 8, padding: "7px 10px", fontSize: 12, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
-                    ✕
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Registrar venta de pieza NO inventariada — solo NORMAL */}
+        {!isAdmin && (
+          <button
+            onClick={() => { setVentaNombre(""); setVentaSheet(true); }}
+            style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.18)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#aaa", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer" }}>
+            ➕ Registrar venta de pieza sin inventario
+          </button>
         )}
 
         {/* Error */}
