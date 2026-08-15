@@ -12,9 +12,19 @@ const fmtFecha = (iso) =>
 const CSS = `
   ${GS}
   .dist-wrap {
+    --bg:#0a0a0f; --surface:#1a1a1a; --surface-2:#111; --surface-3:#222;
+    --text:#fff; --text-2:#cfcfcf; --text-3:#8a8a8a; --text-4:#565656;
+    --border-1:#2a2a2a; --border-2:#333; --ov:255,255,255; --accent:#FFE000;
+  }
+  .dist-wrap.light {
+    --bg:#eceef2; --surface:#ffffff; --surface-2:#ffffff; --surface-3:#e4e6ec;
+    --text:#16181d; --text-2:#3d4149; --text-3:#6a6e77; --text-4:#9aa0aa;
+    --border-1:#d5d8df; --border-2:#c9ccd4; --ov:20,22,28; --accent:#a67c00;
+  }
+  .dist-wrap {
     min-height: 100vh;
     min-height: 100dvh;
-    background: #0a0a0f; color: #fff;
+    background: var(--bg); color: var(--text);
     padding: 20px 16px 40px;
     padding-top: max(20px, env(safe-area-inset-top, 20px));
     padding-bottom: max(40px, env(safe-area-inset-bottom, 40px));
@@ -24,15 +34,15 @@ const CSS = `
   .dist-inner { max-width: 700px; margin: 0 auto; }
   .dist-header { margin-bottom: 24px; }
   .dist-title { font-size: 24px; font-weight: 800; margin: 0 0 4px 0; font-family: 'Syne', sans-serif; line-height: 1.2; }
-  .dist-sub { color: #666; margin: 0; font-size: 12px; font-family: 'Space Mono', monospace; }
+  .dist-sub { color: var(--text-3); margin: 0; font-size: 12px; font-family: 'Space Mono', monospace; }
   .dist-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
   .stat-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(var(--ov),0.05);
+    border: 1px solid rgba(var(--ov),0.08);
     border-radius: 12px; padding: 12px 8px; text-align: center;
   }
-  .stat-label { font-family: 'Space Mono', monospace; font-size: 8px; color: #666; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 5px 0; }
-  .stat-value { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; margin: 0; color: #fff; }
+  .stat-label { font-family: 'Space Mono', monospace; font-size: 8px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; margin: 0 0 5px 0; }
+  .stat-value { font-family: 'Space Mono', monospace; font-size: 20px; font-weight: 700; margin: 0; color: var(--text); }
   .stat-value.money { font-size: 16px; }
 
   /* Saldo con proveedor (todos los roles) */
@@ -41,41 +51,41 @@ const CSS = `
   }
   .saldo-card.debe { background: rgba(255,224,0,0.05); border: 1px solid rgba(255,224,0,0.22); }
   .saldo-card.ok   { background: rgba(0,200,100,0.05); border: 1px solid rgba(0,200,100,0.2); }
-  .saldo-label { font-family: 'Space Mono', monospace; font-size: 10px; color: #888; letter-spacing: 1px; text-transform: uppercase; margin: 0 0 4px 0; }
+  .saldo-label { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--text-3); letter-spacing: 1px; text-transform: uppercase; margin: 0 0 4px 0; }
   .saldo-monto { font-family: 'Space Mono', monospace; font-size: 26px; font-weight: 700; margin: 0; }
-  .saldo-sub { font-family: 'Space Mono', monospace; font-size: 11px; color: #666; margin: 6px 0 0 0; }
-  .inv-thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #1a1a1a; display: block; }
-  .inv-thumb-ph { width: 56px; height: 56px; border-radius: 8px; background: #1a1a1a; display: flex; align-items: center; justify-content: center; color: #444; font-size: 22px; flex-shrink: 0; }
+  .saldo-sub { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text-3); margin: 6px 0 0 0; }
+  .inv-thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: var(--surface); display: block; }
+  .inv-thumb-ph { width: 56px; height: 56px; border-radius: 8px; background: var(--surface); display: flex; align-items: center; justify-content: center; color: var(--text-4); font-size: 22px; flex-shrink: 0; }
 
   /* Corte extra (solo admin) */
   .corte-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(var(--ov),0.03);
+    border: 1px solid rgba(var(--ov),0.08);
     border-radius: 14px; padding: 18px; margin-bottom: 20px;
   }
-  .corte-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: #fff; margin: 0 0 14px 0; }
-  .corte-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .corte-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 15px; color: var(--text); margin: 0 0 14px 0; }
+  .corte-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(var(--ov),0.06); }
   .corte-row:last-child { border-bottom: none; }
-  .corte-label { font-family: 'Space Mono', monospace; font-size: 11px; color: #888; }
-  .corte-val { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; color: #fff; }
+  .corte-label { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text-3); }
+  .corte-val { font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700; color: var(--text); }
   .corte-val.green { color: #7ecc7e; }
 
-  .dist-section-title { font-size: 16px; font-weight: 700; margin: 0 0 14px 0; font-family: 'Syne', sans-serif; color: #fff; }
+  .dist-section-title { font-size: 16px; font-weight: 700; margin: 0 0 14px 0; font-family: 'Syne', sans-serif; color: var(--text); }
   .dist-search {
-    width: 100%; background: #111; border: 1px solid #2a2a2a; border-radius: 10px;
-    padding: 12px 14px; color: #fff; font-size: 16px; font-family: 'Space Mono', monospace;
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border-1); border-radius: 10px;
+    padding: 12px 14px; color: var(--text); font-size: 16px; font-family: 'Space Mono', monospace;
     outline: none; box-sizing: border-box; margin-bottom: 14px;
   }
-  .dist-search::placeholder { color: #444; }
-  .dist-empty { color: #555; font-family: 'Space Mono', monospace; font-size: 13px; text-align: center; padding: 32px 0; }
+  .dist-search::placeholder { color: var(--text-4); }
+  .dist-empty { color: var(--text-4); font-family: 'Space Mono', monospace; font-size: 13px; text-align: center; padding: 32px 0; }
 
   /* Botones de pago */
   .pay-btn {
     width: 100%; border-radius: 10px; padding: 12px 0; font-weight: 700;
     font-family: 'Syne', sans-serif; font-size: 14px; cursor: pointer; border: none;
   }
-  .pay-btn.primary { background: #FFE000; color: #000; }
-  .pay-btn.ghost { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #aaa; font-family: 'Space Mono', monospace; font-size: 12px; }
+  .pay-btn.primary { background: var(--accent); color: #000; }
+  .pay-btn.ghost { background: rgba(var(--ov),0.06); border: 1px solid rgba(var(--ov),0.1); color: var(--text-2); font-family: 'Space Mono', monospace; font-size: 12px; }
 
   /* Sheet de pago */
   .pay-overlay {
@@ -85,19 +95,19 @@ const CSS = `
     animation: payFade 0.15s ease;
   }
   .pay-sheet {
-    background: #1a1a1a; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px;
+    background: var(--surface); border: 1px solid rgba(var(--ov),0.1); border-radius: 20px;
     padding: 22px; width: calc(100% - 32px); max-width: 420px;
     max-height: 82vh; overflow-y: auto; animation: paySlide 0.2s ease;
   }
   @keyframes payFade { from { opacity: 0 } to { opacity: 1 } }
   @keyframes paySlide { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
   .pay-inp {
-    width: 100%; background: #111; border: 1px solid #2a2a2a; border-radius: 8px;
-    padding: 12px 14px; color: #fff; font-size: 16px; font-family: 'Space Mono', monospace;
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border-1); border-radius: 8px;
+    padding: 12px 14px; color: var(--text); font-size: 16px; font-family: 'Space Mono', monospace;
     outline: none; box-sizing: border-box; margin-bottom: 12px;
   }
-  .pay-lbl { display: block; font-size: 9px; color: #666; letter-spacing: 2px; text-transform: uppercase; font-family: 'Space Mono', monospace; margin-bottom: 6px; }
-  .pay-hist-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .pay-lbl { display: block; font-size: 9px; color: var(--text-3); letter-spacing: 2px; text-transform: uppercase; font-family: 'Space Mono', monospace; margin-bottom: 6px; }
+  .pay-hist-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(var(--ov),0.05); }
   .pay-hist-row:last-child { border-bottom: none; }
 `;
 
@@ -118,6 +128,8 @@ export default function DistribuidorDashboard({ slug }) {
     const v = localStorage.getItem(`dist_ver_venta_${slug}`);
     return v === null ? true : v === "true";
   });
+  // Tema día/noche (localStorage por dispositivo)
+  const [theme, setTheme] = useState(() => localStorage.getItem(`dist_theme_${slug}`) || "dark");
 
   // Pago
   const [paySheet, setPaySheet]     = useState(null); // null | 'menu' | 'parcial' | 'historial'
@@ -203,6 +215,12 @@ export default function DistribuidorDashboard({ slug }) {
     fetchSolicitudes();
     fetchSueltas();
   }, [slug, authed]);
+
+  // Fondo del body según el tema (para el overscroll en móvil)
+  useEffect(() => {
+    document.body.style.background = theme === "light" ? "#ECEEF2" : "#0A0A0F";
+    return () => { document.body.style.background = ""; };
+  }, [theme]);
 
   if (!authed) {
     return (
@@ -410,16 +428,25 @@ export default function DistribuidorDashboard({ slug }) {
     });
   };
 
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      localStorage.setItem(`dist_theme_${slug}`, next);
+      return next;
+    });
+  };
+
   // ¿Mostramos la sección de saldo? Solo cuando ya hay algo que cobrar o pagos hechos
   const mostrarSaldo = totalDebo > 0 || totalPagado > 0;
 
   return (
-    <div className="dist-wrap">
+    <div className={theme === "light" ? "dist-wrap light" : "dist-wrap"}>
       <style>{CSS}</style>
       <div className="dist-inner">
 
         {/* Header */}
-        <div className="dist-header">
+        <div className="dist-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ minWidth: 0 }}>
           <h1 className="dist-title">📦 {distribuidor?.nombre || slug}</h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <p className="dist-sub" style={{ margin: 0 }}>Gestiona tu inventario</p>
@@ -428,19 +455,25 @@ export default function DistribuidorDashboard({ slug }) {
               <span style={{
                 fontFamily: "'Space Mono', monospace", fontSize: 9, fontWeight: 700, letterSpacing: 1,
                 textTransform: "uppercase", padding: "2px 8px", borderRadius: 5,
-                background: "rgba(255,224,0,0.12)", border: "1px solid rgba(255,224,0,0.35)", color: "#FFE000",
+                background: "rgba(255,224,0,0.12)", border: "1px solid rgba(255,224,0,0.35)", color: "var(--accent)",
               }}>
                 PRO
               </span>
             )}
           </div>
+          </div>
+          {/* Switch día / noche */}
+          <button onClick={toggleTheme} aria-label="Cambiar tema"
+            style={{ flexShrink: 0, background: "var(--surface)", border: "1px solid var(--border-1)", borderRadius: 10, width: 42, height: 42, fontSize: 18, cursor: "pointer", lineHeight: 1 }}>
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
         </div>
 
         {/* PRO: solicitudes entrantes — hasta arriba de todo */}
         {isAdmin && sueltasPendientes.length > 0 && (
           <div className="corte-card" style={{ borderColor: "rgba(255,184,77,0.35)", background: "rgba(255,184,77,0.05)" }}>
             <p className="corte-title" style={{ color: "#ffb84d", marginBottom: 4 }}>🧾 Ventas por confirmar ({sueltasPendientes.length})</p>
-            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>
               Ponle el costo distribuidor para sumarla a lo que te deben.
             </p>
             {sueltasPendientes.map(s => (
@@ -453,10 +486,10 @@ export default function DistribuidorDashboard({ slug }) {
           <div className="corte-card" style={{ borderColor: "rgba(126,197,204,0.35)", background: "rgba(126,197,204,0.05)" }}>
             <p className="corte-title" style={{ color: "#7ec5cc" }}>💳 Pagos por aceptar ({pendientes.length})</p>
             {pendientes.map(s => (
-              <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(var(--ov),0.06)" }}>
                 <div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fff" }}>{fmt(s.monto)}</div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>{s.tipo} · {fmtFecha(s.created_at)}</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{fmt(s.monto)}</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>{s.tipo} · {fmtFecha(s.created_at)}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "aceptado")}
@@ -477,7 +510,7 @@ export default function DistribuidorDashboard({ slug }) {
         {isAdmin && pendientesInv.length > 0 && (
           <div className="corte-card" style={{ borderColor: "rgba(126,204,126,0.35)", background: "rgba(126,204,126,0.05)" }}>
             <p className="corte-title" style={{ color: "#7ecc7e", marginBottom: 4 }}>📦 Inventario por aprobar ({pendientesInv.length})</p>
-            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+            <p style={{ margin: "0 0 10px 0", fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>
               El normal inventarió estas piezas. Ponles el costo distribuidor para activarlas.
             </p>
             {pendientesInv.map(it => (
@@ -502,7 +535,7 @@ export default function DistribuidorDashboard({ slug }) {
         {mostrarSaldo ? (
           <div className={`saldo-card ${saldo > 0 ? "debe" : "ok"}`}>
             <p className="saldo-label">{isAdmin ? "Te deben actualmente" : "Le debes al proveedor"}</p>
-            <p className="saldo-monto" style={{ color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>
+            <p className="saldo-monto" style={{ color: saldo > 0 ? "var(--accent)" : "#7ecc7e" }}>
               {fmt(Math.max(0, saldo))}
               {saldo <= 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
             </p>
@@ -526,12 +559,12 @@ export default function DistribuidorDashboard({ slug }) {
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
           <button
             onClick={abrirHistVentas}
-            style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "12px 10px", color: "#ccc", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer", textAlign: "center" }}>
+            style={{ flex: 1, background: "rgba(var(--ov),0.04)", border: "1px solid rgba(var(--ov),0.1)", borderRadius: 12, padding: "12px 10px", color: "var(--text-2)", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer", textAlign: "center" }}>
             📋 Ventas
           </button>
           <button
             onClick={() => setPaySheet("historial")}
-            style={{ flex: 1, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "12px 10px", color: "#ccc", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer", textAlign: "center" }}>
+            style={{ flex: 1, background: "rgba(var(--ov),0.04)", border: "1px solid rgba(var(--ov),0.1)", borderRadius: 12, padding: "12px 10px", color: "var(--text-2)", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer", textAlign: "center" }}>
             🧾 Pagos
           </button>
         </div>
@@ -540,7 +573,7 @@ export default function DistribuidorDashboard({ slug }) {
         {!isAdmin && (
           <button
             onClick={() => { setVentaNombre(""); setVentaSheet(true); }}
-            style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px dashed rgba(255,255,255,0.18)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#aaa", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer" }}>
+            style={{ width: "100%", background: "rgba(var(--ov),0.03)", border: "1px dashed rgba(var(--ov),0.18)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "var(--text-2)", fontFamily: "'Space Mono', monospace", fontSize: 12, cursor: "pointer" }}>
             ➕ Registrar venta de pieza sin inventario
           </button>
         )}
@@ -576,13 +609,13 @@ export default function DistribuidorDashboard({ slug }) {
             <p style={{ margin: "0 0 8px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 13, color: "#ffb84d" }}>
               ⏳ En proceso ({pendientesInv.length})
             </p>
-            <p style={{ margin: "0 0 8px 0", fontFamily: "'Space Mono', monospace", fontSize: 9, color: "#666" }}>
+            <p style={{ margin: "0 0 8px 0", fontFamily: "'Space Mono', monospace", fontSize: 9, color: "var(--text-3)" }}>
               El proveedor les pondrá precio y entrarán a tu inventario.
             </p>
             {pendientesInv.map(it => (
               <div key={it.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
-                <span style={{ color: "#ccc" }}>{it.nombre || "Sin nombre"}</span>
-                <span style={{ color: "#666" }}>x{it.cantidad}</span>
+                <span style={{ color: "var(--text-2)" }}>{it.nombre || "Sin nombre"}</span>
+                <span style={{ color: "var(--text-3)" }}>x{it.cantidad}</span>
               </div>
             ))}
           </div>
@@ -590,10 +623,10 @@ export default function DistribuidorDashboard({ slug }) {
 
         {/* Toggle: ver mi precio de venta — solo NORMAL */}
         {!isAdmin && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(var(--ov),0.03)", border: "1px solid rgba(var(--ov),0.08)", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
             <div>
-              <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#ccc" }}>Ver mi precio de venta</p>
-              <p style={{ margin: "2px 0 0 0", fontFamily: "'Space Mono', monospace", fontSize: 9, color: "#666" }}>
+              <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text-2)" }}>Ver mi precio de venta</p>
+              <p style={{ margin: "2px 0 0 0", fontFamily: "'Space Mono', monospace", fontSize: 9, color: "var(--text-3)" }}>
                 {verVenta ? "Muestra tu precio y el costo distribuidor" : "Solo muestra el costo distribuidor"}
               </p>
             </div>
@@ -640,9 +673,9 @@ export default function DistribuidorDashboard({ slug }) {
                 <div style={{ marginTop: 24 }}>
                   <button
                     onClick={() => setShowSinStock(v => !v)}
-                    style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: "12px 16px", color: "#888", fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showSinStock ? 14 : 0 }}>
+                    style={{ width: "100%", background: "rgba(var(--ov),0.03)", border: "1px solid rgba(var(--ov),0.08)", borderRadius: 12, padding: "12px 16px", color: "var(--text-3)", fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showSinStock ? 14 : 0 }}>
                     <span>📦 Artículos sin stock ({sinStock.length})</span>
-                    <span style={{ color: "#555", fontSize: 18, lineHeight: 1 }}>{showSinStock ? "−" : "+"}</span>
+                    <span style={{ color: "var(--text-4)", fontSize: 18, lineHeight: 1 }}>{showSinStock ? "−" : "+"}</span>
                   </button>
                   {showSinStock && (
                     <InventarioTable
@@ -665,11 +698,11 @@ export default function DistribuidorDashboard({ slug }) {
       {paySheet === "menu" && (
         <div className="pay-overlay" onClick={() => setPaySheet(null)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
-            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)" }}>
               💳 Pagar al proveedor
             </p>
-            <p style={{ margin: "0 0 14px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666" }}>
-              Saldo pendiente: <span style={{ color: "#FFE000" }}>{fmt(saldo)}</span>
+            <p style={{ margin: "0 0 14px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text-3)" }}>
+              Saldo pendiente: <span style={{ color: "var(--accent)" }}>{fmt(saldo)}</span>
             </p>
             <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#7ec5cc" }}>
               ⏳ Tu pago quedará en revisión hasta que el proveedor lo acepte.
@@ -707,11 +740,11 @@ export default function DistribuidorDashboard({ slug }) {
       {paySheet === "parcial" && (
         <div className="pay-overlay" onClick={() => setPaySheet(null)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
-            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)" }}>
               💸 Pagar una parte
             </p>
-            <p style={{ margin: "0 0 20px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666" }}>
-              Saldo pendiente: <span style={{ color: "#FFE000" }}>{fmt(saldo)}</span>
+            <p style={{ margin: "0 0 20px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text-3)" }}>
+              Saldo pendiente: <span style={{ color: "var(--accent)" }}>{fmt(saldo)}</span>
             </p>
 
             <label className="pay-lbl">Monto a pagar $</label>
@@ -722,9 +755,9 @@ export default function DistribuidorDashboard({ slug }) {
             />
 
             {parcialMonto && parseFloat(parcialMonto) > 0 && (
-              <p style={{ margin: "0 0 16px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", textAlign: "center" }}>
+              <p style={{ margin: "0 0 16px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-4)", textAlign: "center" }}>
                 Te quedará pendiente:{" "}
-                <strong style={{ color: saldo - parseFloat(parcialMonto) <= 0 ? "#7ecc7e" : "#FFE000" }}>
+                <strong style={{ color: saldo - parseFloat(parcialMonto) <= 0 ? "#7ecc7e" : "var(--accent)" }}>
                   {fmt(Math.max(0, saldo - parseFloat(parcialMonto)))}
                 </strong>
               </p>
@@ -750,11 +783,11 @@ export default function DistribuidorDashboard({ slug }) {
         <div className="pay-overlay" onClick={() => setPaySheet(null)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff" }}>
+              <p style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "var(--text)" }}>
                 🧾 Mis pagos
               </p>
               <button onClick={() => setPaySheet(null)}
-                style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer" }}>✕</button>
+                style={{ background: "none", border: "none", color: "var(--text-4)", fontSize: 18, cursor: "pointer" }}>✕</button>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
@@ -764,7 +797,7 @@ export default function DistribuidorDashboard({ slug }) {
               </div>
               <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
                 <p className="pay-lbl" style={{ marginBottom: 4 }}>Saldo</p>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>{fmt(Math.max(0, saldo))}</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: saldo > 0 ? "var(--accent)" : "#7ecc7e" }}>{fmt(Math.max(0, saldo))}</p>
               </div>
             </div>
 
@@ -774,7 +807,7 @@ export default function DistribuidorDashboard({ slug }) {
                 {pendientes.map(s => (
                   <div key={s.id} className="pay-hist-row">
                     <div>
-                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666", marginBottom: 2 }}>{fmtFecha(s.created_at)}</div>
+                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)", marginBottom: 2 }}>{fmtFecha(s.created_at)}</div>
                       <span style={{ background: "rgba(126,197,204,0.12)", border: "1px solid rgba(126,197,204,0.3)", color: "#7ec5cc", borderRadius: 4, padding: "1px 7px", fontSize: 9, fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1 }}>
                         ⏳ pendiente
                       </span>
@@ -786,14 +819,14 @@ export default function DistribuidorDashboard({ slug }) {
             )}
 
             {pagos.length === 0 ? (
-              <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
+              <p style={{ textAlign: "center", color: "var(--text-4)", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
                 Aún no has registrado pagos
               </p>
             ) : (
               pagos.map(p => (
                 <div key={p.id} className="pay-hist-row">
                   <div>
-                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666", marginBottom: 2 }}>
+                    <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)", marginBottom: 2 }}>
                       {fmtFecha(p.created_at)}
                     </div>
                     <span style={{
@@ -821,23 +854,23 @@ export default function DistribuidorDashboard({ slug }) {
         <div className="pay-overlay" onClick={() => setShowHistVentas(false)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <p style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff" }}>
+              <p style={{ margin: 0, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "var(--text)" }}>
                 📋 Historial de ventas
               </p>
               <button onClick={() => setShowHistVentas(false)}
-                style={{ background: "none", border: "none", color: "#555", fontSize: 18, cursor: "pointer" }}>✕</button>
+                style={{ background: "none", border: "none", color: "var(--text-4)", fontSize: 18, cursor: "pointer" }}>✕</button>
             </div>
 
             {histLoading ? (
               <Loader size={80} message="Cargando historial" />
             ) : histAll.length === 0 ? (
-              <p style={{ textAlign: "center", color: "#444", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
+              <p style={{ textAlign: "center", color: "var(--text-4)", fontFamily: "'Space Mono', monospace", fontSize: 12, padding: "20px 0" }}>
                 Sin ventas registradas aún
               </p>
             ) : (
               <>
                 <div style={{ background: "rgba(0,200,100,0.06)", border: "1px solid rgba(0,200,100,0.15)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>Total costo dist.</span>
+                  <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)" }}>Total costo dist.</span>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: "#7ecc7e" }}>
                     {histUds} uds · {fmt(histTotalMay)}
                   </span>
@@ -845,7 +878,7 @@ export default function DistribuidorDashboard({ slug }) {
                 {histAll.map(h => (
                   <div key={h.key} className="pay-hist-row">
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#fff", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text)", marginBottom: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                         {h.nombre}
                         {h.suelta && (
                           <span style={{ background: "rgba(255,184,77,0.12)", border: "1px solid rgba(255,184,77,0.3)", color: "#ffb84d", borderRadius: 4, padding: "0 6px", fontSize: 8, textTransform: "uppercase", letterSpacing: 1 }}>
@@ -853,11 +886,11 @@ export default function DistribuidorDashboard({ slug }) {
                           </span>
                         )}
                       </div>
-                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
+                      <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>
                         {fmtFecha(h.fecha)} · x{h.cantidad}{h.pendiente ? " · ⏳ por confirmar" : ""}
                       </div>
                     </div>
-                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: h.pendiente ? "#666" : "#7ecc7e" }}>
+                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: h.pendiente ? "var(--text-3)" : "#7ecc7e" }}>
                       {!h.pendiente && h.mayoreo > 0 ? fmt(h.mayoreo * h.cantidad) : "—"}
                     </span>
                   </div>
@@ -872,10 +905,10 @@ export default function DistribuidorDashboard({ slug }) {
       {ventaSheet && (
         <div className="pay-overlay" onClick={() => setVentaSheet(false)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
-            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)" }}>
               ➕ Registrar venta
             </p>
-            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#666" }}>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)" }}>
               Para piezas que vendiste y no están en tu inventario. El proveedor le pondrá el costo distribuidor.
             </p>
 
@@ -909,19 +942,19 @@ function SueltaConfirmRow({ suelta, resolviendo, onResolver }) {
   const [costo, setCosto] = useState("");
   const busy = resolviendo === suelta.id;
   return (
-    <div style={{ padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+    <div style={{ padding: "10px 0", borderBottom: "1px solid rgba(var(--ov),0.06)" }}>
       <div style={{ marginBottom: 8 }}>
-        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "#fff" }}>{suelta.nombre}</div>
-        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>{fmtFecha(suelta.created_at)} · x{suelta.cantidad}</div>
+        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "var(--text)" }}>{suelta.nombre}</div>
+        <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>{fmtFecha(suelta.created_at)} · x{suelta.cantidad}</div>
       </div>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input
           type="number" inputMode="decimal" step="0.01" min="0" value={costo}
           onChange={e => setCosto(e.target.value)} placeholder="Costo distribuidor $"
-          style={{ flex: 1, minWidth: 0, background: "#111", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 14, fontFamily: "'Space Mono', monospace", outline: "none" }}
+          style={{ flex: 1, minWidth: 0, background: "var(--surface-2)", border: "1px solid var(--border-1)", borderRadius: 8, padding: "8px 10px", color: "var(--text)", fontSize: 14, fontFamily: "'Space Mono', monospace", outline: "none" }}
         />
         <button disabled={busy || !costo || parseFloat(costo) <= 0} onClick={() => onResolver(suelta.id, "confirmada", costo)}
-          style={{ background: busy || !costo ? "#333" : "#1e3a1e", border: "1px solid #2d5a2d", color: busy || !costo ? "#666" : "#7ecc7e", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: busy || !costo ? "not-allowed" : "pointer", flexShrink: 0 }}>
+          style={{ background: busy || !costo ? "var(--border-2)" : "#1e3a1e", border: "1px solid #2d5a2d", color: busy || !costo ? "var(--text-3)" : "#7ecc7e", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: busy || !costo ? "not-allowed" : "pointer", flexShrink: 0 }}>
           {busy ? "..." : "✓"}
         </button>
         <button disabled={busy} onClick={() => onResolver(suelta.id, "rechazada")}
@@ -937,22 +970,22 @@ function SueltaConfirmRow({ suelta, resolviendo, onResolver }) {
 function InvApproveRow({ item, busy, onAprobar, onRechazar }) {
   const [costo, setCosto] = useState("");
   return (
-    <div style={{ padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+    <div style={{ padding: "10px 0", borderBottom: "1px solid rgba(var(--ov),0.06)" }}>
       <div style={{ display: "flex", gap: 10, marginBottom: 8, alignItems: "center" }}>
         <LazyFoto itemId={item.id} imgClass="inv-thumb" phClass="inv-thumb-ph" alt={item.nombre} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre || "Sin nombre"}</div>
-          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>Cantidad: {item.cantidad}</div>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.nombre || "Sin nombre"}</div>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>Cantidad: {item.cantidad}</div>
         </div>
       </div>
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
         <input
           type="number" inputMode="decimal" step="0.01" min="0" value={costo}
           onChange={e => setCosto(e.target.value)} placeholder="Costo distribuidor $"
-          style={{ flex: 1, minWidth: 0, background: "#111", border: "1px solid #2a2a2a", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 14, fontFamily: "'Space Mono', monospace", outline: "none" }}
+          style={{ flex: 1, minWidth: 0, background: "var(--surface-2)", border: "1px solid var(--border-1)", borderRadius: 8, padding: "8px 10px", color: "var(--text)", fontSize: 14, fontFamily: "'Space Mono', monospace", outline: "none" }}
         />
         <button disabled={busy || !costo || parseFloat(costo) <= 0} onClick={() => onAprobar(item.id, costo)}
-          style={{ background: busy || !costo ? "#333" : "#1e3a1e", border: "1px solid #2d5a2d", color: busy || !costo ? "#666" : "#7ecc7e", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: busy || !costo ? "not-allowed" : "pointer", flexShrink: 0 }}>
+          style={{ background: busy || !costo ? "var(--border-2)" : "#1e3a1e", border: "1px solid #2d5a2d", color: busy || !costo ? "var(--text-3)" : "#7ecc7e", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: busy || !costo ? "not-allowed" : "pointer", flexShrink: 0 }}>
           {busy ? "..." : "✓"}
         </button>
         <button disabled={busy} onClick={() => onRechazar(item.id)}
@@ -968,8 +1001,8 @@ function InvApproveRow({ item, busy, onAprobar, onRechazar }) {
 function ToggleSwitch({ on, onToggle }) {
   return (
     <button type="button" onClick={onToggle}
-      style={{ width: 44, height: 24, borderRadius: 12, border: "none", background: on ? "#FFE000" : "#2a2a2a", cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.2s" }}>
-      <div style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: on ? "#000" : "#555", transition: "left 0.2s" }} />
+      style={{ width: 44, height: 24, borderRadius: 12, border: "none", background: on ? "var(--accent)" : "var(--border-1)", cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.2s" }}>
+      <div style={{ position: "absolute", top: 3, left: on ? 23 : 3, width: 18, height: 18, borderRadius: "50%", background: on ? "#000" : "var(--text-4)", transition: "left 0.2s" }} />
     </button>
   );
 }

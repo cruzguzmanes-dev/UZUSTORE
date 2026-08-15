@@ -47,8 +47,8 @@ const CSS = `
     animation: fadeIn 0.15s ease;
   }
   .confirm-sheet {
-    background: #1a1a1a;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: var(--surface);
+    border: 1px solid rgba(var(--ov),0.1);
     border-radius: 20px;
     padding: 20px;
     width: calc(100% - 32px);
@@ -63,14 +63,14 @@ const CSS = `
   }
   .confirm-foto-placeholder {
     width: 56px; height: 56px; border-radius: 10px;
-    background: #2a2a2a; display: flex; align-items: center;
+    background: var(--border-1); display: flex; align-items: center;
     justify-content: center; font-size: 22px; flex-shrink: 0;
   }
   @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
   @keyframes slideUp { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
   .inv-card {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(var(--ov),0.05);
+    border: 1px solid rgba(var(--ov),0.1);
     border-radius: 14px;
     padding: 14px;
     display: flex;
@@ -79,29 +79,29 @@ const CSS = `
   }
   .inv-img {
     width: 72px; height: 72px; flex-shrink: 0;
-    border-radius: 10px; object-fit: cover; background: #1a1a1a;
+    border-radius: 10px; object-fit: cover; background: var(--surface);
   }
   .inv-img-placeholder {
     width: 72px; height: 72px; flex-shrink: 0;
-    border-radius: 10px; background: #1a1a1a;
+    border-radius: 10px; background: var(--surface);
     display: flex; align-items: center; justify-content: center;
-    color: #444; font-size: 26px;
+    color: var(--text-4); font-size: 26px;
   }
   .inv-info { flex: 1; min-width: 0; }
   .inv-name {
     font-family: 'Syne', sans-serif; font-weight: 700;
-    font-size: 15px; color: #fff; margin-bottom: 6px;
+    font-size: 15px; color: var(--text); margin-bottom: 6px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .inv-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
-  .inv-precio { color: #FFE000; font-weight: 700; font-family: 'Space Mono', monospace; font-size: 13px; }
+  .inv-precio { color: var(--accent); font-weight: 700; font-family: 'Space Mono', monospace; font-size: 13px; }
   .inv-badge {
-    background: rgba(255,255,255,0.07);
+    background: rgba(var(--ov),0.07);
     border-radius: 6px; padding: 3px 10px;
     font-family: 'Space Mono', monospace; font-size: 11px;
-    color: #aaa;
+    color: var(--text-2);
   }
-  .inv-badge strong { color: #fff; }
+  .inv-badge strong { color: var(--text); }
   .inv-ganancia {
     background: rgba(0,200,100,0.08);
     border: 1px solid rgba(0,200,100,0.2);
@@ -116,7 +116,7 @@ const CSS = `
     font-size: 13px; font-family: 'Space Mono', monospace;
     cursor: pointer; font-weight: 700; margin-bottom: 7px;
   }
-  .inv-btn-sell:disabled { background: #1a1a1a; border-color: #222; color: #444; cursor: not-allowed; }
+  .inv-btn-sell:disabled { background: var(--surface); border-color: var(--surface-3); color: var(--text-4); cursor: not-allowed; }
   /* Fila secundaria: Stock + Eliminar */
   .inv-actions-secondary { display: flex; gap: 7px; margin-bottom: 6px; }
   .inv-btn-restock {
@@ -128,19 +128,19 @@ const CSS = `
   }
   .inv-btn-gear {
     position: absolute; top: 10px; right: 10px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    color: #666; border-radius: 8px; padding: 5px 8px;
+    background: rgba(var(--ov),0.06); border: 1px solid rgba(var(--ov),0.1);
+    color: var(--text-3); border-radius: 8px; padding: 5px 8px;
     font-size: 14px; cursor: pointer; line-height: 1;
   }
-  .inv-btn-gear:hover { background: rgba(255,255,255,0.12); color: #aaa; }
+  .inv-btn-gear:hover { background: rgba(var(--ov),0.12); color: var(--text-2); }
   .edit-inp {
-    width: 100%; background: #111; border: 1px solid #2a2a2a;
-    border-radius: 8px; padding: 11px 14px; color: #fff;
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border-1);
+    border-radius: 8px; padding: 11px 14px; color: var(--text);
     font-size: 16px; font-family: 'Space Mono', monospace;
     outline: none; box-sizing: border-box; margin-bottom: 12px;
   }
   .edit-lbl {
-    display: block; font-size: 9px; color: #666; letter-spacing: 2px;
+    display: block; font-size: 9px; color: var(--text-3); letter-spacing: 2px;
     text-transform: uppercase; font-family: 'Space Mono', monospace; margin-bottom: 6px;
   }
 `;
@@ -261,23 +261,23 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
               <LazyFoto itemId={confirmItem.id} imgClass="confirm-foto" phClass="confirm-foto-placeholder" />
               <div>
-                <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#fff" }}>
+                <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "var(--text)" }}>
                   {confirmItem.nombre || "Sin nombre"}
                 </p>
-                <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#888" }}>
+                <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text-3)" }}>
                   {(confirmItem.precio_venta || 0) > 0 && (
-                    <>Precio: <span style={{ color: "#FFE000" }}>{fmt(confirmItem.precio_venta)}</span> · </>
+                    <>Precio: <span style={{ color: "var(--accent)" }}>{fmt(confirmItem.precio_venta)}</span> · </>
                   )}
                   Stock: {confirmItem.cantidad}
                 </p>
               </div>
             </div>
-            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#666", textAlign: "center" }}>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text-3)", textAlign: "center" }}>
               ¿Confirmas que esta figura se vendió?
             </p>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmItem(null)}
-                style={{ flex: 1, background: "#222", border: "1px solid #333", color: "#888", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
+                style={{ flex: 1, background: "var(--surface-3)", border: "1px solid var(--border-2)", color: "var(--text-3)", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
                 Cancelar
               </button>
               <button onClick={handleMarkSold}
@@ -296,11 +296,11 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 18 }}>
               <LazyFoto itemId={restockItem.id} imgClass="confirm-foto" phClass="confirm-foto-placeholder" />
               <div>
-                <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "#fff" }}>
+                <p style={{ margin: "0 0 4px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15, color: "var(--text)" }}>
                   {restockItem.nombre || "Sin nombre"}
                 </p>
-                <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#888" }}>
-                  Stock actual: <strong style={{ color: "#fff" }}>{restockItem.cantidad}</strong>
+                <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text-3)" }}>
+                  Stock actual: <strong style={{ color: "var(--text)" }}>{restockItem.cantidad}</strong>
                 </p>
               </div>
             </div>
@@ -314,13 +314,13 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
               onChange={e => setRestockQty(e.target.value)}
               autoFocus
             />
-            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#555", textAlign: "center" }}>
-              Nuevo stock: <strong style={{ color: "#fff" }}>{restockItem.cantidad + (parseInt(restockQty) || 0)}</strong>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-4)", textAlign: "center" }}>
+              Nuevo stock: <strong style={{ color: "var(--text)" }}>{restockItem.cantidad + (parseInt(restockQty) || 0)}</strong>
             </p>
 
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setRestockItem(null)}
-                style={{ flex: 1, background: "#222", border: "1px solid #333", color: "#888", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
+                style={{ flex: 1, background: "var(--surface-3)", border: "1px solid var(--border-2)", color: "var(--text-3)", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
                 Cancelar
               </button>
               <button onClick={handleRestock} disabled={!restockQty || parseInt(restockQty) < 1}
@@ -336,7 +336,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
       {editItem && (
         <div className="confirm-overlay" onClick={() => setEditItem(null)}>
           <div className="confirm-sheet" onClick={e => e.stopPropagation()}>
-            <p style={{ margin: "0 0 18px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "#fff" }}>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16, color: "var(--text)" }}>
               ⚙ Editar artículo
             </p>
             <label className="edit-lbl">Nombre</label>
@@ -347,7 +347,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             {isAdmin && (
               <>
                 <label className="edit-lbl">
-                  Costo Distribuidor $ <span style={{ color: "#FFE000", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(lo que le cobras)</span>
+                  Costo Distribuidor $ <span style={{ color: "var(--accent)", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(lo que le cobras)</span>
                 </label>
                 <input className="edit-inp" type="number" step="0.01" value={editMayoreo}
                   onChange={e => setEditMayoreo(e.target.value)} placeholder="Ej: 300" />
@@ -357,7 +357,7 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             {verVenta && modoPrecio === "venta" && (
               <>
                 <label className="edit-lbl">
-                  Tu Precio de Venta $ <span style={{ color: "#444", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(opcional)</span>
+                  Tu Precio de Venta $ <span style={{ color: "var(--text-4)", fontSize: 8, letterSpacing: 0, textTransform: "none" }}>(opcional)</span>
                 </label>
                 <input className="edit-inp" type="number" step="0.01" value={editPrecio}
                   onChange={e => setEditPrecio(e.target.value)} placeholder="Ej: 650" />
@@ -365,11 +365,11 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
             )}
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
               <button onClick={() => setEditItem(null)}
-                style={{ flex: 1, background: "#222", border: "1px solid #333", color: "#888", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
+                style={{ flex: 1, background: "var(--surface-3)", border: "1px solid var(--border-2)", color: "var(--text-3)", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>
                 Cancelar
               </button>
               <button onClick={handleSaveEdit} disabled={saving}
-                style={{ flex: 2, background: saving ? "#333" : "#FFE000", border: "none", color: "#000", borderRadius: 12, padding: 14, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
+                style={{ flex: 2, background: saving ? "var(--border-2)" : "var(--accent)", border: "none", color: "#000", borderRadius: 12, padding: 14, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
                 {saving ? "Guardando..." : "Guardar cambios"}
               </button>
             </div>
@@ -402,11 +402,11 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
                   {verVenta ? (
                     <>
                       {tienePrecioV ? (
-                        <span style={{ color: "#FFE000", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontSize: 18 }}>
+                        <span style={{ color: "var(--accent)", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontSize: 18 }}>
                           {fmt(item.precio_venta)}
                         </span>
                       ) : (
-                        <span style={{ color: "#666", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                        <span style={{ color: "var(--text-3)", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
                           Sin precio de venta
                         </span>
                       )}
@@ -420,10 +420,10 @@ export default function InventarioTable({ items, isAdmin = false, modoPrecio = "
                     mayoreo > 0 ? (
                       <span style={{ color: "#7ec5cc", fontWeight: 700, fontFamily: "'Space Mono', monospace", fontSize: 18 }}>
                         {fmt(mayoreo)}
-                        <span style={{ color: "#666", fontSize: 9, marginLeft: 6, fontWeight: 400 }}>costo dist.</span>
+                        <span style={{ color: "var(--text-3)", fontSize: 9, marginLeft: 6, fontWeight: 400 }}>costo dist.</span>
                       </span>
                     ) : (
-                      <span style={{ color: "#666", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                      <span style={{ color: "var(--text-3)", fontStyle: "italic", fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
                         Costo pendiente
                       </span>
                     )

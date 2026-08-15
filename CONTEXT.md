@@ -98,6 +98,9 @@ neto_real = total_amount - sale_fee - envío - IVA_retenido - ISR_retenido
 |------|--------|-------|
 | `gaticueva` | Gaticueva | `#00C9FF` |
 | `friki` | Friki | `#FF6B9D` |
+| `practica` | Práctica | `#00FF94` | (tienda de **prueba** para que los puntos de venta ensayen; id 4)
+
+El panel del dueño (`Distribuidores.jsx`) ya es **dinámico**: define `SLUGS`/`NOMBRES`/`COLORS` y todo (estado, `fetchAll`, tabs, resumen) se genera con `SLUGS.map(...)`. Para agregar otra tienda: crear la fila en `distribuidores` (Supabase) y agregar el slug a esas 3 constantes.
 
 ---
 
@@ -134,6 +137,7 @@ El header del portal muestra el badge **"PRO"** junto a "Gestiona tu inventario"
 > **Ningún rol puede eliminar artículos.** Borrar es exclusivo del dueño desde su panel admin. El saldo pendiente y el flujo de pago (total/parcial) son visibles para **ambos** roles.
 
 Los códigos actuales:
+- Práctica (prueba): básico `PRACTICA`, admin `PRACTICAPRO`
 - Gaticueva: básico `GATI2026`, admin `GATI2026PRO`
 - Friki: básico `FRIKI2026`, admin `FRIKI2026PRO`
 
@@ -381,6 +385,7 @@ El sistema es **append-only**: nunca se modifican ni eliminan pagos. El saldo si
 ## Notas de implementación importantes
 
 - **Fotos**: se comprimen a máx 400px, calidad JPEG 0.65, y se guardan como `base64` en la columna `foto_url`. No se usa storage externo.
+- **Tema día/noche (portal del distribuidor)**: switch ☀️/🌙 en el header, guardado en `localStorage` (`dist_theme_${slug}`, default 'dark'). Implementado con **variables CSS** en `.dist-wrap` / `.dist-wrap.light` (`--bg`, `--surface`, `--surface-2/3`, `--text`, `--text-2/3/4`, `--border-1/2`, `--accent`, y `--ov` = triplete RGB para las transparencias, usado como `rgba(var(--ov), α)`). Los colores fijos de `DistribuidorDashboard`, `InventarioTable` y `UploadForm` se convirtieron a `var(--...)`. Los acentos pastel (verde/cian/rojo/ámbar) y el `DistribuidorLogin` siguen fijos (el login siempre oscuro). Un `useEffect` ajusta `document.body.style.background` al tema para el overscroll.
 - **Carga lazy de fotos (portal del distribuidor)**: el listado se pide con `?light=1` (sin `foto_url`, solo datos ligeros → saldo, búsqueda y filtros instantáneos). Cada foto se carga sola cuando su tarjeta entra en pantalla, vía el componente `LazyFoto` (IntersectionObserver) que pide `?foto=ID` y cachea el base64 en un `Map` por id. Esto evita descargar ~10 MB de imágenes al abrir el portal con muchos artículos. El panel del dueño (`Distribuidores.jsx`) todavía trae las fotos completas (pendiente de optimizar si crece).
 - **FKs en Supabase**: `inventario_distribuidor.id` y `distribuidores.id` son `INTEGER` (SERIAL), **no UUID**. Al crear tablas relacionadas, usar `INTEGER` para las foreign keys.
 - **`sb()` helper**: wrapper de fetch para Supabase REST API, disponible en `src/utils.js`. Lanza error si `!res.ok`.

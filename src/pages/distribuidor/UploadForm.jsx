@@ -4,7 +4,7 @@ const CSS = `
   .upload-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   @media (max-width: 320px) { .upload-grid-2 { grid-template-columns: 1fr; } }
   .upload-drop {
-    border: 2px dashed rgba(255,255,255,0.15);
+    border: 2px dashed rgba(var(--ov),0.15);
     border-radius: 10px; padding: 20px 16px;
     text-align: center; cursor: pointer;
     transition: border-color 0.2s;
@@ -15,11 +15,11 @@ const CSS = `
 
 const inp = {
   width: "100%",
-  background: "#111",
-  border: "1px solid #2a2a2a",
+  background: "var(--surface-2)",
+  border: "1px solid var(--border-1)",
   borderRadius: 8,
   padding: "12px 14px",
-  color: "#fff",
+  color: "var(--text)",
   fontSize: 16,
   fontFamily: "'Space Mono', monospace",
   outline: "none",
@@ -29,7 +29,7 @@ const lbl = {
   display: "block",
   fontSize: 9,
   fontFamily: "'Space Mono', monospace",
-  color: "#666",
+  color: "var(--text-3)",
   letterSpacing: 2,
   marginBottom: 6,
   textTransform: "uppercase",
@@ -125,8 +125,8 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
     <>
       <style>{CSS}</style>
       <div style={{
-        background: "rgba(255,255,255,0.04)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: "rgba(var(--ov),0.04)",
+        border: "1px solid rgba(var(--ov),0.08)",
         borderRadius: 14,
         overflow: "hidden",
       }}>
@@ -136,13 +136,13 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
           style={{
             width: "100%", background: "none", border: "none",
             padding: "16px 18px", display: "flex", justifyContent: "space-between",
-            alignItems: "center", cursor: "pointer", color: "#fff",
+            alignItems: "center", cursor: "pointer", color: "var(--text)",
           }}
         >
           <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 15 }}>
             {proposal ? "📸 Inventariar pieza pasada" : `➕ Agregar Artículo${asOwner ? " (costo dist.)" : ""}`}
           </span>
-          <span style={{ color: "#666", fontSize: 18 }}>{open ? "−" : "+"}</span>
+          <span style={{ color: "var(--text-3)", fontSize: 18 }}>{open ? "−" : "+"}</span>
         </button>
 
         {open && (
@@ -170,13 +170,13 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
               </div>
             ) : asOwner ? (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Costo Distribuidor $ <span style={{ color: "#444", letterSpacing: 0, textTransform: "none" }}>(lo que le cobras)</span></label>
+                <label style={lbl}>Costo Distribuidor $ <span style={{ color: "var(--text-4)", letterSpacing: 0, textTransform: "none" }}>(lo que le cobras)</span></label>
                 <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
                   placeholder="Ej: 350" style={inp} />
               </div>
             ) : modoPrecio === "venta" && (
               <div style={{ marginBottom: 14 }}>
-                <label style={lbl}>Tu Precio de Venta $ <span style={{ color: "#444", letterSpacing: 0, textTransform: "none" }}>(opcional)</span></label>
+                <label style={lbl}>Tu Precio de Venta $ <span style={{ color: "var(--text-4)", letterSpacing: 0, textTransform: "none" }}>(opcional)</span></label>
                 <input type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)}
                   placeholder="Ej: 650" style={inp} />
               </div>
@@ -199,20 +199,20 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
                     <button
                       type="button"
                       onClick={() => { setFoto(null); setPreview(""); }}
-                      style={{ marginTop: 10, background: "none", border: "none", color: "#888", fontSize: 12, cursor: "pointer", fontFamily: "'Space Mono', monospace" }}
+                      style={{ marginTop: 10, background: "none", border: "none", color: "var(--text-3)", fontSize: 12, cursor: "pointer", fontFamily: "'Space Mono', monospace" }}
                     >
                       Cambiar foto
                     </button>
                   </div>
                 ) : (
                   <>
-                    <p style={{ margin: "0 0 12px 0", color: "#888", fontSize: 14 }}>📸 Agregar foto</p>
+                    <p style={{ margin: "0 0 12px 0", color: "var(--text-3)", fontSize: 14 }}>📸 Agregar foto</p>
                     <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
                       {/* Cámara */}
                       <input type="file" accept="image/*" capture="environment" onChange={handleFotoChange}
                         style={{ display: "none" }} id="fotoCam" />
                       <label htmlFor="fotoCam" style={{
-                        cursor: "pointer", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+                        cursor: "pointer", background: "rgba(var(--ov),0.06)", border: "1px solid rgba(var(--ov),0.15)",
                         borderRadius: 8, padding: "10px 16px", color: "#ccc", fontSize: 13, fontFamily: "'Space Mono', monospace",
                       }}>
                         📷 Cámara
@@ -221,7 +221,7 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
                       <input type="file" accept="image/*" onChange={handleFotoChange}
                         style={{ display: "none" }} id="fotoGal" />
                       <label htmlFor="fotoGal" style={{
-                        cursor: "pointer", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)",
+                        cursor: "pointer", background: "rgba(var(--ov),0.06)", border: "1px solid rgba(var(--ov),0.15)",
                         borderRadius: 8, padding: "10px 16px", color: "#ccc", fontSize: 13, fontFamily: "'Space Mono', monospace",
                       }}>
                         🖼️ Galería
@@ -246,7 +246,7 @@ export default function UploadForm({ slug, onSuccess, modoPrecio = "venta", asOw
               type="submit"
               disabled={loading}
               style={{
-                width: "100%", background: loading ? "#333" : "#FFE000",
+                width: "100%", background: loading ? "#333" : "var(--accent)",
                 color: "#000", border: "none", borderRadius: 10,
                 padding: 15, fontSize: 15, fontWeight: 700,
                 fontFamily: "'Syne', sans-serif",

@@ -2,9 +2,13 @@ import React, { useState, useEffect } from "react";
 import { fmt, sb } from "../utils";
 import Loader from "../components/Loader";
 
-const SLUGS   = ["gaticueva", "friki"];
-const NOMBRES = { gaticueva: "Gaticueva", friki: "Friki" };
-const COLORS  = { gaticueva: "#00C9FF", friki: "#FF6B9D" };
+const SLUGS   = ["gaticueva", "friki", "practica"];
+const NOMBRES = { gaticueva: "Gaticueva", friki: "Friki", practica: "Práctica" };
+const COLORS  = { gaticueva: "#00C9FF", friki: "#FF6B9D", practica: "#00FF94" };
+
+// Estado inicial vacío por slug (dinámico según SLUGS)
+const emptyBySlug    = () => Object.fromEntries(SLUGS.map(s => [s, []]));
+const settingsBySlug = () => Object.fromEntries(SLUGS.map(s => [s, { modo_precio: "venta" }]));
 
 const fmtFecha = (iso) =>
   new Date(iso).toLocaleDateString("es-MX", {
@@ -12,12 +16,12 @@ const fmtFecha = (iso) =>
   });
 
 export default function Distribuidores() {
-  const [data,         setData]         = useState({ gaticueva: [], friki: [] });
-  const [pagos,        setPagos]        = useState({ gaticueva: [], friki: [] });
-  const [solicitudes,  setSolicitudes]  = useState({ gaticueva: [], friki: [] });
-  const [sueltas,      setSueltas]      = useState({ gaticueva: [], friki: [] });
+  const [data,         setData]         = useState(emptyBySlug);
+  const [pagos,        setPagos]        = useState(emptyBySlug);
+  const [solicitudes,  setSolicitudes]  = useState(emptyBySlug);
+  const [sueltas,      setSueltas]      = useState(emptyBySlug);
   const [lotes,        setLotes]        = useState([]);
-  const [distSettings, setDistSettings] = useState({ gaticueva: { modo_precio: "venta" }, friki: { modo_precio: "venta" } });
+  const [distSettings, setDistSettings] = useState(settingsBySlug);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [tab,     setTab]     = useState("gaticueva");
@@ -27,29 +31,21 @@ export default function Distribuidores() {
     setLoading(true);
     setError("");
     try {
-      const [results, lotesData, pagosGati, pagosFriki, settingsGati, settingsFriki, solGati, solFriki, sueltasGati, sueltasFriki] = await Promise.all([
-        Promise.all(
-          SLUGS.map(s => fetch(`/api/distribuidor/inventario?distribuidor=${s}`).then(r => r.ok ? r.json() : []))
-        ),
+      const [invArr, lotesData, pagosArr, settingsArr, solArr, sueltasArr] = await Promise.all([
+        Promise.all(SLUGS.map(s => fetch(`/api/distribuidor/inventario?distribuidor=${s}`).then(r => r.ok ? r.json() : []))),
         sb("lotes?select=id,titulo,sku,costo_unitario&order=titulo.asc").catch(() => []),
-        fetch("/api/distribuidor/pagos?slug=gaticueva").then(r => r.ok ? r.json() : []),
-        fetch("/api/distribuidor/pagos?slug=friki").then(r => r.ok ? r.json() : []),
-        fetch("/api/distribuidor/settings?slug=gaticueva").then(r => r.ok ? r.json() : {}),
-        fetch("/api/distribuidor/settings?slug=friki").then(r => r.ok ? r.json() : {}),
-        fetch("/api/distribuidor/solicitudes?slug=gaticueva&estado=pendiente").then(r => r.ok ? r.json() : []),
-        fetch("/api/distribuidor/solicitudes?slug=friki&estado=pendiente").then(r => r.ok ? r.json() : []),
-        fetch("/api/distribuidor/historial?sueltas=gaticueva&estado=confirmada").then(r => r.ok ? r.json() : []),
-        fetch("/api/distribuidor/historial?sueltas=friki&estado=confirmada").then(r => r.ok ? r.json() : []),
+        Promise.all(SLUGS.map(s => fetch(`/api/distribuidor/pagos?slug=${s}`).then(r => r.ok ? r.json() : []))),
+        Promise.all(SLUGS.map(s => fetch(`/api/distribuidor/settings?slug=${s}`).then(r => r.ok ? r.json() : {}))),
+        Promise.all(SLUGS.map(s => fetch(`/api/distribuidor/solicitudes?slug=${s}&estado=pendiente`).then(r => r.ok ? r.json() : []))),
+        Promise.all(SLUGS.map(s => fetch(`/api/distribuidor/historial?sueltas=${s}&estado=confirmada`).then(r => r.ok ? r.json() : []))),
       ]);
-      setData({ gaticueva: results[0] || [], friki: results[1] || [] });
+      const bySlug = (arr) => Object.fromEntries(SLUGS.map((s, i) => [s, arr[i] || []]));
+      setData(bySlug(invArr));
       setLotes(lotesData || []);
-      setPagos({ gaticueva: pagosGati || [], friki: pagosFriki || [] });
-      setSolicitudes({ gaticueva: solGati || [], friki: solFriki || [] });
-      setSueltas({ gaticueva: sueltasGati || [], friki: sueltasFriki || [] });
-      setDistSettings({
-        gaticueva: { modo_precio: settingsGati?.modo_precio || "venta" },
-        friki:     { modo_precio: settingsFriki?.modo_precio || "venta" },
-      });
+      setPagos(bySlug(pagosArr));
+      setSolicitudes(bySlug(solArr));
+      setSueltas(bySlug(sueltasArr));
+      setDistSettings(Object.fromEntries(SLUGS.map((s, i) => [s, { modo_precio: settingsArr[i]?.modo_precio || "venta" }])));
     } catch (e) {
       setError(e.message);
     } finally {
