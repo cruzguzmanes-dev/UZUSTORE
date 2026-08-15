@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { fmt } from "../../utils";
 import { GS } from "../../constants";
 import UploadForm from "./UploadForm";
@@ -134,6 +134,7 @@ export default function DistribuidorDashboard({ slug }) {
   // Pago
   const [paySheet, setPaySheet]     = useState(null); // null | 'menu' | 'parcial' | 'historial'
   const [parcialMonto, setParcialMonto] = useState("");
+  const parcialInputRef = useRef(null);
   const [savingPay, setSavingPay]   = useState(false);
   const [resolviendo, setResolviendo] = useState(null); // id de solicitud en proceso
 
@@ -145,6 +146,7 @@ export default function DistribuidorDashboard({ slug }) {
   // Venta suelta (pieza no inventariada)
   const [ventaSheet, setVentaSheet] = useState(false);
   const [ventaNombre, setVentaNombre] = useState("");
+  const ventaInputRef = useRef(null);
   const [savingVenta, setSavingVenta] = useState(false);
   const [resolviendoSuelta, setResolviendoSuelta] = useState(null);
 
@@ -221,6 +223,26 @@ export default function DistribuidorDashboard({ slug }) {
     document.body.style.background = theme === "light" ? "#ECEEF2" : "#0A0A0F";
     return () => { document.body.style.background = ""; };
   }, [theme]);
+
+  // Al abrir el sheet de venta suelta, enfocar el input (abre el teclado)
+  useEffect(() => {
+    if (!ventaSheet) return;
+    const t = setTimeout(() => {
+      ventaInputRef.current?.focus();
+      ventaInputRef.current?.scrollIntoView({ block: "center" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [ventaSheet]);
+
+  // Al abrir "pagar una parte", enfocar el input del monto
+  useEffect(() => {
+    if (paySheet !== "parcial") return;
+    const t = setTimeout(() => {
+      parcialInputRef.current?.focus();
+      parcialInputRef.current?.scrollIntoView({ block: "center" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [paySheet]);
 
   if (!authed) {
     return (
@@ -621,8 +643,9 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         )}
 
-        {/* Toggle: ver mi precio de venta — solo NORMAL */}
-        {!isAdmin && (
+        {/* Toggle "ver mi precio de venta" — OCULTO por ahora para que el vendedor se enfoque
+            en cuánto nos debe (costo distribuidor). Para reactivarlo: cambiar `false &&` por `!isAdmin &&`. */}
+        {false && !isAdmin && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(var(--ov),0.03)", border: "1px solid rgba(var(--ov),0.08)", borderRadius: 12, padding: "12px 16px", marginBottom: 16 }}>
             <div>
               <p style={{ margin: 0, fontFamily: "'Space Mono', monospace", fontSize: 12, color: "var(--text-2)" }}>Ver mi precio de venta</p>
@@ -661,7 +684,7 @@ export default function DistribuidorDashboard({ slug }) {
                   items={conStock}
                   isAdmin={isAdmin}
                   modoPrecio={modoPrecio}
-                  verVenta={isAdmin ? true : verVenta}
+                  verVenta={isAdmin}
                   onItemSold={() => { fetchInventario(); }}
                 />
               ) : (
@@ -682,7 +705,7 @@ export default function DistribuidorDashboard({ slug }) {
                       items={sinStock}
                       isAdmin={isAdmin}
                       modoPrecio={modoPrecio}
-                      verVenta={isAdmin ? true : verVenta}
+                      verVenta={isAdmin}
                       onItemSold={() => { fetchInventario(); }}
                     />
                   )}
@@ -738,7 +761,7 @@ export default function DistribuidorDashboard({ slug }) {
 
       {/* ── Sheet: pago parcial ── */}
       {paySheet === "parcial" && (
-        <div className="pay-overlay" onClick={() => setPaySheet(null)}>
+        <div className="pay-overlay" style={{ alignItems: "center", paddingBottom: 0 }} onClick={() => setPaySheet(null)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
             <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)" }}>
               💸 Pagar una parte
@@ -749,6 +772,7 @@ export default function DistribuidorDashboard({ slug }) {
 
             <label className="pay-lbl">Monto a pagar $</label>
             <input
+              ref={parcialInputRef}
               className="pay-inp" type="number" inputMode="decimal" step="0.01" min="1"
               value={parcialMonto} onChange={e => setParcialMonto(e.target.value)}
               placeholder="Ej: 500" autoFocus
@@ -902,8 +926,9 @@ export default function DistribuidorDashboard({ slug }) {
       )}
 
       {/* ── Sheet: registrar venta suelta (pieza sin inventario) ── */}
+      {/* Centrado verticalmente para que suba sobre el teclado, no pegado abajo */}
       {ventaSheet && (
-        <div className="pay-overlay" onClick={() => setVentaSheet(false)}>
+        <div className="pay-overlay" style={{ alignItems: "center", paddingBottom: 0 }} onClick={() => setVentaSheet(false)}>
           <div className="pay-sheet" onClick={e => e.stopPropagation()}>
             <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)" }}>
               ➕ Registrar venta
@@ -914,9 +939,10 @@ export default function DistribuidorDashboard({ slug }) {
 
             <label className="pay-lbl">¿Qué vendiste?</label>
             <input
+              ref={ventaInputRef}
               className="pay-inp" type="text" value={ventaNombre}
               onChange={e => setVentaNombre(e.target.value)}
-              placeholder="Ej: Luffy KOA" autoFocus
+              placeholder="Ej: Luffy KO 5" autoFocus
             />
 
             <div style={{ display: "flex", gap: 10, marginTop: 4 }}>

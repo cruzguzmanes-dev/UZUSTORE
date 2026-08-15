@@ -1,5 +1,7 @@
 # UZUSTORE — Contexto del Proyecto
 
+> ⚠️ **PENDIENTE DE SEGURIDAD (diferido a propósito):** RLS está desactivado en todas las tablas y la `SUPABASE_KEY` pública viaja en el bundle del frontend → cualquiera puede leer/escribir/borrar toda la BD directo por la API REST, sin login. Los "códigos de acceso" solo protegen el frontend, no la BD. Aceptado como riesgo temporal para las primeras entregas. A atacar cuando haya tiempo: activar RLS con políticas + mover escrituras a las funciones serverless con una **service key** secreta (no la pública).
+
 ## ¿Qué es?
 
 Dashboard fiscal y de gestión para un vendedor de figuras de anime/coleccionables en MercadoLibre México. El dueño también tiene distribuidores externos (revendedores) que manejan su propio inventario físico.
@@ -333,7 +335,7 @@ Archivos: `src/pages/distribuidor/`
 | Editar el **precio de mayoreo** de un artículo (⚙) | ❌ | ✅ |
 | Marcar vendido | ✅ | ✅ |
 | Restock (+ Stock) | ❌ | ✅ |
-| Toggle "ver mi precio de venta" (localStorage) | ✅ | — |
+| Toggle "ver mi precio de venta" (localStorage) | oculto* | — |
 | **Eliminar artículos** | ❌ | ❌ |
 | Ver saldo al proveedor + **solicitar** pago (total/parcial) | ✅ | ✅ |
 | Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
@@ -342,6 +344,8 @@ Archivos: `src/pages/distribuidor/`
 | **Confirmar ventas sueltas** (ponerles el mayoreo) | ❌ | ✅ |
 | **Inventariar pieza pasada** (foto + nombre + cantidad → a aprobación) | ✅ | ❌ |
 | **Aprobar inventario propuesto** (ponerle el mayoreo) | ❌ | ✅ |
+
+\* El toggle "ver mi precio de venta" está **oculto por ahora** (`false && !isAdmin` en `DistribuidorDashboard.jsx`) para que el vendedor se enfoque en cuánto debe; se pasa `verVenta={isAdmin}` a `InventarioTable` (el vendedor ve el **costo distribuidor** en grande, sin su precio de venta). Reactivar cambiando `false &&` por `!isAdmin &&`.
 
 Para el **PRO**, las solicitudes entrantes ("🧾 Ventas por confirmar" y "💳 Pagos por aceptar") se muestran **hasta arriba de todo** (después del header, antes de las stats), para que las vea al abrir.
 | Ver "💳 Pagos por aceptar" (aceptar/rechazar solicitudes) | ❌ | ✅ |
