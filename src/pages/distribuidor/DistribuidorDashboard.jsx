@@ -3,7 +3,7 @@ import { fmt } from "../../utils";
 import { GS } from "../../constants";
 import UploadForm from "./UploadForm";
 import InventarioTable, { LazyFoto } from "./InventarioTable";
-import DistribuidorLogin, { getDistribuidorSession, getDistribuidorRole } from "./DistribuidorLogin";
+import DistribuidorLogin, { getDistribuidorSession, getDistribuidorRole, clearDistribuidorSession } from "./DistribuidorLogin";
 import Loader from "../../components/Loader";
 
 const fmtFecha = (iso) =>
@@ -466,6 +466,11 @@ export default function DistribuidorDashboard({ slug }) {
     });
   };
 
+  const cerrarSesion = () => {
+    clearDistribuidorSession(slug);
+    setAuthed(false);
+  };
+
   const toggleTheme = () => {
     setTheme(prev => {
       const next = prev === "dark" ? "light" : "dark";
@@ -734,6 +739,14 @@ export default function DistribuidorDashboard({ slug }) {
               )}
             </>
           )}
+        </div>
+
+        {/* Cerrar sesión — discreto, al final (para cambiar entre vendedor y PRO) */}
+        <div style={{ textAlign: "center", marginTop: 28 }}>
+          <button onClick={cerrarSesion}
+            style={{ background: "none", border: "none", color: "var(--text-4)", fontSize: 11, fontFamily: "'Space Mono', monospace", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>
+            Cerrar sesión
+          </button>
         </div>
 
       </div>

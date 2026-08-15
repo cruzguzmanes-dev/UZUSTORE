@@ -21,6 +21,12 @@ export function getDistribuidorRole(slug) {
   return localStorage.getItem(SESSION_ROLE_KEY(slug)) || "basic";
 }
 
+export function clearDistribuidorSession(slug) {
+  localStorage.removeItem(SESSION_KEY(slug));
+  localStorage.removeItem(SESSION_EXP_KEY(slug));
+  localStorage.removeItem(SESSION_ROLE_KEY(slug));
+}
+
 export default function DistribuidorLogin({ slug, onLogin }) {
   const [code, setCode]       = useState("");
   const [loading, setLoading] = useState(false);
