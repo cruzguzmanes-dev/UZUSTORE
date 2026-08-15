@@ -82,7 +82,7 @@ export default async function handler(req, res) {
     // PATCH: aceptar / rechazar una solicitud
     if (req.method === 'PATCH') {
       const { id } = req.query;
-      const { estado } = req.body;
+      const { estado, monto_deuda } = req.body;
       if (!id) return res.status(400).json({ error: "Falta parámetro 'id'" });
       if (!['aceptado', 'rechazado'].includes(estado)) {
         return res.status(400).json({ error: "estado debe ser 'aceptado' o 'rechazado'" });
@@ -115,6 +115,7 @@ export default async function handler(req, res) {
               monto: sol.monto,
               tipo: sol.tipo,
               notas: sol.notas,
+              monto_deuda: (monto_deuda != null && monto_deuda !== "") ? parseFloat(monto_deuda) : 0,
             }),
           }
         );

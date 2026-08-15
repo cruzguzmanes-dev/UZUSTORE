@@ -137,6 +137,8 @@ export default function DistribuidorDashboard({ slug }) {
   const parcialInputRef = useRef(null);
   const [savingPay, setSavingPay]   = useState(false);
   const [resolviendo, setResolviendo] = useState(null); // id de solicitud en proceso
+  const [aceptarPago, setAceptarPago] = useState(null); // solicitud en split de aceptación
+  const [deudaInput, setDeudaInput]   = useState("");   // monto a saldación de deuda
 
   // Historial de ventas (sección arriba, PRO)
   const [showHistVentas, setShowHistVentas] = useState(false);
@@ -275,8 +277,10 @@ export default function DistribuidorDashboard({ slug }) {
 
   const totalVendidas = activos.reduce((s, i) => s + (i.vendidas || 0), 0) + vendidasSueltas;
   const totalDebo     = activos.reduce((s, i) => s + ((i.precio_mayoreo || 0) * (i.vendidas || 0)), 0) + deboSueltas;
-  const totalPagado   = pagos.reduce((s, p) => s + p.monto, 0);
-  const saldo         = totalDebo - totalPagado;
+  const totalPagado   = pagos.reduce((s, p) => s + p.monto, 0);                       // total recibido
+  const pagadoVentas  = pagos.reduce((s, p) => s + (p.monto - (p.monto_deuda || 0)), 0); // aplicado a ventas
+  const abonoDeuda    = pagos.reduce((s, p) => s + (p.monto_deuda || 0), 0);            // saldación de deuda vieja
+  const saldo         = totalDebo - pagadoVentas;
 
   // Filtro de búsqueda
   const q = search.trim().toLowerCase();
@@ -326,24 +330,36 @@ export default function DistribuidorDashboard({ slug }) {
     }
   };
 
-  // El PRO acepta / rechaza una solicitud
-  const resolverSolicitud = async (id, estado) => {
+  // El PRO acepta / rechaza una solicitud. montoDeuda = parte del pago que va a deuda vieja.
+  const resolverSolicitud = async (id, estado, montoDeuda = 0) => {
     setResolviendo(id);
     try {
       const res = await fetch(`/api/distribuidor/solicitudes?id=${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado }),
+        body: JSON.stringify({ estado, ...(estado === "aceptado" && { monto_deuda: montoDeuda || 0 }) }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || "Error procesando");
       }
       await Promise.all([fetchSolicitudes(), fetchPagos()]);
+      setAceptarPago(null);
     } catch (e) {
       alert("Error: " + e.message);
     } finally {
       setResolviendo(null);
+    }
+  };
+
+  // Al aceptar un pago: si supera el saldo de ventas, abre el split para confirmar la deuda
+  const abrirAceptar = (s) => {
+    const excedente = Math.max(0, s.monto - Math.max(0, saldo));
+    if (excedente <= 0) {
+      resolverSolicitud(s.id, "aceptado", 0);
+    } else {
+      setDeudaInput(String(excedente));
+      setAceptarPago(s);
     }
   };
 
@@ -514,7 +530,7 @@ export default function DistribuidorDashboard({ slug }) {
                   <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>{s.tipo} · {fmtFecha(s.created_at)}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button disabled={resolviendo === s.id} onClick={() => resolverSolicitud(s.id, "aceptado")}
+                  <button disabled={resolviendo === s.id} onClick={() => abrirAceptar(s)}
                     style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", borderRadius: 8, padding: "7px 12px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: "pointer" }}>
                     {resolviendo === s.id ? "..." : "✓ Aceptar"}
                   </button>
@@ -562,8 +578,13 @@ export default function DistribuidorDashboard({ slug }) {
               {saldo <= 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
             </p>
             <p className="saldo-sub">
-              {totalVendidas} vendidas · {isAdmin ? "Ya te pagaron" : "Ya pagaste"} {fmt(totalPagado)}
+              {totalVendidas} vendidas · {isAdmin ? "Ya te pagaron" : "Ya pagaste"} {fmt(pagadoVentas)}
             </p>
+            {abonoDeuda > 0 && (
+              <p className="saldo-sub" style={{ color: "#7ecc7e", marginTop: 4 }}>
+                🏦 Abonado a deuda: {fmt(abonoDeuda)}
+              </p>
+            )}
             {totalPendiente > 0 && (
               <p className="saldo-sub" style={{ color: "#7ec5cc", marginTop: 8 }}>
                 ⏳ En revisión: {fmt(totalPendiente)} — {isAdmin ? "acéptalo abajo" : "esperando que el proveedor lo acepte"}
@@ -959,6 +980,52 @@ export default function DistribuidorDashboard({ slug }) {
           </div>
         </div>
       )}
+
+      {/* ── Sheet: aceptar pago con saldación de deuda (PRO) ── */}
+      {aceptarPago && (() => {
+        const monto = aceptarPago.monto;
+        const deuda = Math.min(monto, Math.max(0, parseFloat(deudaInput) || 0));
+        const aVentas = monto - deuda;
+        return (
+          <div className="pay-overlay" style={{ alignItems: "center", paddingBottom: 0 }} onClick={() => setAceptarPago(null)}>
+            <div className="pay-sheet" onClick={e => e.stopPropagation()}>
+              <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)" }}>
+                ✓ Aceptar pago de {fmt(monto)}
+              </p>
+              <p style={{ margin: "0 0 16px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)" }}>
+                Su saldo de ventas es {fmt(Math.max(0, saldo))}. El excedente lo puedes marcar como saldación de deuda vieja (no se abona a ventas futuras).
+              </p>
+
+              <div style={{ background: "rgba(var(--ov),0.04)", border: "1px solid rgba(var(--ov),0.1)", borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "var(--text-2)" }}>
+                  <span>A ventas</span><span style={{ fontWeight: 700 }}>{fmt(aVentas)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#7ecc7e" }}>
+                  <span>A deuda vieja</span><span style={{ fontWeight: 700 }}>{fmt(deuda)}</span>
+                </div>
+              </div>
+
+              <label className="pay-lbl">Saldación de deuda $</label>
+              <input
+                className="pay-inp" type="number" inputMode="decimal" step="0.01" min="0" max={monto}
+                value={deudaInput} onChange={e => setDeudaInput(e.target.value)}
+                placeholder="0"
+              />
+
+              <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                <button className="pay-btn ghost" style={{ flex: 1 }} onClick={() => setAceptarPago(null)}>
+                  Cancelar
+                </button>
+                <button className="pay-btn primary" style={{ flex: 2 }}
+                  disabled={resolviendo === aceptarPago.id}
+                  onClick={() => resolverSolicitud(aceptarPago.id, "aceptado", deuda)}>
+                  {resolviendo === aceptarPago.id ? "Aceptando..." : "✓ Confirmar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

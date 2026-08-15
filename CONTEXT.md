@@ -209,12 +209,15 @@ Se inserta automáticamente cada vez que se marca un artículo como "Vendido" (v
 ```sql
 id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
 distribuidor_id INTEGER REFERENCES distribuidores(id)
-monto           DECIMAL(10,2) NOT NULL
+monto           DECIMAL(10,2) NOT NULL   -- total recibido en ese pago
 tipo            TEXT CHECK (tipo IN ('parcial', 'completo'))
 notas           TEXT
+monto_deuda     DECIMAL(10,2) DEFAULT 0  -- parte del pago que fue saldación de deuda vieja (no cuenta a ventas)
 created_at      TIMESTAMPTZ DEFAULT NOW()
 ```
-Append-only: el saldo nunca se resetea, siempre es `sum(precio_mayoreo × vendidas) − sum(pagos)`. Un pago entra aquí de dos formas: registrado directo por el dueño, o al **aceptar** una `solicitudes_pago`.
+Append-only. **Saldo de ventas** = `Σ(precio_mayoreo × vendidas) − Σ(monto − monto_deuda)`. **Abonado a deuda** = `Σ(monto_deuda)`. Un pago entra aquí de dos formas: registrado directo por el dueño, o al **aceptar** una `solicitudes_pago`.
+
+**Saldación de deuda vieja** (migración `009-abono-deuda.sql`): si un pago supera el saldo de ventas, al **aceptar** (en el admin del dueño o el portal PRO) se abre un split donde el dueño confirma cuánto del excedente es saldación de deuda (default = excedente). Esa parte se guarda en `monto_deuda` y **nunca se re-acredita a ventas futuras** (evita que un sobrepago le baje su próximo saldo). Se muestra "Abonado a deuda" en el corte del admin y en la card de saldo del portal. Pendiente futuro: guardar el **total** de la deuda vieja para ver "resta $Z".
 
 ### `solicitudes_pago`
 ```sql

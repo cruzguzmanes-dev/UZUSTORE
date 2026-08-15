@@ -125,11 +125,11 @@ export default function Distribuidores() {
     await fetchAll();
   };
 
-  const resolverSolicitud = async (id, estado) => {
+  const resolverSolicitud = async (id, estado, montoDeuda = 0) => {
     const res = await fetch(`/api/distribuidor/solicitudes?id=${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estado }),
+      body: JSON.stringify({ estado, ...(estado === "aceptado" && { monto_deuda: montoDeuda || 0 }) }),
     });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
@@ -165,9 +165,12 @@ export default function Distribuidores() {
     const teDeben     = teDebenInv + teDebenSue;
     const ganancia    = totalVentas - teDebenInv;
     const stock       = items.reduce((s, i) => s + i.cantidad, 0);
-    const totalPagado = (pagos[slug] || []).reduce((s, p) => s + p.monto, 0);
-    const saldo       = teDeben - totalPagado;
-    return { slug, vendidas, totalVentas, teDeben, ganancia, stock, items, totalPagado, saldo };
+    const pgs         = pagos[slug] || [];
+    const totalPagado = pgs.reduce((s, p) => s + p.monto, 0);                        // total recibido
+    const pagadoVentas= pgs.reduce((s, p) => s + (p.monto - (p.monto_deuda || 0)), 0); // aplicado a ventas
+    const abonoDeuda  = pgs.reduce((s, p) => s + (p.monto_deuda || 0), 0);           // saldación de deuda vieja
+    const saldo       = teDeben - pagadoVentas;
+    return { slug, vendidas, totalVentas, teDeben, ganancia, stock, items, totalPagado, pagadoVentas, abonoDeuda, saldo };
   });
 
   const totalSaldo = resumen.reduce((s, r) => s + r.saldo, 0);
@@ -522,13 +525,18 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
   const [parcialNotas, setParcialNotas] = useState("");
   const [saving,       setSaving]       = useState(false);
   const [resolviendo,  setResolviendo]  = useState(null);
+  const [aceptarPago,  setAceptarPago]  = useState(null); // solicitud en split de aceptación
+  const [deudaInput,   setDeudaInput]   = useState("");
 
   const pendientes = solicitudes.filter(s => s.estado === "pendiente");
 
-  const handleResolver = async (id, estado) => {
+  const { teDeben, totalPagado, pagadoVentas, abonoDeuda, saldo } = resumen;
+
+  const handleResolver = async (id, estado, montoDeuda = 0) => {
     setResolviendo(id);
     try {
-      await onResolverSolicitud(id, estado);
+      await onResolverSolicitud(id, estado, montoDeuda);
+      setAceptarPago(null);
     } catch (e) {
       alert("Error: " + e.message);
     } finally {
@@ -536,7 +544,12 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
     }
   };
 
-  const { teDeben, totalPagado, saldo } = resumen;
+  // Al aceptar: si el pago supera el saldo de ventas, abre el split de deuda
+  const abrirAceptar = (s) => {
+    const excedente = Math.max(0, s.monto - Math.max(0, saldo));
+    if (excedente <= 0) handleResolver(s.id, "aceptado", 0);
+    else { setDeudaInput(String(excedente)); setAceptarPago(s); }
+  };
 
   const handlePago = async (tipo) => {
     const monto = tipo === "completo" ? saldo : parseFloat(parcialMonto);
@@ -589,6 +602,38 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
         }
         .hist-pago-row:last-child { border-bottom:none; }
       `}</style>
+
+      {/* ── Sheet: aceptar pago con saldación de deuda ── */}
+      {aceptarPago && (() => {
+        const monto = aceptarPago.monto;
+        const deuda = Math.min(monto, Math.max(0, parseFloat(deudaInput) || 0));
+        const aVentas = monto - deuda;
+        return (
+          <div style={sheetStyle} onClick={() => setAceptarPago(null)}>
+            <div style={cardStyle} onClick={e => e.stopPropagation()}>
+              <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "#fff" }}>
+                ✓ Aceptar pago de {fmt(monto)}
+              </p>
+              <p style={{ margin: "0 0 16px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "#888" }}>
+                Saldo de ventas: {fmt(Math.max(0, saldo))}. El excedente puedes marcarlo como saldación de deuda vieja (no se abona a ventas futuras).
+              </p>
+              <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "12px 14px", marginBottom: 16, fontFamily: "'Space Mono', monospace", fontSize: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, color: "#ccc" }}><span>A ventas</span><span style={{ fontWeight: 700 }}>{fmt(aVentas)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "#7ecc7e" }}><span>A deuda vieja</span><span style={{ fontWeight: 700 }}>{fmt(deuda)}</span></div>
+              </div>
+              <label className="pago-lbl">Saldación de deuda $</label>
+              <input className="pago-inp" type="number" step="0.01" min="0" value={deudaInput} onChange={e => setDeudaInput(e.target.value)} placeholder="0" />
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setAceptarPago(null)} style={{ flex: 1, background: "#222", border: "1px solid #333", color: "#888", borderRadius: 12, padding: 14, fontFamily: "'Space Mono', monospace", fontSize: 13, cursor: "pointer" }}>Cancelar</button>
+                <button onClick={() => handleResolver(aceptarPago.id, "aceptado", deuda)} disabled={resolviendo === aceptarPago.id}
+                  style={{ flex: 2, background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", borderRadius: 12, padding: 14, fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, cursor: resolviendo === aceptarPago.id ? "not-allowed" : "pointer" }}>
+                  {resolviendo === aceptarPago.id ? "Aceptando..." : "✓ Confirmar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Sheet: Pago completo ── */}
       {pagoSheet === "completo" && (
@@ -772,7 +817,10 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
         <CorteItem label="Vendidas"          value={resumen.vendidas} />
         <CorteItem label="Sus ventas totales" value={fmt(resumen.totalVentas)} />
         <CorteItem label="Total a cobrar"    value={fmt(teDeben)} />
-        <CorteItem label="Ya pagado"         value={fmt(totalPagado)} color="#7ecc7e" style={{ gridColumn: "1 / -1" }} />
+        <CorteItem label="Pagado a ventas"   value={fmt(pagadoVentas)} color="#7ecc7e" style={abonoDeuda > 0 ? {} : { gridColumn: "1 / -1" }} />
+        {abonoDeuda > 0 && (
+          <CorteItem label="Abonado a deuda"   value={fmt(abonoDeuda)} color="#7ec5cc" />
+        )}
       </div>
 
       {/* ─── Pagos por aceptar (solicitudes del distribuidor) ─── */}
@@ -795,7 +843,7 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
-                <button disabled={resolviendo === s.id} onClick={() => handleResolver(s.id, "aceptado")}
+                <button disabled={resolviendo === s.id} onClick={() => abrirAceptar(s)}
                   style={{ background: "#1e3a1e", border: "1px solid #2d5a2d", color: "#7ecc7e", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontFamily: "'Syne', sans-serif", fontWeight: 700, cursor: resolviendo === s.id ? "not-allowed" : "pointer" }}>
                   {resolviendo === s.id ? "..." : "✓ Aceptar"}
                 </button>

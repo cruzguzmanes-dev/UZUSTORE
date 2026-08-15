@@ -43,7 +43,7 @@ export default async function handler(req, res) {
 
     // POST: registrar un pago
     if (req.method === 'POST') {
-      const { slug, monto, tipo, notas } = req.body;
+      const { slug, monto, tipo, notas, monto_deuda } = req.body;
 
       if (!slug || !monto || !tipo) {
         return res.status(400).json({ error: "Faltan campos requeridos: slug, monto, tipo" });
@@ -65,6 +65,7 @@ export default async function handler(req, res) {
             monto: parseFloat(monto),
             tipo,
             notas: notas || null,
+            monto_deuda: (monto_deuda != null && monto_deuda !== "") ? parseFloat(monto_deuda) : 0,
           }),
         }
       );
