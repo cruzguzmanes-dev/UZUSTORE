@@ -1024,7 +1024,7 @@ export default function DistribuidorDashboard({ slug }) {
               🏦 Abonar a deuda
             </p>
             <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)" }}>
-              Dinero que entregas al proveedor para tu deuda, no de una venta. El proveedor lo confirmará.
+              Lo que pagues aquí se abona directo a tu deuda (no es de una venta). El proveedor debe confirmarlo primero.
             </p>
 
             <label className="pay-lbl">Monto a abonar $</label>

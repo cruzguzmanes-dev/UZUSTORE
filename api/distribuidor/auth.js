@@ -55,15 +55,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ ...base, role: null });
     }
 
-    const trimmedCode = code.trim();
+    // Comparación tolerante a mayúsculas/minúsculas y espacios
+    const norm = (v) => (v || "").trim().toUpperCase();
+    const trimmedCode = norm(code);
 
     // 1. Verificar código admin (acceso completo: corte, ganancias, saldos)
-    if (distribuidor.acceso_admin && distribuidor.acceso_admin === trimmedCode) {
+    if (distribuidor.acceso_admin && norm(distribuidor.acceso_admin) === trimmedCode) {
       return res.status(200).json({ ...base, role: "admin" });
     }
 
     // 2. Verificar código básico (solo inventario y marcar vendidos)
-    if (distribuidor.acceso_code && distribuidor.acceso_code === trimmedCode) {
+    if (distribuidor.acceso_code && norm(distribuidor.acceso_code) === trimmedCode) {
       return res.status(200).json({ ...base, role: "basic" });
     }
 

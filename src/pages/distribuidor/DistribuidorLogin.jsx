@@ -75,11 +75,14 @@ export default function DistribuidorLogin({ slug, onLogin }) {
           </div>
           <form onSubmit={handleSubmit}>
             <input
-              type="password"
+              type="text"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="••••••••"
-              autoComplete="current-password"
+              placeholder="TU CÓDIGO"
+              autoComplete="off"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
               style={{
                 width: "100%",
                 background: "#111",
@@ -91,7 +94,7 @@ export default function DistribuidorLogin({ slug, onLogin }) {
                 fontFamily: "'Space Mono', monospace",
                 outline: "none",
                 textAlign: "center",
-                letterSpacing: 4,
+                letterSpacing: 2,
                 marginBottom: 16,
                 boxSizing: "border-box",
               }}
