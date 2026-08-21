@@ -46,7 +46,7 @@ export default async function handler(req, res) {
 
     // POST: el distribuidor solicita un pago
     if (req.method === 'POST') {
-      const { slug, monto, tipo, notas } = req.body;
+      const { slug, monto, tipo, notas, es_abono } = req.body;
       if (!slug || !monto || !tipo) {
         return res.status(400).json({ error: "Faltan campos: slug, monto, tipo" });
       }
@@ -68,6 +68,7 @@ export default async function handler(req, res) {
             tipo,
             estado: 'pendiente',
             notas: notas || null,
+            es_abono: !!es_abono,
           }),
         }
       );

@@ -139,6 +139,11 @@ export default function DistribuidorDashboard({ slug }) {
   const [resolviendo, setResolviendo] = useState(null); // id de solicitud en proceso
   const [aceptarPago, setAceptarPago] = useState(null); // solicitud en split de aceptación
   const [deudaInput, setDeudaInput]   = useState("");   // monto a saldación de deuda
+  // Abono directo a deuda (no viene de ventas)
+  const [abonoSheet, setAbonoSheet]   = useState(false);
+  const [abonoMonto, setAbonoMonto]   = useState("");
+  const [savingAbono, setSavingAbono] = useState(false);
+  const abonoInputRef = useRef(null);
 
   // Historial de ventas (sección arriba, PRO)
   const [showHistVentas, setShowHistVentas] = useState(false);
@@ -246,6 +251,16 @@ export default function DistribuidorDashboard({ slug }) {
     return () => clearTimeout(t);
   }, [paySheet]);
 
+  // Al abrir "Abonar", enfocar el input del monto
+  useEffect(() => {
+    if (!abonoSheet) return;
+    const t = setTimeout(() => {
+      abonoInputRef.current?.focus();
+      abonoInputRef.current?.scrollIntoView({ block: "center" });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [abonoSheet]);
+
   if (!authed) {
     return (
       <DistribuidorLogin
@@ -305,6 +320,7 @@ export default function DistribuidorDashboard({ slug }) {
   // Solicitudes de pago pendientes
   const pendientes     = solicitudes.filter(s => s.estado === "pendiente");
   const totalPendiente = pendientes.reduce((s, x) => s + x.monto, 0);
+  const hayPagoPendiente = pendientes.some(s => !s.es_abono); // solicitudes de PAGO (no abono)
 
   // El distribuidor SOLICITA un pago (queda pendiente de aceptación)
   const solicitarPago = async (monto, tipo, notas) => {
@@ -327,6 +343,31 @@ export default function DistribuidorDashboard({ slug }) {
       alert("Error: " + e.message);
     } finally {
       setSavingPay(false);
+    }
+  };
+
+  // El distribuidor solicita un ABONO directo a deuda (no viene de ventas)
+  const enviarAbono = async () => {
+    const monto = parseFloat(abonoMonto);
+    if (!monto || monto <= 0) return;
+    setSavingAbono(true);
+    try {
+      const res = await fetch("/api/distribuidor/solicitudes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, monto, tipo: "parcial", es_abono: true }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error enviando abono");
+      }
+      await fetchSolicitudes();
+      setAbonoSheet(false);
+      setAbonoMonto("");
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      setSavingAbono(false);
     }
   };
 
@@ -354,6 +395,10 @@ export default function DistribuidorDashboard({ slug }) {
 
   // Al aceptar un pago: si supera el saldo de ventas, abre el split para confirmar la deuda
   const abrirAceptar = (s) => {
+    if (s.es_abono) {                       // abono directo → todo a deuda, sin split
+      resolverSolicitud(s.id, "aceptado", s.monto);
+      return;
+    }
     const excedente = Math.max(0, s.monto - Math.max(0, saldo));
     if (excedente <= 0) {
       resolverSolicitud(s.id, "aceptado", 0);
@@ -480,7 +525,7 @@ export default function DistribuidorDashboard({ slug }) {
   };
 
   // ¿Mostramos la sección de saldo? Solo cuando ya hay algo que cobrar o pagos hechos
-  const mostrarSaldo = totalDebo > 0 || totalPagado > 0;
+  const mostrarSaldo = totalDebo > 0 || totalPagado > 0 || totalPendiente > 0;
 
   return (
     <div className={theme === "light" ? "dist-wrap light" : "dist-wrap"}>
@@ -532,7 +577,7 @@ export default function DistribuidorDashboard({ slug }) {
               <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(var(--ov),0.06)" }}>
                 <div>
                   <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{fmt(s.monto)}</div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "var(--text-3)" }}>{s.tipo} · {fmtFecha(s.created_at)}</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: s.es_abono ? "#7ecc7e" : "var(--text-3)" }}>{s.es_abono ? "🏦 abono a deuda" : s.tipo} · {fmtFecha(s.created_at)}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <button disabled={resolviendo === s.id} onClick={() => abrirAceptar(s)}
@@ -595,7 +640,7 @@ export default function DistribuidorDashboard({ slug }) {
                 ⏳ En revisión: {fmt(totalPendiente)} — {isAdmin ? "acéptalo abajo" : "esperando que el proveedor lo acepte"}
               </p>
             )}
-            {!isAdmin && saldo > 0 && pendientes.length === 0 && (
+            {!isAdmin && saldo > 0 && !hayPagoPendiente && (
               <button className="pay-btn primary" style={{ width: "100%", marginTop: 14 }} onClick={() => setPaySheet("menu")}>
                 💳 Pagar
               </button>
@@ -616,6 +661,13 @@ export default function DistribuidorDashboard({ slug }) {
             🧾 Pagos
           </button>
         </div>
+
+        {/* Abonar a deuda — siempre disponible (dinero que no viene de ventas) */}
+        <button
+          onClick={() => { setAbonoMonto(""); setAbonoSheet(true); }}
+          style={{ width: "100%", background: "rgba(126,204,126,0.06)", border: "1px solid rgba(126,204,126,0.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#7ecc7e", fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          🏦 Abonar a deuda
+        </button>
 
         {/* Registrar venta de pieza NO inventariada — solo NORMAL */}
         {!isAdmin && (
@@ -887,15 +939,20 @@ export default function DistribuidorDashboard({ slug }) {
                     <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)", marginBottom: 2 }}>
                       {fmtFecha(p.created_at)}
                     </div>
-                    <span style={{
-                      background: p.tipo === "completo" ? "rgba(126,204,126,0.12)" : "rgba(126,197,204,0.12)",
-                      border: `1px solid ${p.tipo === "completo" ? "rgba(126,204,126,0.3)" : "rgba(126,197,204,0.3)"}`,
-                      color: p.tipo === "completo" ? "#7ecc7e" : "#7ec5cc",
-                      borderRadius: 4, padding: "1px 7px",
-                      fontSize: 9, fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1,
-                    }}>
-                      {p.tipo}
-                    </span>
+                    {(p.monto_deuda || 0) >= p.monto ? (
+                      <span style={{ background: "rgba(126,204,126,0.12)", border: "1px solid rgba(126,204,126,0.3)", color: "#7ecc7e", borderRadius: 4, padding: "1px 7px", fontSize: 9, fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1 }}>
+                        🏦 abono deuda
+                      </span>
+                    ) : (
+                      <>
+                        <span style={{ background: p.tipo === "completo" ? "rgba(126,204,126,0.12)" : "rgba(126,197,204,0.12)", border: `1px solid ${p.tipo === "completo" ? "rgba(126,204,126,0.3)" : "rgba(126,197,204,0.3)"}`, color: p.tipo === "completo" ? "#7ecc7e" : "#7ec5cc", borderRadius: 4, padding: "1px 7px", fontSize: 9, fontFamily: "'Space Mono', monospace", textTransform: "uppercase", letterSpacing: 1 }}>
+                          {p.tipo}
+                        </span>
+                        {(p.monto_deuda || 0) > 0 && (
+                          <span style={{ fontSize: 9, color: "#7ecc7e", marginLeft: 6, fontFamily: "'Space Mono', monospace" }}>· {fmt(p.monto_deuda)} a deuda</span>
+                        )}
+                      </>
+                    )}
                   </div>
                   <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700, color: "#7ecc7e" }}>
                     {fmt(p.monto)}
@@ -955,6 +1012,40 @@ export default function DistribuidorDashboard({ slug }) {
                 ))}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sheet: abonar a deuda ── */}
+      {abonoSheet && (
+        <div className="pay-overlay" style={{ alignItems: "center", paddingBottom: 0 }} onClick={() => setAbonoSheet(false)}>
+          <div className="pay-sheet" onClick={e => e.stopPropagation()}>
+            <p style={{ margin: "0 0 6px 0", fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 17, color: "var(--text)" }}>
+              🏦 Abonar a deuda
+            </p>
+            <p style={{ margin: "0 0 18px 0", fontFamily: "'Space Mono', monospace", fontSize: 11, color: "var(--text-3)" }}>
+              Dinero que entregas al proveedor para tu deuda, no de una venta. El proveedor lo confirmará.
+            </p>
+
+            <label className="pay-lbl">Monto a abonar $</label>
+            <input
+              ref={abonoInputRef}
+              className="pay-inp" type="number" inputMode="decimal" step="0.01" min="1"
+              value={abonoMonto} onChange={e => setAbonoMonto(e.target.value)}
+              placeholder="Ej: 500" autoFocus
+            />
+
+            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+              <button className="pay-btn ghost" style={{ flex: 1 }}
+                onClick={() => { setAbonoSheet(false); setAbonoMonto(""); }}>
+                Cancelar
+              </button>
+              <button className="pay-btn primary" style={{ flex: 2 }}
+                disabled={savingAbono || !abonoMonto || parseFloat(abonoMonto) <= 0}
+                onClick={enviarAbono}>
+                {savingAbono ? "Enviando..." : "🏦 Enviar abono →"}
+              </button>
+            </div>
           </div>
         </div>
       )}

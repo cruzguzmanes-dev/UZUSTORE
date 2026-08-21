@@ -228,10 +228,13 @@ tipo            TEXT CHECK (tipo IN ('parcial', 'completo'))
 estado          TEXT DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'aceptado', 'rechazado'))
 notas           TEXT
 pago_id         UUID          -- id del pago creado en pagos_distribuidor al aceptar
+es_abono        BOOLEAN DEFAULT false  -- true = abono directo a deuda (no de ventas)
 created_at      TIMESTAMPTZ DEFAULT NOW()
 resolved_at     TIMESTAMPTZ   -- cuándo se aceptó/rechazó
 ```
 Flujo de pagos en 2 fases: el distribuidor crea la solicitud (`pendiente`); el dueño o el PRO la acepta (inserta pago real + marca `aceptado`) o la rechaza. Migración: `migrations/006-solicitudes-pago.sql`.
+
+**Botón "🏦 Abonar a deuda"** (migración `010-solicitud-abono.sql`): en el portal del distribuidor, siempre visible. Crea una solicitud con `es_abono=true` (dinero que NO viene de ventas). Al aceptarla (dueño/PRO), se omite el split y el pago se crea con `monto_deuda = monto` (todo a deuda vieja, no toca el saldo de ventas). En "Pagos por aceptar" y "Mis pagos" se marca con badge "🏦 abono a deuda".
 
 ### `ventas_sueltas`
 ```sql

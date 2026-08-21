@@ -546,6 +546,7 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
 
   // Al aceptar: si el pago supera el saldo de ventas, abre el split de deuda
   const abrirAceptar = (s) => {
+    if (s.es_abono) { handleResolver(s.id, "aceptado", s.monto); return; } // abono → todo a deuda
     const excedente = Math.max(0, s.monto - Math.max(0, saldo));
     if (excedente <= 0) handleResolver(s.id, "aceptado", 0);
     else { setDeudaInput(String(excedente)); setAceptarPago(s); }
@@ -836,7 +837,7 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
             <div key={s.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
               <div>
                 <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fff" }}>
-                  {fmt(s.monto)} <span style={{ fontSize: 10, color: "#666" }}>({s.tipo})</span>
+                  {fmt(s.monto)} <span style={{ fontSize: 10, color: s.es_abono ? "#7ecc7e" : "#666" }}>({s.es_abono ? "🏦 abono a deuda" : s.tipo})</span>
                 </div>
                 <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, color: "#666" }}>
                   Solicitado {fmtFecha(s.created_at)}
