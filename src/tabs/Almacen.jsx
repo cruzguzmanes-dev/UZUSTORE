@@ -374,10 +374,10 @@ function SeccionCompras({ figuras, onFigurasChange }) {
                 placeholder="10" style={inp} />
             </div>
             <div>
-              <label style={lbl}>Precio ¥/u *</label>
+              <label style={lbl}>Precio ¥ total *</label>
               <input type="number" min="1" value={form.precio_jpy}
                 onChange={e => setForm(f => ({ ...f, precio_jpy: e.target.value }))}
-                placeholder="3500" style={inp} />
+                placeholder="35000" style={inp} />
             </div>
             <div>
               <label style={lbl}>Fecha *</label>
@@ -643,8 +643,9 @@ function SeccionPaquetes({ onLoteEdited }) {
       const envioPorPieza  = (parseFloat(paquete.costo_envio_jpy) || 0) * tc / totalPiezas;
       const aduanaPorPieza = (parseFloat(paquete.costo_aduana_mxn) || 0) / totalPiezas;
 
-      const precioMxn      = parseFloat(lc.precio_jpy) * tc;
-      const costoUnitario  = parseFloat((precioMxn + envioPorPieza + aduanaPorPieza).toFixed(2));
+      // lc.precio_jpy es el costo TOTAL de la compra (no por pieza) -- se divide entre su cantidad
+      const precioMxnPorUnidad = (parseFloat(lc.precio_jpy) / lc.cantidad) * tc;
+      const costoUnitario      = parseFloat((precioMxnPorUnidad + envioPorPieza + aduanaPorPieza).toFixed(2));
 
       const [newLote] = await sb("lotes", "POST", {
         titulo:              fig.nombre,
@@ -906,11 +907,11 @@ function SeccionPaquetes({ onLoteEdited }) {
                             </div>
                             <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#888" }}>×{it.cantidad}</div>
                             <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#aaa" }}>
-                              ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()}/u
+                              ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()} total
                             </div>
                             {it.lotes_compra?.precio_mxn && (
                               <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#00C9FF" }}>
-                                {fmt(it.lotes_compra.precio_mxn)}/u
+                                {fmt(it.lotes_compra.precio_mxn)} total
                               </div>
                             )}
                             {loteGenId ? (
@@ -981,9 +982,9 @@ function SeccionPaquetes({ onLoteEdited }) {
                         <div style={{ color: "#00FF94", marginBottom: 6, fontWeight: 700 }}>Vista previa de costos</div>
                         {items.map(it => (
                           <div key={it.id} style={{ color: "#888", marginBottom: 3 }}>
-                            {it.lotes_compra?.figuras?.nombre}: ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()}/u
+                            {it.lotes_compra?.figuras?.nombre}: ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()} total
                             {it.lotes_compra?.precio_mxn && (
-                              <span style={{ color: "#fff", marginLeft: 8 }}>= {fmt(it.lotes_compra.precio_mxn)}/u</span>
+                              <span style={{ color: "#fff", marginLeft: 8 }}>= {fmt(it.lotes_compra.precio_mxn)} total</span>
                             )}
                           </div>
                         ))}
@@ -1055,7 +1056,7 @@ function SeccionPagos() {
     fetchPorSaldar();
   }, []);
 
-  const totalCompras = comprasPendientes.reduce((s, c) => s + parseFloat(c.precio_jpy) * c.cantidad, 0);
+  const totalCompras = comprasPendientes.reduce((s, c) => s + parseFloat(c.precio_jpy), 0); // precio_jpy ya es el total de la compra, no por pieza
   const totalEnvios  = paquetesPendientes.reduce((s, p) => s + (parseFloat(p.costo_envio_jpy) || 0), 0);
   const totalPorSaldarJpy = totalCompras + totalEnvios;
 
@@ -1144,8 +1145,8 @@ function SeccionPagos() {
                       <div key={c.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: "'Space Mono', monospace" }}>
                         <div style={{ flex: 1, color: "#ddd" }}>{c.figuras?.nombre || "—"}</div>
                         <div style={{ color: "#555" }}>{c.fecha_compra}</div>
-                        <div style={{ color: "#888" }}>{c.cantidad}u × ¥{Number(c.precio_jpy).toLocaleString()}</div>
-                        <div style={{ color: "#FFE000", minWidth: 90, textAlign: "right" }}>¥{(c.cantidad * parseFloat(c.precio_jpy)).toLocaleString()}</div>
+                        <div style={{ color: "#888" }}>{c.cantidad}u</div>
+                        <div style={{ color: "#FFE000", minWidth: 90, textAlign: "right" }}>¥{Number(c.precio_jpy).toLocaleString()}</div>
                       </div>
                     ))}
                   </div>
