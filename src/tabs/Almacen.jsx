@@ -984,20 +984,35 @@ function SeccionPaquetes({ onLoteEdited }) {
                       </div>
                     )}
 
-                    {/* Vista previa de costos */}
-                    {p.estado === "pagado" && p.pago_zenmarket_id && items.length > 0 && !p.lotes_generados && (
-                      <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(0,255,148,0.05)", border: "1px solid rgba(0,255,148,0.15)", borderRadius: 10, fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
-                        <div style={{ color: "#00FF94", marginBottom: 6, fontWeight: 700 }}>Vista previa de costos</div>
-                        {items.map(it => (
-                          <div key={it.id} style={{ color: "#888", marginBottom: 3 }}>
-                            {it.lotes_compra?.figuras?.nombre}: ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()} total
-                            {it.lotes_compra?.precio_mxn && (
-                              <span style={{ color: "#fff", marginLeft: 8 }}>= {fmt(it.lotes_compra.precio_mxn)} total</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {/* Vista previa de costos -- costo final por pieza, ya con envío + aduana prorrateados */}
+                    {costReady && items.length > 0 && (() => {
+                      const totalPiezasPreview    = items.reduce((s, it) => s + it.cantidad, 0);
+                      const envioPorPiezaPreview  = (parseFloat(p.costo_envio_jpy) || 0) * tc / totalPiezasPreview;
+                      const aduanaPorPiezaPreview = (parseFloat(p.costo_aduana_mxn) || 0) / totalPiezasPreview;
+                      return (
+                        <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(0,255,148,0.05)", border: "1px solid rgba(0,255,148,0.15)", borderRadius: 10, fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
+                          <div style={{ color: "#00FF94", marginBottom: 6, fontWeight: 700 }}>Vista previa de costos (costo final por pieza)</div>
+                          {items.map(it => {
+                            const lc = it.lotes_compra;
+                            const precioMxnPorUnidad = lc?.precio_jpy && lc?.cantidad ? (parseFloat(lc.precio_jpy) / lc.cantidad) * tc : null;
+                            const costoFinal = precioMxnPorUnidad != null
+                              ? precioMxnPorUnidad + envioPorPiezaPreview + aduanaPorPiezaPreview
+                              : null;
+                            return (
+                              <div key={it.id} style={{ color: "#888", marginBottom: 3 }}>
+                                {lc?.figuras?.nombre}:
+                                <span style={{ color: "#fff", marginLeft: 8 }}>{costoFinal != null ? `${fmt(costoFinal)}/u` : "—"}</span>
+                                {precioMxnPorUnidad != null && (
+                                  <span style={{ color: "#555", marginLeft: 6 }}>
+                                    ({fmt(precioMxnPorUnidad)} compra + {fmt(envioPorPiezaPreview)} envío + {fmt(aduanaPorPiezaPreview)} aduana)
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
