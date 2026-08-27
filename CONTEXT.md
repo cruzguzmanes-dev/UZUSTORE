@@ -51,6 +51,7 @@ No hay router (React Router). La detección de rutas se hace en `App.jsx` con `w
 │   │   ├── Resumen.jsx
 │   │   ├── Mensual.jsx
 │   │   ├── Inventario.jsx
+│   │   ├── Almacen.jsx           # Tab "Almacén" — compras ZenMarket (Figuras/Compras/Paquetes/Pagos)
 │   │   ├── Impuestos.jsx
 │   │   ├── Ordenes.jsx
 │   │   └── Distribuidores.jsx     # Panel admin de distribuidores (para el dueño)
@@ -70,13 +71,38 @@ Login con MercadoLibre OAuth. Una vez conectado:
 
 - **Resumen** — KPIs globales: ventas, neto ML, costos FIFO, ganancia, ISR
 - **Mensual** — desglose mes a mes con enrichment bajo demanda
-- **Inventario** — tabla de lotes comprados con costo unitario y SKU
+- **Inventario** — tabla de lotes comprados con costo unitario y SKU (stock real, ya vendible, con FIFO)
+- **Almacén** — todo el proceso de compra en ZenMarket (Japón) ANTES de tener un ID de venta; ver sección propia abajo
 - **Impuestos** — retenciones IVA/ISR calculadas sobre base gravable
 - **Órdenes** — tabla completa con FIFO aplicado
 - **Distribuidores** — gestión de proveedores externos (ver sección abajo)
 
 ### Lotes (inventario del dueño)
-Tabla `lotes` en Supabase. Campos clave: `titulo`, `sku`, `cantidad_disponible`, `costo_unitario`, `fecha_compra`. Se usa FIFO para calcular costo de cada venta.
+Tabla `lotes` en Supabase. Campos clave: `titulo`, `sku`, `cantidad_disponible`, `cantidad_inicial`, `costo_unitario`, `fecha_compra`. Se usa FIFO para calcular costo de cada venta (se consume por orden de `fecha_compra`/`created_at`).
+
+Se alimenta de **dos fuentes**:
+1. **Manual directo** — botón "+ Agregar Lote" (`src/components/ModalLote.jsx`), costo ya en MXN. Es la ruta que usan las compras con **distribuidores locales** (pago directo en pesos, sin ¥, sin aduana) — nunca pasan por Almacén.
+2. **Automático desde Almacén** — cuando una figura de ZenMarket ya tiene costo resuelto en MXN y un ID de venta asignado, ver abajo.
+
+### Almacén (compras ZenMarket)
+
+Archivo: `src/tabs/Almacen.jsx` (tab "Almacén"). Cubre todo el proceso de comprar figuras en Japón vía **ZenMarket** (proxy de compra) desde que se adquieren hasta que están listas para pasar a Inventario. ZenMarket da una línea de crédito de ¥500,000 — el dueño acumula 10-15 compras antes de liquidar, así que el costo en MXN de cada compra **no se sabe hasta que se paga el crédito** (tipo de cambio real de ese pago).
+
+4 sub-tabs, en orden de flujo:
+
+1. **Figuras** (`figuras`) — catálogo de productos. `id_provisional` se autogenera (`FIG-001`, ...) al crear. Tiene **dos IDs opcionales, independientes, editables inline**:
+   - `ml_sku` — SKU/ID real de MercadoLibre, cuando se publica ahí.
+   - `id_venta_directa` — ID interno de texto libre para piezas que se mandan directo a punto de venta/distribuidor **sin publicarse en ML** (migración `011-figuras-id-venta-directa.sql`). Por ahora es solo un campo de texto, **sin integración** con `inventario_distribuidor` — pendiente de definir del lado del negocio.
+   - Una figura se considera "publicable" (lista para pasar a Inventario) cuando tiene `ml_sku` **o** `id_venta_directa` — cualquiera de los dos sirve.
+2. **Compras** (`lotes_compra`) — una fila por compra hecha en ZenMarket: `figura_id`, `cantidad`, `precio_jpy`, `fecha_compra`, `estado` (`pendiente → pagado → en_transito → recibido`). `precio_mxn` queda `null` hasta que se le asigna un pago (ver punto 4). `lote_generado_id` es el campo que marca que **esta compra específica** ya se convirtió en una fila de `lotes` (Inventario) — es la unidad de tracking por artículo individual.
+3. **Paquetes** (`paquetes` + `paquete_items`) — cuando hay varias compras acumuladas, ZenMarket las empaqueta para envío; un paquete puede agrupar 1 o varias compras (`paquete_items`, con su propia `cantidad`, que puede ser parcial respecto a la compra original). Campos: `id_zenmarket`, `costo_envio_jpy`, `costo_aduana_mxn` (se llena cuando llega y se paga aduana en México), `estado` (`armando → en_transito → en_aduana → recibido`), `pago_zenmarket_id` (a qué pago de crédito quedó ligado).
+4. **Pagos ZenMarket** (`pagos_zenmarket`) — registra cuánto se pagó en MXN por cuántos ¥ del crédito (`mxn_pagados / jpy_obtenidos` = tipo de cambio real). Al crear un pago, se **auto-asigna** a todos los paquetes pendientes (`pago_zenmarket_id is null AND lotes_generados=false`) y retro-llena `precio_mxn` en sus `lotes_compra`.
+
+**Paso a Inventario — por artículo individual, no por paquete.** Un paquete puede traer varias figuras que se publican en momentos distintos (una ya tiene ID de ML, otra sigue esperando). Por cada artículo (`paquete_items` → `lotes_compra`) dentro de un paquete con costo ya resuelto (`estado='recibido'` + `pago_zenmarket_id` asignado + `costo_aduana_mxn` capturado — variable `costReady` en el código), se muestra:
+- **"Generar Lote →"** si la figura ya tiene `ml_sku` o `id_venta_directa` — al hacer click (`handleGenerarLoteItem`) crea SOLO el lote de ese artículo en `lotes`, usando ese ID como `sku` (nunca `id_provisional` — no se permite que inventario real quede con un ID interno de placeholder). El envío y la aduana del paquete se prorratean entre **todas** las piezas del paquete (generadas o no), no solo las ya publicadas.
+- **"Falta ID (ML o venta directa)"** si aún no tiene ninguno de los dos IDs — se queda esperando en Almacén sin bloquear a los demás artículos del mismo paquete.
+
+El paquete solo se marca `lotes_generados = true` (badge "✓ LOTES OK") cuando **todos** sus artículos ya brincaron a Inventario.
 
 ### Cálculo fiscal MercadoLibre México
 ```

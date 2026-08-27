@@ -65,11 +65,11 @@ function SeccionFiguras({ onFigurasChange }) {
   const [figuras, setFiguras]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm]         = useState({ nombre: "", ml_sku: "" });
+  const [form, setForm]         = useState({ nombre: "", ml_sku: "", id_venta_directa: "" });
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState("");
-  const [editingId, setEditingId] = useState(null);
-  const [editSku, setEditSku]   = useState("");
+  const [editingCell, setEditingCell] = useState(null); // { id, field }
+  const [editVal, setEditVal]   = useState("");
   const loaded = useRef(false);
 
   const fetchFiguras = async () => {
@@ -96,8 +96,9 @@ function SeccionFiguras({ onFigurasChange }) {
         nombre: form.nombre.trim(),
         id_provisional: genProvisional(figuras),
         ml_sku: form.ml_sku.trim() || null,
+        id_venta_directa: form.id_venta_directa.trim() || null,
       });
-      setForm({ nombre: "", ml_sku: "" });
+      setForm({ nombre: "", ml_sku: "", id_venta_directa: "" });
       setShowForm(false);
       await fetchFiguras();
       onFigurasChange?.();
@@ -105,10 +106,12 @@ function SeccionFiguras({ onFigurasChange }) {
     finally { setSaving(false); }
   };
 
-  const handleEditSku = async (id) => {
+  const saveEdit = async () => {
+    if (!editingCell) return;
+    const { id, field } = editingCell; // field: "ml_sku" | "id_venta_directa"
     try {
-      await sb(`figuras?id=eq.${id}`, "PATCH", { ml_sku: editSku.trim() || null });
-      setEditingId(null);
+      await sb(`figuras?id=eq.${id}`, "PATCH", { [field]: editVal.trim() || null });
+      setEditingCell(null);
       await fetchFiguras();
       onFigurasChange?.();
     } catch (e) { console.error(e); }
@@ -128,7 +131,7 @@ function SeccionFiguras({ onFigurasChange }) {
 
       {showForm && (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
             <div>
               <label style={lbl}>Nombre de la figura *</label>
               <input type="text" value={form.nombre}
@@ -142,6 +145,13 @@ function SeccionFiguras({ onFigurasChange }) {
                 onChange={e => setForm(f => ({ ...f, ml_sku: e.target.value }))}
                 onKeyDown={e => e.key === "Enter" && handleAdd()}
                 placeholder="MLB-XXXXXX" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>ID venta directa (opcional)</label>
+              <input type="text" value={form.id_venta_directa}
+                onChange={e => setForm(f => ({ ...f, id_venta_directa: e.target.value }))}
+                onKeyDown={e => e.key === "Enter" && handleAdd()}
+                placeholder="Sin pasar por ML" style={inp} />
             </div>
           </div>
           <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 12 }}>
@@ -166,37 +176,41 @@ function SeccionFiguras({ onFigurasChange }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                {["ID Prov.", "Nombre", "SKU ML", "Alta"].map(h => <th key={h} style={thS}>{h}</th>)}
+                {["ID Prov.", "Nombre", "SKU ML", "ID Venta Directa", "Alta"].map(h => <th key={h} style={thS}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
-              {figuras.map((f, i) => (
-                <tr key={f.id} style={{ borderBottom: i < figuras.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
-                  <td style={{ ...tdS, color: "#444", fontSize: 11 }}>{f.id_provisional}</td>
-                  <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>{f.nombre}</td>
-                  <td style={{ padding: "12px 16px" }}>
-                    {editingId === f.id ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input type="text" value={editSku}
-                          onChange={e => setEditSku(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter") handleEditSku(f.id); if (e.key === "Escape") setEditingId(null); }}
-                          autoFocus style={{ ...inp, width: 150, padding: "5px 9px", fontSize: 12 }} />
-                        <button onClick={() => handleEditSku(f.id)}
-                          style={{ background: "#00FF94", border: "none", borderRadius: 6, padding: "4px 9px", color: "#000", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✓</button>
-                        <button onClick={() => setEditingId(null)}
-                          style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#555", fontSize: 11, cursor: "pointer" }}>✕</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setEditingId(f.id); setEditSku(f.ml_sku || ""); }}
-                        style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: f.ml_sku ? "#00C9FF" : "#444", padding: 0 }}
-                        title="Click para editar SKU">
-                        {f.ml_sku || "— sin SKU"} ✎
-                      </button>
-                    )}
-                  </td>
-                  <td style={{ ...tdS, fontSize: 11, color: "#444" }}>{f.created_at?.slice(0, 10)}</td>
-                </tr>
-              ))}
+              {figuras.map((f, i) => {
+                const editCol = (field, value, color) => (
+                  editingCell?.id === f.id && editingCell?.field === field ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input type="text" value={editVal}
+                        onChange={e => setEditVal(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingCell(null); }}
+                        autoFocus style={{ ...inp, width: 150, padding: "5px 9px", fontSize: 12 }} />
+                      <button onClick={saveEdit}
+                        style={{ background: "#00FF94", border: "none", borderRadius: 6, padding: "4px 9px", color: "#000", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✓</button>
+                      <button onClick={() => setEditingCell(null)}
+                        style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#555", fontSize: 11, cursor: "pointer" }}>✕</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setEditingCell({ id: f.id, field }); setEditVal(value || ""); }}
+                      style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: value ? color : "#444", padding: 0 }}
+                      title="Click para editar">
+                      {value || "— sin ID"} ✎
+                    </button>
+                  )
+                );
+                return (
+                  <tr key={f.id} style={{ borderBottom: i < figuras.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                    <td style={{ ...tdS, color: "#444", fontSize: 11 }}>{f.id_provisional}</td>
+                    <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>{f.nombre}</td>
+                    <td style={{ padding: "12px 16px" }}>{editCol("ml_sku", f.ml_sku, "#00C9FF")}</td>
+                    <td style={{ padding: "12px 16px" }}>{editCol("id_venta_directa", f.id_venta_directa, "#00FF94")}</td>
+                    <td style={{ ...tdS, fontSize: 11, color: "#444" }}>{f.created_at?.slice(0, 10)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -421,7 +435,7 @@ function SeccionPaquetes({ onLoteEdited }) {
 
   const fetchItems = async (paqueteId) => {
     try {
-      const data = await sb(`paquete_items?paquete_id=eq.${paqueteId}&select=*,lotes_compra(*,figuras(nombre,id_provisional,ml_sku))`);
+      const data = await sb(`paquete_items?paquete_id=eq.${paqueteId}&select=*,lotes_compra(*,figuras(nombre,id_provisional,ml_sku,id_venta_directa))`);
       setPaqueteItems(prev => ({ ...prev, [paqueteId]: data || [] }));
     } catch (e) { console.error(e); }
   };
@@ -504,48 +518,54 @@ function SeccionPaquetes({ onLoteEdited }) {
     } catch (e) { console.error(e); }
   };
 
-  const handleGenerarLotes = async (paquete) => {
-    setGenerando(paquete.id);
+  // Genera el lote de UN solo artículo del paquete — cada figura brinca a
+  // Inventario en cuanto tiene su ID (ML o venta directa), sin esperar a
+  // las demás del mismo paquete.
+  const handleGenerarLoteItem = async (item, paquete) => {
+    setGenerando(item.id);
     setGenError("");
     try {
-      const items = await sb(
-        `paquete_items?paquete_id=eq.${paquete.id}&select=*,lotes_compra(*,figuras(nombre,id_provisional,ml_sku))`
-      );
-      if (!items || items.length === 0) throw new Error("No hay artículos en este paquete");
+      const lc  = item.lotes_compra;
+      const fig = lc.figuras;
+      const idVenta = fig.ml_sku || fig.id_venta_directa;
+      if (!idVenta) throw new Error("Esta figura no tiene ID de venta (ML o directa)");
 
       // Obtener tipo de cambio del pago ZenMarket
       const pagos = await sb(`pagos_zenmarket?id=eq.${paquete.pago_zenmarket_id}&select=mxn_pagados,jpy_obtenidos`);
       if (!pagos || pagos.length === 0) throw new Error("No se encontró el pago ZenMarket asignado");
       const tc = parseFloat(pagos[0].mxn_pagados) / parseFloat(pagos[0].jpy_obtenidos);
 
-      const totalPiezas    = items.reduce((s, it) => s + it.cantidad, 0);
+      // Envío/aduana se prorratean entre TODAS las piezas del paquete, generadas o no
+      const allItems = await sb(`paquete_items?paquete_id=eq.${paquete.id}&select=cantidad`);
+      const totalPiezas    = (allItems || []).reduce((s, it) => s + it.cantidad, 0);
       const envioPorPieza  = (parseFloat(paquete.costo_envio_jpy) || 0) * tc / totalPiezas;
       const aduanaPorPieza = (parseFloat(paquete.costo_aduana_mxn) || 0) / totalPiezas;
 
-      for (const item of items) {
-        const lc  = item.lotes_compra;
-        const fig = lc.figuras;
-        const sku = fig.ml_sku || fig.id_provisional;
-        const precioMxn    = parseFloat(lc.precio_jpy) * tc;
-        const costoUnitario = parseFloat((precioMxn + envioPorPieza + aduanaPorPieza).toFixed(2));
+      const precioMxn      = parseFloat(lc.precio_jpy) * tc;
+      const costoUnitario  = parseFloat((precioMxn + envioPorPieza + aduanaPorPieza).toFixed(2));
 
-        const [newLote] = await sb("lotes", "POST", {
-          titulo:              fig.nombre,
-          sku:                 sku,
-          cantidad_disponible: item.cantidad,
-          cantidad_inicial:    item.cantidad,
-          costo_unitario:      costoUnitario,
-          fecha_compra:        lc.fecha_compra,
-        });
+      const [newLote] = await sb("lotes", "POST", {
+        titulo:              fig.nombre,
+        sku:                 idVenta,
+        cantidad_disponible: item.cantidad,
+        cantidad_inicial:    item.cantidad,
+        costo_unitario:      costoUnitario,
+        fecha_compra:        lc.fecha_compra,
+      });
 
-        await sb(`lotes_compra?id=eq.${lc.id}`, "PATCH", {
-          lote_generado_id: newLote.id,
-          estado: "recibido",
-        });
+      await sb(`lotes_compra?id=eq.${lc.id}`, "PATCH", {
+        lote_generado_id: newLote.id,
+        estado: "recibido",
+      });
+
+      // Si con este ya quedaron todos los artículos del paquete generados, marcar el paquete completo
+      const refreshed = await sb(`paquete_items?paquete_id=eq.${paquete.id}&select=lotes_compra(lote_generado_id)`);
+      const allDone = (refreshed || []).every(it => it.lotes_compra?.lote_generado_id != null);
+      if (allDone) {
+        await sb(`paquetes?id=eq.${paquete.id}`, "PATCH", { lotes_generados: true });
       }
 
-      await sb(`paquetes?id=eq.${paquete.id}`, "PATCH", { lotes_generados: true });
-      await fetchPaquetes();
+      await Promise.all([fetchPaquetes(), fetchItems(paquete.id)]);
       onLoteEdited?.();
     } catch (e) {
       setGenError(e.message);
@@ -621,10 +641,9 @@ function SeccionPaquetes({ onLoteEdited }) {
       ) : (
         <div>
           {paquetes.map(p => {
-            const canGenerate = p.estado === "recibido"
+            const costReady = p.estado === "recibido"
               && p.pago_zenmarket_id != null
-              && p.costo_aduana_mxn != null
-              && !p.lotes_generados;
+              && p.costo_aduana_mxn != null;
             const items   = paqueteItems[p.id] || [];
             const isExp   = expanded === p.id;
             const disponibles = getComprasParaPaquete(p.id);
@@ -707,13 +726,6 @@ function SeccionPaquetes({ onLoteEdited }) {
                       ✓ LOTES OK
                     </span>
                   )}
-
-                  {canGenerate && (
-                    <button onClick={() => handleGenerarLotes(p)} disabled={generando === p.id}
-                      style={{ background: generando === p.id ? "#333" : "#00FF94", border: "none", borderRadius: 8, padding: "8px 16px", color: "#000", fontSize: 11, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: generando === p.id ? "default" : "pointer", whiteSpace: "nowrap" }}>
-                      {generando === p.id ? "Generando..." : "Generar Lotes →"}
-                    </button>
-                  )}
                 </div>
 
                 {/* Contenido expandido */}
@@ -725,7 +737,10 @@ function SeccionPaquetes({ onLoteEdited }) {
                       </div>
                     ) : (
                       <div style={{ marginBottom: 14 }}>
-                        {items.map(it => (
+                        {items.map(it => {
+                          const loteGenId = it.lotes_compra?.lote_generado_id;
+                          const idVenta = it.lotes_compra?.figuras?.ml_sku || it.lotes_compra?.figuras?.id_venta_directa;
+                          return (
                           <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "7px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                             <div style={{ flex: 1, fontSize: 13, color: "#ddd", fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>
                               {it.lotes_compra?.figuras?.nombre || "—"}
@@ -742,14 +757,27 @@ function SeccionPaquetes({ onLoteEdited }) {
                                 {fmt(it.lotes_compra.precio_mxn)}/u
                               </div>
                             )}
-                            {!p.lotes_generados && (
+                            {loteGenId ? (
+                              <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#00FF94", whiteSpace: "nowrap" }}>✓ lote #{loteGenId}</span>
+                            ) : costReady ? (
+                              idVenta ? (
+                                <button onClick={() => handleGenerarLoteItem(it, p)} disabled={generando === it.id}
+                                  style={{ background: generando === it.id ? "#333" : "#00FF94", border: "none", borderRadius: 6, padding: "5px 10px", color: "#000", fontSize: 10, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: generando === it.id ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                                  {generando === it.id ? "Generando..." : "Generar Lote →"}
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#FF8080", whiteSpace: "nowrap" }}>Falta ID (ML o venta directa)</span>
+                              )
+                            ) : null}
+                            {!loteGenId && (
                               <button onClick={() => handleRemoveItem(it.id, p.id)}
                                 style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "3px 8px", color: "#555", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
                                 ✕
                               </button>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
 
@@ -1017,7 +1045,7 @@ function SeccionPagos() {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function InventarioCarrilB({ onLoteEdited }) {
+export default function Almacen({ onLoteEdited }) {
   const [subTab, setSubTab] = useState("figuras");
   const [figuras, setFiguras] = useState([]);
 
@@ -1042,7 +1070,7 @@ export default function InventarioCarrilB({ onLoteEdited }) {
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
         <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
         <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 2.5, textTransform: "uppercase", whiteSpace: "nowrap" }}>
-          Carril B · Compras Automáticas
+          Almacén · Compras ZenMarket
         </div>
         <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.06)" }} />
       </div>

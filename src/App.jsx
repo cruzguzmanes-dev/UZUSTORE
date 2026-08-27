@@ -10,10 +10,18 @@ import Inventario from "./tabs/Inventario";
 import Impuestos from "./tabs/Impuestos";
 import Ordenes from "./tabs/Ordenes";
 import Distribuidores from "./tabs/Distribuidores";
-import InventarioCarrilB from "./tabs/InventarioCarrilB";
+import Almacen from "./tabs/Almacen";
 import DistribuidorDashboard from "./pages/distribuidor/DistribuidorDashboard";
 
-const TABS = ["resumen", "mensual", "inventario", "compras", "impuestos", "ordenes", "distribuidores"];
+const TABS = [
+  { key: "resumen",        label: "Resumen"        },
+  { key: "mensual",        label: "Mensual"        },
+  { key: "inventario",     label: "Inventario"     },
+  { key: "almacen",        label: "Almacén"        },
+  { key: "impuestos",      label: "Impuestos"      },
+  { key: "ordenes",        label: "Órdenes"        },
+  { key: "distribuidores", label: "Distribuidores" },
+];
 
 // ML caps offset at 50 per query — paginate by date range instead
 async function fetchAllOrders(sellerId, accessToken) {
@@ -309,9 +317,9 @@ export default function App() {
       {/* Tabs */}
       <div style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", padding: "0 32px", display: "flex" }}>
         {TABS.map(t => (
-          <button key={t} onClick={() => setActiveTab(t)}
-            style={{ background: "none", border: "none", padding: "14px 20px", fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", color: activeTab === t ? "#FFE000" : "#555", borderBottom: activeTab === t ? "2px solid #FFE000" : "2px solid transparent", transition: "all 0.2s" }}>
-            {t}
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            style={{ background: "none", border: "none", padding: "14px 20px", fontFamily: "'Space Mono', monospace", fontSize: 11, letterSpacing: 2, textTransform: "uppercase", cursor: "pointer", color: activeTab === t.key ? "#FFE000" : "#555", borderBottom: activeTab === t.key ? "2px solid #FFE000" : "2px solid transparent", transition: "all 0.2s" }}>
+            {t.label}
           </button>
         ))}
       </div>
@@ -338,8 +346,8 @@ export default function App() {
         {activeTab === "inventario" && (
           <Inventario lotes={lotes} loadingLotes={loadingLotes} onAgregarLote={() => setShowModalLote(true)} onLoteEdited={fetchLotes} />
         )}
-        {activeTab === "compras" && (
-          <InventarioCarrilB onLoteEdited={fetchLotes} />
+        {activeTab === "almacen" && (
+          <Almacen onLoteEdited={fetchLotes} />
         )}
         {activeTab === "impuestos" && (
           <Impuestos
