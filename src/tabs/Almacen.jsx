@@ -232,6 +232,8 @@ function SeccionCompras({ figuras, onFigurasChange }) {
   const [error, setError]       = useState("");
   const [editingCell, setEditingCell] = useState(null);
   const [editVal, setEditVal]   = useState("");
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
   const loaded = useRef(false);
 
   const fetchCompras = async () => {
@@ -240,6 +242,17 @@ function SeccionCompras({ figuras, onFigurasChange }) {
       setCompras(data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const handleDelete = async (id) => {
+    setDeleteError("");
+    try {
+      await sb(`lotes_compra?id=eq.${id}`, "DELETE");
+      setDeletingId(null);
+      await fetchCompras();
+    } catch (e) {
+      setDeleteError("No se pudo eliminar — probablemente ya está dentro de un paquete. Quítala del paquete primero.");
+    }
   };
 
   useEffect(() => {
@@ -345,6 +358,8 @@ function SeccionCompras({ figuras, onFigurasChange }) {
         </div>
       )}
 
+      {errBox(deleteError)}
+
       {loading ? (
         <Loader size={96} message="Cargando" />
       ) : compras.length === 0 ? (
@@ -353,10 +368,10 @@ function SeccionCompras({ figuras, onFigurasChange }) {
         </div>
       ) : (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                {["Figura", "Fecha", "Cant.", "Precio ¥", "Precio MXN", "Estado", "Lote Gen."].map(h => (
+                {["Figura", "Fecha", "Cant.", "Precio ¥", "Precio MXN", "Estado", "Lote Gen.", ""].map(h => (
                   <th key={h} style={thS}>{h}</th>
                 ))}
               </tr>
@@ -396,6 +411,26 @@ function SeccionCompras({ figuras, onFigurasChange }) {
                     {c.lote_generado_id
                       ? <span style={{ color: "#00FF94" }}>✓ lote #{c.lote_generado_id}</span>
                       : <span style={{ color: "#333" }}>—</span>}
+                  </td>
+                  <td style={{ padding: "12px 16px" }}>
+                    {deletingId === c.id ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <button onClick={() => handleDelete(c.id)}
+                          style={{ background: "#FF5050", border: "none", borderRadius: 6, padding: "4px 9px", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                          Confirmar
+                        </button>
+                        <button onClick={() => setDeletingId(null)}
+                          style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#555", fontSize: 10, cursor: "pointer" }}>
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setDeletingId(c.id); setDeleteError(""); }}
+                        title="Eliminar compra"
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: "#555", fontSize: 14 }}>
+                        🗑
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
