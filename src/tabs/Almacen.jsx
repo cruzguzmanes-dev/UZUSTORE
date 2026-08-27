@@ -575,16 +575,26 @@ function SeccionPaquetes({ onLoteEdited }) {
     const { field } = editingCell;
     try {
       if (field === "estado") {
-        const patch = { estado: editVal };
-        if (editVal === "recibido") patch.fecha_llegada = new Date().toISOString().slice(0, 10);
-        await sb(`paquetes?id=eq.${pId}`, "PATCH", patch);
+        await sb(`paquetes?id=eq.${pId}`, "PATCH", { estado: editVal });
       } else if (field === "costo_envio_jpy" || field === "costo_aduana_mxn") {
         const v = parseFloat(editVal);
-        if (!isNaN(v) && v >= 0) await sb(`paquetes?id=eq.${pId}`, "PATCH", { [field]: v });
+        if (!isNaN(v) && v >= 0) {
+          const patch = { [field]: v };
+          // Capturar la aduana es la señal de que el paquete llegó -- ya no hay un estado "recibido" aparte
+          if (field === "costo_aduana_mxn") patch.fecha_llegada = new Date().toISOString().slice(0, 10);
+          await sb(`paquetes?id=eq.${pId}`, "PATCH", patch);
+        }
       }
       await fetchPaquetes();
     } catch (e) { console.error(e); }
     finally { setEditingCell(null); }
+  };
+
+  const handleToggleSaldar = async (paquete, val) => {
+    try {
+      await sb(`paquetes?id=eq.${paquete.id}`, "PATCH", { envio_agregado_a_saldar: val });
+      await fetchPaquetes();
+    } catch (e) { console.error(e); }
   };
 
   const handleAddItem = async (paqueteId) => {
@@ -666,7 +676,7 @@ function SeccionPaquetes({ onLoteEdited }) {
     }
   };
 
-  const ESTADOS_P = ["armando", "en_transito", "en_aduana", "recibido"];
+  const ESTADOS_P = ["armando", "pagado"];
 
   const getComprasParaPaquete = (paqueteId) => {
     const usados = new Set((paqueteItems[paqueteId] || []).map(it => it.lote_compra_id));
@@ -775,7 +785,7 @@ function SeccionPaquetes({ onLoteEdited }) {
       ) : (
         <div>
           {paquetes.map(p => {
-            const costReady = p.estado === "recibido"
+            const costReady = p.estado === "pagado"
               && p.pago_zenmarket_id != null
               && p.costo_aduana_mxn != null;
             const items   = paqueteItems[p.id] || [];
@@ -847,12 +857,24 @@ function SeccionPaquetes({ onLoteEdited }) {
                     )}
                   </div>
 
-                  {/* Pago asignado */}
+                  {/* Pago asignado / agregar envío a la próxima liquidación */}
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 2 }}>Pago</div>
-                    <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: p.pago_zenmarket_id ? "#00C9FF" : "#444" }}>
-                      {p.pago_zenmarket_id ? `#${p.pago_zenmarket_id}` : "Sin asignar"}
-                    </span>
+                    {p.pago_zenmarket_id ? (
+                      <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#00C9FF" }}>#{p.pago_zenmarket_id}</span>
+                    ) : p.envio_agregado_a_saldar ? (
+                      <button onClick={() => handleToggleSaldar(p, false)}
+                        style={{ background: "rgba(0,255,148,0.1)", border: "1px solid rgba(0,255,148,0.3)", borderRadius: 6, padding: "4px 10px", color: "#00FF94", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: "pointer", whiteSpace: "nowrap" }}>
+                        ✓ En el saldo
+                      </button>
+                    ) : (
+                      <button onClick={() => handleToggleSaldar(p, true)}
+                        disabled={p.costo_envio_jpy == null}
+                        title={p.costo_envio_jpy == null ? "Captura el costo de envío primero" : "Sumar el envío al total por saldar"}
+                        style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 10px", color: p.costo_envio_jpy == null ? "#333" : "#888", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: p.costo_envio_jpy == null ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                        + Agregar a saldar
+                      </button>
+                    )}
                   </div>
 
                   {p.lotes_generados && (
@@ -954,7 +976,7 @@ function SeccionPaquetes({ onLoteEdited }) {
                     )}
 
                     {/* Vista previa de costos */}
-                    {p.estado === "recibido" && p.pago_zenmarket_id && items.length > 0 && !p.lotes_generados && (
+                    {p.estado === "pagado" && p.pago_zenmarket_id && items.length > 0 && !p.lotes_generados && (
                       <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(0,255,148,0.05)", border: "1px solid rgba(0,255,148,0.15)", borderRadius: 10, fontFamily: "'Space Mono', monospace", fontSize: 11 }}>
                         <div style={{ color: "#00FF94", marginBottom: 6, fontWeight: 700 }}>Vista previa de costos</div>
                         {items.map(it => (
@@ -985,8 +1007,9 @@ function SeccionPagos() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]         = useState({
     fecha: new Date().toISOString().slice(0, 10),
-    mxn_pagados: "", jpy_obtenidos: "", notas: "",
+    mxn_pagados: "", notas: "",
   });
+  const [porSaldar, setPorSaldar]     = useState({ compras: 0, envios: 0 }); // en ¥
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState("");
   const [expanded, setExpanded]       = useState(null);
@@ -1001,6 +1024,22 @@ function SeccionPagos() {
     finally { setLoading(false); }
   };
 
+  // El crédito de ZenMarket solo cubre compras -- el envío se paga aparte,
+  // con puntos ya depositados. "Por saldar" = TODAS las compras sin pagar
+  // (deuda de crédito, siempre se liquida completa) + el envío de los
+  // paquetes que se hayan marcado explícitamente para esta liquidación.
+  const fetchPorSaldar = async () => {
+    try {
+      const [compras, paquetesConEnvio] = await Promise.all([
+        sb("lotes_compra?precio_mxn=is.null&select=precio_jpy,cantidad"),
+        sb("paquetes?pago_zenmarket_id=is.null&envio_agregado_a_saldar=eq.true&select=costo_envio_jpy"),
+      ]);
+      const totalCompras = (compras || []).reduce((s, c) => s + parseFloat(c.precio_jpy) * c.cantidad, 0);
+      const totalEnvios  = (paquetesConEnvio || []).reduce((s, p) => s + (parseFloat(p.costo_envio_jpy) || 0), 0);
+      setPorSaldar({ compras: totalCompras, envios: totalEnvios });
+    } catch (e) { console.error(e); }
+  };
+
   const fetchPaquetesDelPago = async (pagoId) => {
     try {
       const data = await sb(`paquetes?pago_zenmarket_id=eq.${pagoId}&select=id,nombre,id_zenmarket,estado`);
@@ -1012,15 +1051,20 @@ function SeccionPagos() {
     if (loaded.current) return;
     loaded.current = true;
     fetchPagos();
+    fetchPorSaldar();
   }, []);
 
+  const totalPorSaldarJpy = porSaldar.compras + porSaldar.envios;
+
   const handleAdd = async () => {
-    const { fecha, mxn_pagados, jpy_obtenidos } = form;
-    if (!fecha || !mxn_pagados || !jpy_obtenidos) { setError("Fecha, MXN y ¥ son requeridos"); return; }
-    const mxn = parseFloat(mxn_pagados), jpy = parseFloat(jpy_obtenidos);
-    if (isNaN(mxn) || mxn <= 0 || isNaN(jpy) || jpy <= 0) { setError("Los montos deben ser positivos"); return; }
+    const { fecha, mxn_pagados } = form;
+    if (!fecha || !mxn_pagados) { setError("Fecha y MXN son requeridos"); return; }
+    const mxn = parseFloat(mxn_pagados);
+    if (isNaN(mxn) || mxn <= 0) { setError("El monto debe ser positivo"); return; }
+    if (totalPorSaldarJpy <= 0) { setError("No hay nada pendiente por saldar"); return; }
     setSaving(true); setError("");
     try {
+      const jpy = totalPorSaldarJpy;
       // 1. Crear el pago
       const [pago] = await sb("pagos_zenmarket", "POST", {
         fecha, mxn_pagados: mxn, jpy_obtenidos: jpy,
@@ -1028,23 +1072,29 @@ function SeccionPagos() {
       });
       const tc = mxn / jpy;
 
-      // 2. Asignar automáticamente todos los paquetes pendientes
-      const pendientes = await sb("paquetes?pago_zenmarket_id=is.null&lotes_generados=eq.false&select=id");
-      for (const pkg of (pendientes || [])) {
-        await sb(`paquetes?id=eq.${pkg.id}`, "PATCH", { pago_zenmarket_id: pago.id });
-        const items = await sb(`paquete_items?paquete_id=eq.${pkg.id}&select=lote_compra_id,lotes_compra(precio_jpy)`);
-        for (const item of (items || [])) {
-          const precioMxn = parseFloat(item.lotes_compra?.precio_jpy) * tc;
-          await sb(`lotes_compra?id=eq.${item.lote_compra_id}`, "PATCH", {
-            precio_mxn: parseFloat(precioMxn.toFixed(2)),
-            estado: "pagado",
-          });
-        }
+      // 2. Saldar TODAS las compras pendientes (el crédito siempre se liquida completo)
+      const comprasPend = await sb("lotes_compra?precio_mxn=is.null&select=id,precio_jpy");
+      for (const c of (comprasPend || [])) {
+        const precioMxn = parseFloat(c.precio_jpy) * tc;
+        await sb(`lotes_compra?id=eq.${c.id}`, "PATCH", {
+          precio_mxn: parseFloat(precioMxn.toFixed(2)),
+          estado: "pagado",
+        });
       }
 
-      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "" });
+      // 3. Marcar como pagados SOLO los paquetes que se agregaron a este saldo
+      const paquetesAdd = await sb("paquetes?pago_zenmarket_id=is.null&envio_agregado_a_saldar=eq.true&select=id");
+      for (const pkg of (paquetesAdd || [])) {
+        await sb(`paquetes?id=eq.${pkg.id}`, "PATCH", {
+          pago_zenmarket_id: pago.id,
+          estado: "pagado",
+          envio_agregado_a_saldar: false,
+        });
+      }
+
+      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", notas: "" });
       setShowForm(false);
-      await fetchPagos();
+      await Promise.all([fetchPagos(), fetchPorSaldar()]);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -1057,19 +1107,26 @@ function SeccionPagos() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: "#555", fontFamily: "'Space Mono', monospace" }}>
-          {pagos.length} pago{pagos.length !== 1 ? "s" : ""} ZenMarket
+      <div style={{ background: "rgba(255,224,0,0.05)", border: "1px solid rgba(255,224,0,0.2)", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Por saldar</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: "#FFE000", fontFamily: "'Syne', sans-serif" }}>
+            ¥{totalPorSaldarJpy.toLocaleString()}
+          </div>
+          <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 4 }}>
+            ¥{porSaldar.compras.toLocaleString()} de compras + ¥{porSaldar.envios.toLocaleString()} de envíos agregados
+          </div>
         </div>
         <button onClick={() => { setShowForm(!showForm); setError(""); }}
-          style={{ background: "#FFE000", border: "none", borderRadius: 8, padding: "8px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer" }}>
-          {showForm ? "Cancelar" : "+ Nuevo Pago"}
+          disabled={!showForm && totalPorSaldarJpy <= 0}
+          style={{ background: showForm ? "transparent" : totalPorSaldarJpy > 0 ? "#FFE000" : "#333", border: showForm ? "1px solid #333" : "none", borderRadius: 8, padding: "8px 18px", color: showForm ? "#888" : "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: (!showForm && totalPorSaldarJpy <= 0) ? "default" : "pointer" }}>
+          {showForm ? "Cancelar" : "💰 Saldar →"}
         </button>
       </div>
 
       {showForm && (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 12, marginBottom: 14 }}>
             <div>
               <label style={lbl}>Fecha *</label>
               <input type="date" value={form.fecha}
@@ -1080,13 +1137,7 @@ function SeccionPagos() {
               <label style={lbl}>MXN pagados *</label>
               <input type="number" min="0.01" step="0.01" value={form.mxn_pagados}
                 onChange={e => setForm(f => ({ ...f, mxn_pagados: e.target.value }))}
-                placeholder="15000.00" style={inp} />
-            </div>
-            <div>
-              <label style={lbl}>¥ obtenidos *</label>
-              <input type="number" min="1" value={form.jpy_obtenidos}
-                onChange={e => setForm(f => ({ ...f, jpy_obtenidos: e.target.value }))}
-                placeholder="120000" style={inp} />
+                placeholder="15000.00" style={inp} autoFocus />
             </div>
             <div>
               <label style={lbl}>Notas</label>
@@ -1095,15 +1146,16 @@ function SeccionPagos() {
                 placeholder="Recarga abril..." style={inp} />
             </div>
           </div>
-          {form.mxn_pagados && form.jpy_obtenidos && (
-            <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 12 }}>
-              Tipo de cambio: <span style={{ color: "#00C9FF" }}>¥1 = ${(parseFloat(form.mxn_pagados) / parseFloat(form.jpy_obtenidos)).toFixed(4)} MXN</span>
-            </div>
-          )}
+          <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 12 }}>
+            Vas a saldar <span style={{ color: "#FFE000" }}>¥{totalPorSaldarJpy.toLocaleString()}</span>
+            {form.mxn_pagados && (
+              <> — Tipo de cambio: <span style={{ color: "#00C9FF" }}>¥1 = ${(parseFloat(form.mxn_pagados) / totalPorSaldarJpy).toFixed(4)} MXN</span></>
+            )}
+          </div>
           {errBox(error)}
           <button onClick={handleAdd} disabled={saving}
             style={{ background: saving ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: saving ? "default" : "pointer" }}>
-            {saving ? "Guardando..." : "Registrar Pago →"}
+            {saving ? "Guardando..." : "Saldar →"}
           </button>
         </div>
       )}
