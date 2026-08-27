@@ -1009,7 +1009,9 @@ function SeccionPagos() {
     fecha: new Date().toISOString().slice(0, 10),
     mxn_pagados: "", notas: "",
   });
-  const [porSaldar, setPorSaldar]     = useState({ compras: 0, envios: 0 }); // en ¥
+  const [comprasPendientes, setComprasPendientes] = useState([]);
+  const [paquetesPendientes, setPaquetesPendientes] = useState([]);
+  const [showDesglose, setShowDesglose] = useState(false);
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState("");
   const [expanded, setExpanded]       = useState(null);
@@ -1031,12 +1033,11 @@ function SeccionPagos() {
   const fetchPorSaldar = async () => {
     try {
       const [compras, paquetesConEnvio] = await Promise.all([
-        sb("lotes_compra?precio_mxn=is.null&select=precio_jpy,cantidad"),
-        sb("paquetes?pago_zenmarket_id=is.null&envio_agregado_a_saldar=eq.true&select=costo_envio_jpy"),
+        sb("lotes_compra?precio_mxn=is.null&order=fecha_compra.asc&select=id,precio_jpy,cantidad,fecha_compra,figuras(nombre)"),
+        sb("paquetes?pago_zenmarket_id=is.null&envio_agregado_a_saldar=eq.true&select=id,id_zenmarket,costo_envio_jpy"),
       ]);
-      const totalCompras = (compras || []).reduce((s, c) => s + parseFloat(c.precio_jpy) * c.cantidad, 0);
-      const totalEnvios  = (paquetesConEnvio || []).reduce((s, p) => s + (parseFloat(p.costo_envio_jpy) || 0), 0);
-      setPorSaldar({ compras: totalCompras, envios: totalEnvios });
+      setComprasPendientes(compras || []);
+      setPaquetesPendientes(paquetesConEnvio || []);
     } catch (e) { console.error(e); }
   };
 
@@ -1054,7 +1055,9 @@ function SeccionPagos() {
     fetchPorSaldar();
   }, []);
 
-  const totalPorSaldarJpy = porSaldar.compras + porSaldar.envios;
+  const totalCompras = comprasPendientes.reduce((s, c) => s + parseFloat(c.precio_jpy) * c.cantidad, 0);
+  const totalEnvios  = paquetesPendientes.reduce((s, p) => s + (parseFloat(p.costo_envio_jpy) || 0), 0);
+  const totalPorSaldarJpy = totalCompras + totalEnvios;
 
   const handleAdd = async () => {
     const { fecha, mxn_pagados } = form;
@@ -1107,21 +1110,63 @@ function SeccionPagos() {
 
   return (
     <div>
-      <div style={{ background: "rgba(255,224,0,0.05)", border: "1px solid rgba(255,224,0,0.2)", borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Por saldar</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: "#FFE000", fontFamily: "'Syne', sans-serif" }}>
-            ¥{totalPorSaldarJpy.toLocaleString()}
+      <div style={{ background: "rgba(255,224,0,0.05)", border: "1px solid rgba(255,224,0,0.2)", borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Por saldar</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: "#FFE000", fontFamily: "'Syne', sans-serif" }}>
+              ¥{totalPorSaldarJpy.toLocaleString()}
+            </div>
+            <button onClick={() => setShowDesglose(!showDesglose)}
+              style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 4, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
+              ¥{totalCompras.toLocaleString()} de compras + ¥{totalEnvios.toLocaleString()} de envíos agregados · {showDesglose ? "ocultar desglose ▾" : "ver desglose ▸"}
+            </button>
           </div>
-          <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 4 }}>
-            ¥{porSaldar.compras.toLocaleString()} de compras + ¥{porSaldar.envios.toLocaleString()} de envíos agregados
-          </div>
+          <button onClick={() => { setShowForm(!showForm); setError(""); }}
+            disabled={!showForm && totalPorSaldarJpy <= 0}
+            style={{ background: showForm ? "transparent" : totalPorSaldarJpy > 0 ? "#FFE000" : "#333", border: showForm ? "1px solid #333" : "none", borderRadius: 8, padding: "8px 18px", color: showForm ? "#888" : "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: (!showForm && totalPorSaldarJpy <= 0) ? "default" : "pointer" }}>
+            {showForm ? "Cancelar" : "💰 Saldar →"}
+          </button>
         </div>
-        <button onClick={() => { setShowForm(!showForm); setError(""); }}
-          disabled={!showForm && totalPorSaldarJpy <= 0}
-          style={{ background: showForm ? "transparent" : totalPorSaldarJpy > 0 ? "#FFE000" : "#333", border: showForm ? "1px solid #333" : "none", borderRadius: 8, padding: "8px 18px", color: showForm ? "#888" : "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: (!showForm && totalPorSaldarJpy <= 0) ? "default" : "pointer" }}>
-          {showForm ? "Cancelar" : "💰 Saldar →"}
-        </button>
+
+        {showDesglose && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,224,0,0.15)" }}>
+            {comprasPendientes.length === 0 && paquetesPendientes.length === 0 ? (
+              <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>Nada pendiente</div>
+            ) : (
+              <>
+                {comprasPendientes.length > 0 && (
+                  <div style={{ marginBottom: paquetesPendientes.length > 0 ? 10 : 0 }}>
+                    <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+                      Compras sin pagar
+                    </div>
+                    {comprasPendientes.map(c => (
+                      <div key={c.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: "'Space Mono', monospace" }}>
+                        <div style={{ flex: 1, color: "#ddd" }}>{c.figuras?.nombre || "—"}</div>
+                        <div style={{ color: "#555" }}>{c.fecha_compra}</div>
+                        <div style={{ color: "#888" }}>{c.cantidad}u × ¥{Number(c.precio_jpy).toLocaleString()}</div>
+                        <div style={{ color: "#FFE000", minWidth: 90, textAlign: "right" }}>¥{(c.cantidad * parseFloat(c.precio_jpy)).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {paquetesPendientes.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+                      Envíos agregados a saldar
+                    </div>
+                    {paquetesPendientes.map(p => (
+                      <div key={p.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: "'Space Mono', monospace" }}>
+                        <div style={{ flex: 1, color: "#ddd" }}>Paquete #{p.id_zenmarket || p.id}</div>
+                        <div style={{ color: "#FFE000", minWidth: 90, textAlign: "right" }}>¥{Number(p.costo_envio_jpy).toLocaleString()}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {showForm && (
