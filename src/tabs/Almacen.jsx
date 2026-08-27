@@ -70,6 +70,8 @@ function SeccionFiguras({ onFigurasChange }) {
   const [error, setError]       = useState("");
   const [editingCell, setEditingCell] = useState(null); // { id, field }
   const [editVal, setEditVal]   = useState("");
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
   const loaded = useRef(false);
 
   const fetchFiguras = async () => {
@@ -78,6 +80,18 @@ function SeccionFiguras({ onFigurasChange }) {
       setFiguras(data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const handleDelete = async (id) => {
+    setDeleteError("");
+    try {
+      await sb(`figuras?id=eq.${id}`, "DELETE");
+      setDeletingId(null);
+      await fetchFiguras();
+      onFigurasChange?.();
+    } catch (e) {
+      setDeleteError("No se pudo eliminar — probablemente ya tiene compras registradas. Elimínalas primero.");
+    }
   };
 
   useEffect(() => {
@@ -165,6 +179,8 @@ function SeccionFiguras({ onFigurasChange }) {
         </div>
       )}
 
+      {errBox(deleteError)}
+
       {loading ? (
         <Loader size={96} message="Cargando" />
       ) : figuras.length === 0 ? (
@@ -176,7 +192,7 @@ function SeccionFiguras({ onFigurasChange }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                {["ID Prov.", "Nombre", "SKU ML", "ID Venta Directa", "Alta"].map(h => <th key={h} style={thS}>{h}</th>)}
+                {["ID Prov.", "Nombre", "SKU ML", "ID Venta Directa", "Alta", ""].map(h => <th key={h} style={thS}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -208,6 +224,26 @@ function SeccionFiguras({ onFigurasChange }) {
                     <td style={{ padding: "12px 16px" }}>{editCol("ml_sku", f.ml_sku, "#00C9FF")}</td>
                     <td style={{ padding: "12px 16px" }}>{editCol("id_venta_directa", f.id_venta_directa, "#00FF94")}</td>
                     <td style={{ ...tdS, fontSize: 11, color: "#444" }}>{f.created_at?.slice(0, 10)}</td>
+                    <td style={{ padding: "12px 16px" }}>
+                      {deletingId === f.id ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <button onClick={() => handleDelete(f.id)}
+                            style={{ background: "#FF5050", border: "none", borderRadius: 6, padding: "4px 9px", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                            Confirmar
+                          </button>
+                          <button onClick={() => setDeletingId(null)}
+                            style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#555", fontSize: 10, cursor: "pointer" }}>
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setDeletingId(f.id); setDeleteError(""); }}
+                          title="Eliminar figura"
+                          style={{ background: "transparent", border: "none", cursor: "pointer", color: "#555", fontSize: 14 }}>
+                          🗑
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
