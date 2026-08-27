@@ -447,7 +447,7 @@ function SeccionPaquetes({ onLoteEdited }) {
   const [paquetes, setPaquetes]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
-  const [form, setForm]           = useState({ id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "", peso_kg: "", largo: "", ancho: "", alto: "" });
+  const [form, setForm]           = useState({ id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "", dimensiones: "" });
   const [itemsNuevoPaquete, setItemsNuevoPaquete] = useState([]); // [{ lote_compra_id, nombre, cantidad }]
   const [addingLoteNuevo, setAddingLoteNuevo]     = useState("");
   const [addingQtyNuevo, setAddingQtyNuevo]       = useState("");
@@ -519,17 +519,14 @@ function SeccionPaquetes({ onLoteEdited }) {
         nombre: form.id_zenmarket.trim(), // columna NOT NULL heredada; ya no se muestra como campo propio
         id_zenmarket: form.id_zenmarket.trim(),
         costo_envio_jpy: form.costo_envio_jpy ? parseFloat(form.costo_envio_jpy) : null,
-        peso_kg: form.peso_kg ? parseFloat(form.peso_kg) : null,
-        largo: form.largo ? parseInt(form.largo) : null,
-        ancho: form.ancho ? parseInt(form.ancho) : null,
-        alto: form.alto ? parseInt(form.alto) : null,
+        dimensiones: form.dimensiones.trim() || null,
         estado: "armando",
         fecha_envio: form.fecha_envio || null,
       });
       for (const it of itemsNuevoPaquete) {
         await sb("paquete_items", "POST", { paquete_id: paquete.id, lote_compra_id: it.lote_compra_id, cantidad: it.cantidad });
       }
-      setForm({ id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "", peso_kg: "", largo: "", ancho: "", alto: "" });
+      setForm({ id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "", dimensiones: "" });
       setItemsNuevoPaquete([]);
       setShowForm(false);
       await Promise.all([fetchPaquetes(), fetchComprasDisp()]);
@@ -676,31 +673,11 @@ function SeccionPaquetes({ onLoteEdited }) {
                 style={inp} />
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
-            <div>
-              <label style={lbl}>Peso (kg)</label>
-              <input type="number" min="0" step="0.01" value={form.peso_kg}
-                onChange={e => setForm(f => ({ ...f, peso_kg: e.target.value }))}
-                placeholder="1.5" style={inp} />
-            </div>
-            <div>
-              <label style={lbl}>Largo (cm)</label>
-              <input type="number" min="0" value={form.largo}
-                onChange={e => setForm(f => ({ ...f, largo: e.target.value }))}
-                placeholder="30" style={inp} />
-            </div>
-            <div>
-              <label style={lbl}>Ancho (cm)</label>
-              <input type="number" min="0" value={form.ancho}
-                onChange={e => setForm(f => ({ ...f, ancho: e.target.value }))}
-                placeholder="20" style={inp} />
-            </div>
-            <div>
-              <label style={lbl}>Alto (cm)</label>
-              <input type="number" min="0" value={form.alto}
-                onChange={e => setForm(f => ({ ...f, alto: e.target.value }))}
-                placeholder="15" style={inp} />
-            </div>
+          <div style={{ marginBottom: 14 }}>
+            <label style={lbl}>Dimensiones y peso (como te las da ZenMarket)</label>
+            <input type="text" value={form.dimensiones}
+              onChange={e => setForm(f => ({ ...f, dimensiones: e.target.value }))}
+              placeholder="72cm × 27cm × 31cm - 6950g" style={inp} />
           </div>
 
           <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 6, letterSpacing: 1, textTransform: "uppercase" }}>
@@ -777,8 +754,7 @@ function SeccionPaquetes({ onLoteEdited }) {
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 3 }}>
                       {p.fecha_envio ? `Envío: ${p.fecha_envio}` : "Sin fecha de envío"}
                       {p.fecha_llegada ? ` · Llegada: ${p.fecha_llegada}` : ""}
-                      {p.peso_kg != null ? ` · ${p.peso_kg}kg` : ""}
-                      {p.largo && p.ancho && p.alto ? ` · ${p.largo}×${p.ancho}×${p.alto}cm` : ""}
+                      {p.dimensiones ? ` · ${p.dimensiones}` : ""}
                     </div>
                   </button>
 
