@@ -501,7 +501,7 @@ function SeccionPaquetes({ onLoteEdited }) {
 
   const fetchPaquetes = async () => {
     try {
-      const data = await sb("paquetes?order=created_at.desc");
+      const data = await sb("paquetes?order=created_at.desc&select=*,pagos_zenmarket(mxn_pagados,jpy_obtenidos)");
       setPaquetes(data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -789,6 +789,9 @@ function SeccionPaquetes({ onLoteEdited }) {
             const costReady = p.estado === "pagado"
               && p.pago_zenmarket_id != null
               && p.costo_aduana_mxn != null;
+            const yaPagado = p.estado === "pagado" && p.pago_zenmarket_id != null;
+            const tc = p.pagos_zenmarket ? parseFloat(p.pagos_zenmarket.mxn_pagados) / parseFloat(p.pagos_zenmarket.jpy_obtenidos) : null;
+            const envioMxn = tc != null && p.costo_envio_jpy != null ? p.costo_envio_jpy * tc : null;
             const items   = paqueteItems[p.id] || [];
             const isExp   = expanded === p.id;
             const disponibles = getComprasParaPaquete(p.id);
@@ -839,12 +842,17 @@ function SeccionPaquetes({ onLoteEdited }) {
                         {p.costo_envio_jpy != null ? `¥${Number(p.costo_envio_jpy).toLocaleString()}` : "— ✎"}
                       </button>
                     )}
+                    {envioMxn != null && (
+                      <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#00C9FF", marginTop: 2 }}>{fmt(envioMxn)}</div>
+                    )}
                   </div>
 
-                  {/* Aduana MXN */}
+                  {/* Aduana MXN -- solo se habilita cuando el paquete ya está pagado */}
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 2 }}>Aduana</div>
-                    {editingCell?.id === p.id && editingCell?.field === "costo_aduana_mxn" ? (
+                    {!yaPagado ? (
+                      <span title="Se habilita cuando el paquete esté pagado" style={{ fontFamily: "'Space Mono', monospace", fontSize: 12, color: "#333" }}>—</span>
+                    ) : editingCell?.id === p.id && editingCell?.field === "costo_aduana_mxn" ? (
                       <input type="number" step="0.01" value={editVal}
                         onChange={e => setEditVal(e.target.value)}
                         onBlur={() => saveEdit(p.id)}
