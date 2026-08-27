@@ -412,7 +412,10 @@ function SeccionPaquetes({ onLoteEdited }) {
   const [paquetes, setPaquetes]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
-  const [form, setForm]           = useState({ nombre: "", id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "" });
+  const [form, setForm]           = useState({ id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "", peso_kg: "", largo: "", ancho: "", alto: "" });
+  const [itemsNuevoPaquete, setItemsNuevoPaquete] = useState([]); // [{ lote_compra_id, nombre, cantidad }]
+  const [addingLoteNuevo, setAddingLoteNuevo]     = useState("");
+  const [addingQtyNuevo, setAddingQtyNuevo]       = useState("");
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState("");
   const [expanded, setExpanded]   = useState(null);
@@ -451,6 +454,7 @@ function SeccionPaquetes({ onLoteEdited }) {
     if (loaded.current) return;
     loaded.current = true;
     fetchPaquetes();
+    fetchComprasDisp();
   }, []);
 
   const toggleExpand = async (id) => {
@@ -460,20 +464,40 @@ function SeccionPaquetes({ onLoteEdited }) {
     await Promise.all([fetchItems(id), fetchComprasDisp()]);
   };
 
+  // Agrega una compra a la lista pendiente del paquete que se está armando (aún no creado)
+  const handleStageItemNuevo = () => {
+    if (!addingLoteNuevo || !addingQtyNuevo) return;
+    const qty = parseInt(addingQtyNuevo);
+    if (isNaN(qty) || qty <= 0) return;
+    const compra = comprasDisp.find(c => c.id === parseInt(addingLoteNuevo));
+    if (!compra) return;
+    setItemsNuevoPaquete(prev => [...prev, { lote_compra_id: compra.id, nombre: compra.figuras?.nombre || "—", cantidad: qty }]);
+    setAddingLoteNuevo(""); setAddingQtyNuevo("");
+  };
+
   const handleAddPaquete = async () => {
-    if (!form.nombre.trim()) { setError("El nombre es requerido"); return; }
+    if (!form.id_zenmarket.trim()) { setError("El ID de ZenMarket es requerido"); return; }
+    if (itemsNuevoPaquete.length === 0) { setError("Agrega al menos una publicación comprada"); return; }
     setSaving(true); setError("");
     try {
-      await sb("paquetes", "POST", {
-        nombre: form.nombre.trim(),
-        id_zenmarket: form.id_zenmarket.trim() || null,
+      const [paquete] = await sb("paquetes", "POST", {
+        nombre: form.id_zenmarket.trim(), // columna NOT NULL heredada; ya no se muestra como campo propio
+        id_zenmarket: form.id_zenmarket.trim(),
         costo_envio_jpy: form.costo_envio_jpy ? parseFloat(form.costo_envio_jpy) : null,
+        peso_kg: form.peso_kg ? parseFloat(form.peso_kg) : null,
+        largo: form.largo ? parseInt(form.largo) : null,
+        ancho: form.ancho ? parseInt(form.ancho) : null,
+        alto: form.alto ? parseInt(form.alto) : null,
         estado: "armando",
         fecha_envio: form.fecha_envio || null,
       });
-      setForm({ nombre: "", id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "" });
+      for (const it of itemsNuevoPaquete) {
+        await sb("paquete_items", "POST", { paquete_id: paquete.id, lote_compra_id: it.lote_compra_id, cantidad: it.cantidad });
+      }
+      setForm({ id_zenmarket: "", costo_envio_jpy: "", fecha_envio: "", peso_kg: "", largo: "", ancho: "", alto: "" });
+      setItemsNuevoPaquete([]);
       setShowForm(false);
-      await fetchPaquetes();
+      await Promise.all([fetchPaquetes(), fetchComprasDisp()]);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -597,19 +621,12 @@ function SeccionPaquetes({ onLoteEdited }) {
 
       {showForm && (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
             <div>
-              <label style={lbl}>Nombre del paquete *</label>
-              <input type="text" value={form.nombre}
-                onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-                onKeyDown={e => e.key === "Enter" && handleAddPaquete()}
-                placeholder="Paquete Marzo 2025" style={inp} autoFocus />
-            </div>
-            <div>
-              <label style={lbl}>ID ZenMarket</label>
-              <input type="text" value={form.id_zenmarket}
+              <label style={lbl}>ID ZenMarket *</label>
+              <input type="number" value={form.id_zenmarket}
                 onChange={e => setForm(f => ({ ...f, id_zenmarket: e.target.value }))}
-                placeholder="207" style={inp} />
+                placeholder="207" style={inp} autoFocus />
             </div>
             <div>
               <label style={lbl}>Envío ¥ (opcional)</label>
@@ -624,6 +641,70 @@ function SeccionPaquetes({ onLoteEdited }) {
                 style={inp} />
             </div>
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={lbl}>Peso (kg)</label>
+              <input type="number" min="0" step="0.01" value={form.peso_kg}
+                onChange={e => setForm(f => ({ ...f, peso_kg: e.target.value }))}
+                placeholder="1.5" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Largo (cm)</label>
+              <input type="number" min="0" value={form.largo}
+                onChange={e => setForm(f => ({ ...f, largo: e.target.value }))}
+                placeholder="30" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Ancho (cm)</label>
+              <input type="number" min="0" value={form.ancho}
+                onChange={e => setForm(f => ({ ...f, ancho: e.target.value }))}
+                placeholder="20" style={inp} />
+            </div>
+            <div>
+              <label style={lbl}>Alto (cm)</label>
+              <input type="number" min="0" value={form.alto}
+                onChange={e => setForm(f => ({ ...f, alto: e.target.value }))}
+                placeholder="15" style={inp} />
+            </div>
+          </div>
+
+          <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 6, letterSpacing: 1, textTransform: "uppercase" }}>
+            Publicaciones compradas en este paquete *
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 10 }}>
+            <select value={addingLoteNuevo} onChange={e => setAddingLoteNuevo(e.target.value)}
+              style={{ ...inp, flex: 1, minWidth: 220, padding: "7px 10px", fontSize: 12, cursor: "pointer" }}>
+              <option value="">Seleccionar compra...</option>
+              {comprasDisp.filter(c => !itemsNuevoPaquete.some(it => it.lote_compra_id === c.id)).map(c => (
+                <option key={c.id} value={c.id}>{c.figuras?.nombre} — {c.cantidad}u · {c.fecha_compra}</option>
+              ))}
+            </select>
+            <input type="number" min="1" placeholder="Cant."
+              value={addingQtyNuevo}
+              onChange={e => setAddingQtyNuevo(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleStageItemNuevo()}
+              style={{ ...inp, width: 80, padding: "7px 10px", fontSize: 12 }} />
+            <button onClick={handleStageItemNuevo}
+              disabled={!addingLoteNuevo || !addingQtyNuevo}
+              style={{ background: "#FFE000", border: "none", borderRadius: 8, padding: "9px 16px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer", opacity: (!addingLoteNuevo || !addingQtyNuevo) ? 0.35 : 1 }}>
+              + Agregar
+            </button>
+          </div>
+          {itemsNuevoPaquete.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              {itemsNuevoPaquete.map((it, idx) => (
+                <div key={idx} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                  <div style={{ flex: 1, fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#ddd" }}>{it.nombre}</div>
+                  <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#888" }}>×{it.cantidad}</div>
+                  <button onClick={() => setItemsNuevoPaquete(prev => prev.filter((_, i) => i !== idx))}
+                    style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "3px 8px", color: "#555", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {errBox(error)}
           <button onClick={handleAddPaquete} disabled={saving}
             style={{ background: saving ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: saving ? "default" : "pointer" }}>
@@ -656,12 +737,13 @@ function SeccionPaquetes({ onLoteEdited }) {
                   <button onClick={() => toggleExpand(p.id)}
                     style={{ background: "transparent", border: "none", cursor: "pointer", textAlign: "left", padding: 0, flex: 1, minWidth: 160 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>
-                      {isExp ? "▾" : "▸"} {p.nombre}
-                      {p.id_zenmarket && <span style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace", marginLeft: 8 }}># {p.id_zenmarket}</span>}
+                      {isExp ? "▾" : "▸"} Paquete #{p.id_zenmarket || p.id}
                     </div>
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 3 }}>
                       {p.fecha_envio ? `Envío: ${p.fecha_envio}` : "Sin fecha de envío"}
                       {p.fecha_llegada ? ` · Llegada: ${p.fecha_llegada}` : ""}
+                      {p.peso_kg != null ? ` · ${p.peso_kg}kg` : ""}
+                      {p.largo && p.ancho && p.alto ? ` · ${p.largo}×${p.ancho}×${p.alto}cm` : ""}
                     </div>
                   </button>
 
@@ -1025,8 +1107,7 @@ function SeccionPagos() {
                         {asignados.map(pkg => (
                           <div key={pkg.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                             <div style={{ flex: 1, fontSize: 13, color: "#ddd", fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>
-                              {pkg.nombre}
-                              {pkg.id_zenmarket && <span style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace", marginLeft: 8 }}># {pkg.id_zenmarket}</span>}
+                              Paquete #{pkg.id_zenmarket || pkg.id}
                             </div>
                             <span style={badgeEstado(pkg.estado)}>{pkg.estado}</span>
                           </div>
