@@ -497,6 +497,8 @@ function SeccionPaquetes({ onLoteEdited }) {
   const [editVal, setEditVal]          = useState("");
   const [generando, setGenerando]      = useState(null);
   const [genError, setGenError]        = useState("");
+  const [deletingId, setDeletingId]    = useState(null);
+  const [deleteError, setDeleteError]  = useState("");
   const loaded = useRef(false);
 
   const fetchPaquetes = async () => {
@@ -505,6 +507,20 @@ function SeccionPaquetes({ onLoteEdited }) {
       setPaquetes(data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  // paquete_items se borra en cascada junto con el paquete (FK ON DELETE CASCADE),
+  // así que las compras que tenía dentro quedan libres para borrarse aparte.
+  const handleDelete = async (id) => {
+    setDeleteError("");
+    try {
+      await sb(`paquetes?id=eq.${id}`, "DELETE");
+      setDeletingId(null);
+      setExpanded(null);
+      await Promise.all([fetchPaquetes(), fetchComprasDisp()]);
+    } catch (e) {
+      setDeleteError("No se pudo eliminar el paquete.");
+    }
   };
 
   const fetchItems = async (paqueteId) => {
@@ -697,6 +713,7 @@ function SeccionPaquetes({ onLoteEdited }) {
       </div>
 
       {genError && errBox(genError)}
+      {errBox(deleteError)}
 
       {showForm && (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
@@ -1013,6 +1030,27 @@ function SeccionPaquetes({ onLoteEdited }) {
                         </div>
                       );
                     })()}
+
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                      {deletingId === p.id ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 11, color: "#888", fontFamily: "'Space Mono', monospace" }}>¿Eliminar este paquete?</span>
+                          <button onClick={() => handleDelete(p.id)}
+                            style={{ background: "#FF5050", border: "none", borderRadius: 6, padding: "4px 9px", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                            Confirmar
+                          </button>
+                          <button onClick={() => setDeletingId(null)}
+                            style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#555", fontSize: 10, cursor: "pointer" }}>
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setDeletingId(p.id); setDeleteError(""); }}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", color: "#555", fontSize: 11, fontFamily: "'Space Mono', monospace", padding: 0 }}>
+                          🗑 Eliminar paquete
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
