@@ -1017,6 +1017,8 @@ function SeccionPagos() {
   const [error, setError]             = useState("");
   const [expanded, setExpanded]       = useState(null);
   const [paquetesDelPago, setPaquetesDelPago] = useState({});
+  const [deletingId, setDeletingId]   = useState(null);
+  const [deleteError, setDeleteError] = useState("");
   const loaded = useRef(false);
 
   const fetchPagos = async () => {
@@ -1107,6 +1109,26 @@ function SeccionPagos() {
     if (expanded === id) { setExpanded(null); return; }
     setExpanded(id);
     await fetchPaquetesDelPago(id);
+  };
+
+  // Revierte los paquetes que quedaron ligados a este pago (vuelven a "armando",
+  // sin envío agregado) antes de borrarlo -- el FK de paquetes.pago_zenmarket_id
+  // ya se pone en null solo al borrar. Las compras que se saldaron con este pago
+  // NO se revierten (no hay forma de saber cuáles fueron, solo tienen precio_mxn).
+  const handleDelete = async (id) => {
+    setDeleteError("");
+    try {
+      const paquetesLigados = await sb(`paquetes?pago_zenmarket_id=eq.${id}&select=id`);
+      for (const pkg of (paquetesLigados || [])) {
+        await sb(`paquetes?id=eq.${pkg.id}`, "PATCH", { estado: "armando", envio_agregado_a_saldar: false });
+      }
+      await sb(`pagos_zenmarket?id=eq.${id}`, "DELETE");
+      setDeletingId(null);
+      setExpanded(null);
+      await Promise.all([fetchPagos(), fetchPorSaldar()]);
+    } catch (e) {
+      setDeleteError("No se pudo eliminar el pago.");
+    }
   };
 
   return (
@@ -1206,6 +1228,8 @@ function SeccionPagos() {
         </div>
       )}
 
+      {errBox(deleteError)}
+
       {loading ? (
         <Loader size={96} message="Cargando" />
       ) : pagos.length === 0 ? (
@@ -1268,6 +1292,26 @@ function SeccionPagos() {
                         ))}
                       </>
                     )}
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                      {deletingId === pago.id ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 11, color: "#888", fontFamily: "'Space Mono', monospace" }}>¿Eliminar este pago?</span>
+                          <button onClick={() => handleDelete(pago.id)}
+                            style={{ background: "#FF5050", border: "none", borderRadius: 6, padding: "4px 9px", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                            Confirmar
+                          </button>
+                          <button onClick={() => setDeletingId(null)}
+                            style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#555", fontSize: 10, cursor: "pointer" }}>
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setDeletingId(pago.id); setDeleteError(""); }}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", color: "#555", fontSize: 11, fontFamily: "'Space Mono', monospace", padding: 0 }}>
+                          🗑 Eliminar pago
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
