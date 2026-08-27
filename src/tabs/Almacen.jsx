@@ -684,7 +684,12 @@ function SeccionPaquetes({ onLoteEdited }) {
             Publicaciones compradas en este paquete *
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 10 }}>
-            <select value={addingLoteNuevo} onChange={e => setAddingLoteNuevo(e.target.value)}
+            <select value={addingLoteNuevo} onChange={e => {
+                const val = e.target.value;
+                setAddingLoteNuevo(val);
+                const compra = comprasDisp.find(c => c.id === parseInt(val));
+                setAddingQtyNuevo(compra ? String(compra.cantidad) : "");
+              }}
               style={{ ...inp, flex: 1, minWidth: 220, padding: "7px 10px", fontSize: 12, cursor: "pointer" }}>
               <option value="">Seleccionar compra...</option>
               {comprasDisp.filter(c => !itemsNuevoPaquete.some(it => it.lote_compra_id === c.id)).map(c => (
@@ -882,7 +887,11 @@ function SeccionPaquetes({ onLoteEdited }) {
                           </div>
                           <select
                             value={addingItem.paquete_id === p.id ? addingItem.lote_compra_id : ""}
-                            onChange={e => setAddingItem({ paquete_id: p.id, lote_compra_id: e.target.value, cantidad: "" })}
+                            onChange={e => {
+                              const val = e.target.value;
+                              const compra = disponibles.find(c => c.id === parseInt(val));
+                              setAddingItem({ paquete_id: p.id, lote_compra_id: val, cantidad: compra ? String(compra.cantidad) : "" });
+                            }}
                             style={{ ...inp, width: 260, padding: "7px 10px", fontSize: 12, cursor: "pointer" }}>
                             <option value="">Seleccionar compra...</option>
                             {disponibles.map(c => (
