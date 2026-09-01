@@ -149,6 +149,8 @@ export default function DistribuidorDashboard({ slug }) {
   const [showHistVentas, setShowHistVentas] = useState(false);
   const [histVentas, setHistVentas]         = useState([]);
   const [histLoading, setHistLoading]       = useState(false);
+  const [deletingHistId, setDeletingHistId] = useState(null);
+  const [histDeleteError, setHistDeleteError] = useState("");
 
   // Venta suelta (pieza no inventariada)
   const [ventaSheet, setVentaSheet] = useState(false);
@@ -206,6 +208,28 @@ export default function DistribuidorDashboard({ slug }) {
       setHistVentas([]);
     } finally {
       setHistLoading(false);
+    }
+  };
+
+  // Borra una venta del historial (error de captura). Revierte lo que corresponda:
+  // si es de inventario, regresa el stock y baja "vendidas" (así también baja el saldo
+  // pendiente); si es suelta, solo se borra -- el saldo ya se calcula en vivo de las
+  // confirmadas restantes.
+  const handleDeleteHist = async (h) => {
+    setHistDeleteError("");
+    try {
+      const tipo = h.suelta ? "suelta" : "inventario";
+      const res = await fetch(`/api/distribuidor/historial?id=${h.id}&tipo=${tipo}`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "Error eliminando");
+      }
+      setDeletingHistId(null);
+      if (h.suelta) await fetchSueltas();
+      else await Promise.all([fetchInventario(), abrirHistVentas()]);
+    } catch (err) {
+      setHistDeleteError(err.message);
+      setDeletingHistId(null);
     }
   };
 
@@ -309,10 +333,10 @@ export default function DistribuidorDashboard({ slug }) {
   const histAll = [
     ...histVentas.map(v => {
       const it = inventario.find(i => i.id === v.item_id);
-      return { key: "inv-" + v.id, nombre: it?.nombre || "Artículo", fecha: v.created_at, cantidad: v.cantidad, mayoreo: it?.precio_mayoreo || 0, suelta: false, pendiente: false };
+      return { key: "inv-" + v.id, id: v.id, nombre: it?.nombre || "Artículo", fecha: v.created_at, cantidad: v.cantidad, mayoreo: it?.precio_mayoreo || 0, suelta: false, pendiente: false };
     }),
-    ...sueltasConfirmadas.map(s => ({ key: "sc-" + s.id, nombre: s.nombre, fecha: s.created_at, cantidad: s.cantidad || 1, mayoreo: s.precio_mayoreo || 0, suelta: true, pendiente: false })),
-    ...sueltasPendientes.map(s => ({ key: "sp-" + s.id, nombre: s.nombre, fecha: s.created_at, cantidad: s.cantidad || 1, mayoreo: 0, suelta: true, pendiente: true })),
+    ...sueltasConfirmadas.map(s => ({ key: "sc-" + s.id, id: s.id, nombre: s.nombre, fecha: s.created_at, cantidad: s.cantidad || 1, mayoreo: s.precio_mayoreo || 0, suelta: true, pendiente: false })),
+    ...sueltasPendientes.map(s => ({ key: "sp-" + s.id, id: s.id, nombre: s.nombre, fecha: s.created_at, cantidad: s.cantidad || 1, mayoreo: 0, suelta: true, pendiente: true })),
   ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   const histUds      = histAll.filter(h => !h.pendiente).reduce((s, h) => s + h.cantidad, 0);
   const histTotalMay = histAll.filter(h => !h.pendiente).reduce((s, h) => s + h.mayoreo * h.cantidad, 0);
@@ -990,6 +1014,9 @@ export default function DistribuidorDashboard({ slug }) {
                     {histUds} uds · {fmt(histTotalMay)}
                   </span>
                 </div>
+                {histDeleteError && (
+                  <p style={{ color: "#ff6b6b", fontFamily: "'Space Mono', monospace", fontSize: 11, marginBottom: 10 }}>⚠ {histDeleteError}</p>
+                )}
                 {histAll.map(h => (
                   <div key={h.key} className="pay-hist-row">
                     <div style={{ minWidth: 0, flex: 1 }}>
@@ -1008,6 +1035,26 @@ export default function DistribuidorDashboard({ slug }) {
                     <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, color: h.pendiente ? "var(--text-3)" : "#7ecc7e" }}>
                       {!h.pendiente && h.mayoreo > 0 ? fmt(h.mayoreo * h.cantidad) : "—"}
                     </span>
+                    {isAdmin && !h.pendiente && (
+                      deletingHistId === h.key ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginLeft: 8 }}>
+                          <button onClick={() => handleDeleteHist(h)}
+                            style={{ background: "#ff5050", border: "none", borderRadius: 5, padding: "3px 7px", color: "#fff", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>
+                            Sí
+                          </button>
+                          <button onClick={() => setDeletingHistId(null)}
+                            style={{ background: "none", border: "1px solid var(--text-4)", borderRadius: 5, padding: "3px 7px", color: "var(--text-3)", fontSize: 9, cursor: "pointer" }}>
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setDeletingHistId(h.key); setHistDeleteError(""); }}
+                          title="Eliminar (error de captura)"
+                          style={{ background: "none", border: "none", color: "var(--text-4)", fontSize: 13, cursor: "pointer", marginLeft: 8, padding: 0 }}>
+                          🗑
+                        </button>
+                      )
+                    )}
                   </div>
                 ))}
               </>

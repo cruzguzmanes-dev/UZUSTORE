@@ -389,6 +389,7 @@ Para el **PRO**, las solicitudes entrantes ("🧾 Ventas por confirmar" y "💳 
 | Ver el `precio_mayoreo` en la tarjeta (solo lectura, en chico junto al precio de venta) | ✅ | ✅ |
 | **Editar** el `precio_mayoreo` | ❌ | ✅ |
 | Ver historial de ventas y de pagos (botones "📋 Ventas" / "🧾 Pagos" arriba, no por celda) | ✅ | ✅ |
+| **Eliminar** una venta del historial (error de captura) | ❌ | ✅ |
 | Ver ganancia acumulada por artículo | ❌ | ✅ (si tiene precio_venta) |
 
 El PRO ve el formulario de alta con precio (`asOwner`, captura **costo distribuidor** = `precio_mayoreo`). El normal no agrega inventario con precio, pero sí puede **proponerlo** (`UploadForm proposal`, foto+nombre+cantidad → pendiente). En la UI, `precio_mayoreo` se muestra como **"Costo distribuidor"**.
@@ -403,6 +404,8 @@ Para el PRO siempre es ON. El normal ya **no** ve "+ Stock" (solo "✓ Vendido")
 **"💳 Pagos por aceptar" (solo PRO):** lista de solicitudes pendientes con botones Aceptar/Rechazar. (La sección "📊 Mi Corte" con ganancia se quitó — no se usa por ahora.)
 
 **Historial de ventas ("📋 Ventas"):** cada venta muestra el **costo de mayoreo** del artículo (mapeado por `item_id` contra el inventario), no el precio de venta. El total es la suma de mayoreos = lo que se debe por esas ventas. Los artículos aún sin mayoreo asignado muestran "—".
+
+**Eliminar una venta (solo PRO, por error de captura):** 🗑 en cada fila ya confirmada (no en las "⏳ por confirmar", esas se rechazan por su propio flujo). `DELETE /api/distribuidor/historial?id=X&tipo=inventario|suelta`. Si es de inventario (`ventas_distribuidor`), antes de borrar la fila revierte el artículo: `cantidad += cantidad_vendida`, `vendidas -= cantidad_vendida` — así el stock regresa y el saldo pendiente baja solo (se calcula en vivo desde `vendidas`). Si es una venta suelta confirmada, solo se borra la fila — el saldo ya se recalcula con las confirmadas restantes.
 
 ---
 
