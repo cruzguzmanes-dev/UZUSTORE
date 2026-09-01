@@ -871,7 +871,8 @@ function DistribuidorDetalle({ slug, items, resumen, color, lotes, pagos, solici
             </p>
             <p style={{ margin: 0, fontSize: 24, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: saldo > 0 ? "#FFE000" : "#7ecc7e" }}>
               {fmt(saldo)}
-              {saldo <= 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
+              {saldo === 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
+              {saldo < 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ {fmt(-saldo)} a favor del distribuidor</span>}
             </p>
           </div>
           <button

@@ -250,6 +250,8 @@ Append-only. **Saldo de ventas** = `Σ(precio_mayoreo × vendidas) − Σ(monto 
 
 **Saldación de deuda vieja** (migración `009-abono-deuda.sql`): si un pago supera el saldo de ventas, al **aceptar** (en el admin del dueño o el portal PRO) se abre un split donde el dueño confirma cuánto del excedente es saldación de deuda (default = excedente). Esa parte se guarda en `monto_deuda` y **nunca se re-acredita a ventas futuras** (evita que un sobrepago le baje su próximo saldo). Se muestra "Abonado a deuda" en el corte del admin y en la card de saldo del portal. Pendiente futuro: guardar el **total** de la deuda vieja para ver "resta $Z".
 
+**Sobrepago sin marcarlo como deuda vieja = crédito implícito.** No existe un campo/tabla de "saldo a favor" — es deliberado (ver arriba). Pero si al aceptar el split el dueño deja el excedente en $0 (en vez del default), ese dinero entra 100% a `pagadoVentas`, y como `saldo = teDeben − pagadoVentas` se recalcula en vivo, el saldo puede quedar **negativo** — que en la práctica actúa como crédito silencioso hasta que se consume con ventas futuras. Ambas pantallas (`Distribuidores.jsx` panel dueño, `DistribuidorDashboard.jsx` card de saldo del portal) ya muestran el monto real "X a favor" cuando `saldo < 0` en vez de solo "✓ Al corriente" (antes el portal lo redondeaba a $0.00 con `Math.max(0, saldo)`, escondiendo el crédito). **Excepción sin cubrir:** el pago **directo** que registra el dueño (botones 💸/💰 en su panel, sin pasar por una solicitud del distribuidor) no tiene split — el 100% siempre va a `pagadoVentas`, así que un sobrepago por esa vía se vuelve crédito automático sin que el dueño pueda elegir mandarlo a deuda.
+
 ### `solicitudes_pago`
 ```sql
 id              UUID PRIMARY KEY DEFAULT gen_random_uuid()

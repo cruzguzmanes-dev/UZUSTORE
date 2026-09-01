@@ -648,8 +648,9 @@ export default function DistribuidorDashboard({ slug }) {
           <div className={`saldo-card ${saldo > 0 ? "debe" : "ok"}`}>
             <p className="saldo-label">{isAdmin ? "Te deben actualmente" : "Le debes al proveedor"}</p>
             <p className="saldo-monto" style={{ color: saldo > 0 ? "var(--accent)" : "#7ecc7e" }}>
-              {fmt(Math.max(0, saldo))}
-              {saldo <= 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
+              {saldo < 0 ? fmt(0) : fmt(saldo)}
+              {saldo === 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ Al corriente</span>}
+              {saldo < 0 && <span style={{ fontSize: 12, color: "#7ecc7e", marginLeft: 8 }}>✓ {fmt(-saldo)} a favor</span>}
             </p>
             <p className="saldo-sub">
               {totalVendidas} vendidas · {isAdmin ? "Ya te pagaron" : "Ya pagaste"} {fmt(pagadoVentas)}
@@ -931,7 +932,7 @@ export default function DistribuidorDashboard({ slug }) {
               </div>
               <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
                 <p className="pay-lbl" style={{ marginBottom: 4 }}>Saldo</p>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: saldo > 0 ? "var(--accent)" : "#7ecc7e" }}>{fmt(Math.max(0, saldo))}</p>
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, fontFamily: "'Space Mono', monospace", color: saldo > 0 ? "var(--accent)" : "#7ecc7e" }}>{fmt(saldo)}</p>
               </div>
             </div>
 
