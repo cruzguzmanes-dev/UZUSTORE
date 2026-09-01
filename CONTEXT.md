@@ -267,7 +267,7 @@ resolved_at     TIMESTAMPTZ   -- cuándo se aceptó/rechazó
 ```
 Flujo de pagos en 2 fases: el distribuidor crea la solicitud (`pendiente`); el dueño o el PRO la acepta (inserta pago real + marca `aceptado`) o la rechaza. Migración: `migrations/006-solicitudes-pago.sql`.
 
-**Botón "🏦 Abonar a deuda"** (migración `010-solicitud-abono.sql`): en el portal del distribuidor, siempre visible. Crea una solicitud con `es_abono=true` (dinero que NO viene de ventas). Al aceptarla (dueño/PRO), se omite el split y el pago se crea con `monto_deuda = monto` (todo a deuda vieja, no toca el saldo de ventas). En "Pagos por aceptar" y "Mis pagos" se marca con badge "🏦 abono a deuda".
+**Botón "🏦 Abonar a deuda"** (migración `010-solicitud-abono.sql`): en el portal del distribuidor, **solo rol básico** (el que paga; el PRO cobra, no paga — mismo criterio que el botón "Pagar"). Crea una solicitud con `es_abono=true` (dinero que NO viene de ventas). Al aceptarla (dueño/PRO), se omite el split y el pago se crea con `monto_deuda = monto` (todo a deuda vieja, no toca el saldo de ventas). En "Pagos por aceptar" y "Mis pagos" se marca con badge "🏦 abono a deuda".
 
 ### `ventas_sueltas`
 ```sql
@@ -377,6 +377,7 @@ Archivos: `src/pages/distribuidor/`
 | Toggle "ver mi precio de venta" (localStorage) | oculto* | — |
 | **Eliminar artículos** | ❌ | ❌ |
 | Ver saldo al proveedor + **solicitar** pago (total/parcial) | ✅ | ✅ |
+| Botón **"🏦 Abonar a deuda"** | ✅ | ❌ |
 | Subir inventario con **precio de mayoreo** (como el dueño) | ❌ | ✅ |
 | **Aceptar/rechazar** solicitudes de pago | ❌ | ✅ |
 | Registrar **venta suelta** (pieza sin inventario, solo nombre) | ✅ | ❌ |

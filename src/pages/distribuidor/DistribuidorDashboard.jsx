@@ -687,12 +687,14 @@ export default function DistribuidorDashboard({ slug }) {
           </button>
         </div>
 
-        {/* Abonar a deuda — siempre disponible (dinero que no viene de ventas) */}
+        {/* Abonar a deuda — solo el vendedor paga, el PRO cobra */}
+        {!isAdmin && (
         <button
           onClick={() => { setAbonoMonto(""); setAbonoSheet(true); }}
           style={{ width: "100%", background: "rgba(126,204,126,0.06)", border: "1px solid rgba(126,204,126,0.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#7ecc7e", fontFamily: "'Space Mono', monospace", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
           🏦 Abonar a deuda
         </button>
+        )}
 
         {/* Registrar venta de pieza NO inventariada — solo NORMAL */}
         {!isAdmin && (
