@@ -1,0 +1,187 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
+import TagInput from "@/components/admin/TagInput";
+import ImageUploader from "@/components/admin/ImageUploader";
+import CategorySelect from "@/components/admin/CategorySelect";
+
+const VACIO = {
+  nombre: "",
+  descripcion: "",
+  precio: "",
+  costo: "",
+  stock: "0",
+  estado: "activo",
+  categoria_id: null,
+  categoria_nueva: "",
+  tags: [],
+  imagenes: [],
+};
+
+export default function ItemFormPage() {
+  const { id } = useParams();
+  const esNuevo = id === "nuevo";
+  const router = useRouter();
+
+  const [form, setForm] = useState(VACIO);
+  const [categorias, setCategorias] = useState([]);
+  const [cargando, setCargando] = useState(!esNuevo);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/admin/categorias")
+      .then((r) => r.json())
+      .then(setCategorias)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (esNuevo) return;
+    fetch(`/api/admin/items/${id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setForm({
+          nombre: data.nombre || "",
+          descripcion: data.descripcion || "",
+          precio: String(data.precio ?? ""),
+          costo: data.costo != null ? String(data.costo) : "",
+          stock: String(data.stock ?? 0),
+          estado: data.estado || "activo",
+          categoria_id: data.categoria_id || null,
+          categoria_nueva: "",
+          tags: data.tags || [],
+          imagenes: (data.imagenes || []).map((i) => i.url),
+        });
+      })
+      .finally(() => setCargando(false));
+  }, [id, esNuevo]);
+
+  const guardar = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!form.nombre.trim() || !form.precio) {
+      setError("Nombre y precio son requeridos");
+      return;
+    }
+    setGuardando(true);
+    try {
+      const res = await fetch(esNuevo ? "/api/admin/items" : `/api/admin/items/${id}`, {
+        method: esNuevo ? "POST" : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error guardando");
+      router.push("/admin/items");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (cargando) return <p className="text-white/40">Cargando...</p>;
+
+  return (
+    <form onSubmit={guardar} className="max-w-xl">
+      <h1 className="mb-5 font-display text-lg font-extrabold text-white">
+        {esNuevo ? "Nuevo item" : "Editar item"}
+      </h1>
+
+      <Campo label="Nombre *">
+        <input
+          value={form.nombre}
+          onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+        />
+      </Campo>
+
+      <Campo label="Descripción">
+        <textarea
+          value={form.descripcion}
+          onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+          rows={4}
+          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+        />
+      </Campo>
+
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <Campo label="Precio *">
+          <input
+            type="number" step="0.01" min="0"
+            value={form.precio}
+            onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))}
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          />
+        </Campo>
+        <Campo label="Costo (opcional)">
+          <input
+            type="number" step="0.01" min="0"
+            value={form.costo}
+            onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))}
+            placeholder="Solo tú lo ves"
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
+          />
+        </Campo>
+        <Campo label="Stock">
+          <input
+            type="number" min="0"
+            value={form.stock}
+            onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          />
+        </Campo>
+      </div>
+
+      <Campo label="Categoría">
+        <CategorySelect
+          categorias={categorias}
+          categoriaId={form.categoria_id}
+          categoriaNueva={form.categoria_nueva}
+          onChange={({ categoria_id, categoria_nueva }) => setForm((f) => ({ ...f, categoria_id, categoria_nueva }))}
+        />
+      </Campo>
+
+      <Campo label="Tags">
+        <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
+      </Campo>
+
+      <Campo label="Estado">
+        <select
+          value={form.estado}
+          onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
+          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none"
+        >
+          <option value="activo">Activo</option>
+          <option value="agotado">Agotado</option>
+          <option value="oculto">Oculto (no aparece en el catálogo)</option>
+        </select>
+      </Campo>
+
+      <Campo label="Fotos">
+        <ImageUploader value={form.imagenes} onChange={(imagenes) => setForm((f) => ({ ...f, imagenes }))} />
+      </Campo>
+
+      {error && <p className="mb-4 text-sm text-red-400">⚠ {error}</p>}
+
+      <button
+        type="submit"
+        disabled={guardando}
+        className="rounded-lg bg-brand px-6 py-2.5 font-display font-bold text-white disabled:opacity-50"
+      >
+        {guardando ? "Guardando..." : "Guardar →"}
+      </button>
+    </form>
+  );
+}
+
+function Campo({ label, children }) {
+  return (
+    <div className="mb-4">
+      <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">{label}</label>
+      {children}
+    </div>
+  );
+}
