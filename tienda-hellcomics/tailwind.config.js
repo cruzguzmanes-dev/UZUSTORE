@@ -4,12 +4,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Paleta placeholder -- se reemplaza cuando compartan el logo/marca real.
+        // Tomada del logo: fondo negro, fuego naranja/rojo, calavera con ojos ámbar.
         brand: {
-          DEFAULT: "#e11d2e",
-          dark: "#0c0c0f",
-          surface: "#17171c",
-          surface2: "#202028",
+          DEFAULT: "#ff5e14",       // naranja fuego -- botones, precios, acentos
+          dark: "#0a0a0a",          // fondo, igual que el logo
+          surface: "#18130f",       // gris cálido en vez de frío, para que combine con el fuego
+          surface2: "#241a12",
+          "flame-start": "#7c1d1d", // rojo profundo del borde de las llamas
+          "flame-end": "#facc15",   // amarillo de la punta caliente
         },
       },
       fontFamily: {
