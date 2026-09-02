@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import TagInput from "@/components/admin/TagInput";
 import ImageUploader from "@/components/admin/ImageUploader";
 import CategorySelect from "@/components/admin/CategorySelect";
+import { slugify } from "@/lib/slugify";
 
 const VACIO = {
   nombre: "",
@@ -100,6 +101,14 @@ export default function ItemFormPage() {
           onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
           className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
         />
+        <p className="mt-1.5 text-xs text-white/40">
+          {esNuevo
+            ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores. Ponle algo claro y completo."
+            : "Este nombre ya no cambia el link del producto (para no romper links ya compartidos) -- se mantiene el que se generó al crearlo."}
+          {esNuevo && form.nombre.trim() && (
+            <span className="mt-1 block font-mono text-white/50">/producto/{slugify(form.nombre) || "..."}</span>
+          )}
+        </p>
       </Campo>
 
       <Campo label="Descripción">
