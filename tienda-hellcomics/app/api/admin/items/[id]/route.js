@@ -31,8 +31,8 @@ export async function PUT(req, { params }) {
   if (guard) return guard;
 
   const body = await req.json().catch(() => ({}));
-  if (!body.nombre?.trim() || body.precio == null || body.precio === "") {
-    return NextResponse.json({ error: "Nombre y precio son requeridos" }, { status: 400 });
+  if (body.precio == null || body.precio === "") {
+    return NextResponse.json({ error: "El precio es requerido" }, { status: 400 });
   }
   if (!body.imagenes || body.imagenes.length === 0) {
     return NextResponse.json({ error: "Agrega al menos una foto" }, { status: 400 });
@@ -41,10 +41,12 @@ export async function PUT(req, { params }) {
   const db = supabaseAdmin();
   const categoria_id = await resolverCategoria(db, body);
 
+  // El nombre nunca se toca aquí a propósito -- ya generó el link del producto al
+  // crearse, y el panel deja el campo bloqueado en edición para no romper links
+  // compartidos. Aunque llegara un "nombre" distinto en el body, se ignora.
   const { data: item, error } = await db
     .from("items")
     .update({
-      nombre: body.nombre.trim(),
       descripcion: body.descripcion?.trim() || null,
       precio: parseFloat(body.precio),
       costo: body.costo != null && body.costo !== "" ? parseFloat(body.costo) : null,

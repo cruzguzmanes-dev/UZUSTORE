@@ -99,12 +99,13 @@ export default function ItemFormPage() {
         <input
           value={form.nombre}
           onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          disabled={!esNuevo}
+          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
         />
         <p className="mt-1.5 text-xs text-white/40">
           {esNuevo
-            ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores. Ponle algo claro y completo."
-            : "Este nombre ya no cambia el link del producto (para no romper links ya compartidos) -- se mantiene el que se generó al crearlo."}
+            ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores. Ponle algo claro y completo: ya no se va a poder editar después."
+            : "El nombre ya no se puede editar una vez creado el item (protege el link que ya se compartió). Si de plano está mal, borra este item y crea uno nuevo."}
           {esNuevo && form.nombre.trim() && (
             <span className="mt-1 block font-mono text-white/50">/producto/{slugify(form.nombre) || "..."}</span>
           )}
