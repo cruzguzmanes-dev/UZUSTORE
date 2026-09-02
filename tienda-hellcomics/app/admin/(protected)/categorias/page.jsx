@@ -39,8 +39,14 @@ export default function CategoriasPage() {
   };
 
   const eliminar = async (cat) => {
-    await fetch(`/api/admin/categorias/${cat.id}`, { method: "DELETE" });
+    setError("");
+    const res = await fetch(`/api/admin/categorias/${cat.id}`, { method: "DELETE" });
     setBorrando(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "No se pudo eliminar");
+      return;
+    }
     cargar();
   };
 
