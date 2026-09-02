@@ -38,6 +38,9 @@ export async function POST(req) {
   if (!body.nombre?.trim() || body.precio == null || body.precio === "") {
     return NextResponse.json({ error: "Nombre y precio son requeridos" }, { status: 400 });
   }
+  if (!body.imagenes || body.imagenes.length === 0) {
+    return NextResponse.json({ error: "Agrega al menos una foto" }, { status: 400 });
+  }
 
   const db = supabaseAdmin();
   const categoria_id = await resolverCategoria(db, body);
@@ -60,7 +63,17 @@ export async function POST(req) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) {
+    // 23505 = unique_violation -- el slug ya existe (colisión rarísima de dos altas
+    // simultáneas con el mismo nombre; slugUnico ya revisa antes, esto es el respaldo).
+    if (error.code === "23505") {
+      return NextResponse.json(
+        { error: "Ya existe un item con ese nombre -- usa uno un poco distinto." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
 
   await guardarTags(db, item.id, body.tags || []);
   await guardarImagenes(db, item.id, body.imagenes || []);

@@ -65,6 +65,10 @@ export default function ItemFormPage() {
       setError("Nombre y precio son requeridos");
       return;
     }
+    if (form.imagenes.length === 0) {
+      setError("Agrega al menos una foto");
+      return;
+    }
     setGuardando(true);
     try {
       const res = await fetch(esNuevo ? "/api/admin/items" : `/api/admin/items/${id}`, {
@@ -160,7 +164,7 @@ export default function ItemFormPage() {
         </select>
       </Campo>
 
-      <Campo label="Fotos">
+      <Campo label="Fotos *">
         <ImageUploader value={form.imagenes} onChange={(imagenes) => setForm((f) => ({ ...f, imagenes }))} />
       </Campo>
 
