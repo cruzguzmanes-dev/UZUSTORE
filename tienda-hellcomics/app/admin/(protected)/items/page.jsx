@@ -11,6 +11,7 @@ export default function AdminItemsPage() {
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
   const [borrando, setBorrando] = useState(null);
+  const [avisoDestacados, setAvisoDestacados] = useState("");
 
   const fetchItems = useCallback(async () => {
     setCargando(true);
@@ -48,13 +49,20 @@ export default function AdminItemsPage() {
   };
 
   const toggleDestacado = async (item) => {
+    setAvisoDestacados("");
     const nuevo = !item.destacado;
+    // Optimista, pero se revierte si el servidor lo rechaza (ej. tope de 20).
     setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, destacado: nuevo } : it)));
-    await fetch(`/api/admin/items/${item.id}`, {
+    const res = await fetch(`/api/admin/items/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ destacado: nuevo }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, destacado: !nuevo } : it)));
+      setAvisoDestacados(data.error || "No se pudo actualizar");
+    }
   };
 
   const eliminar = async (item) => {
@@ -92,15 +100,22 @@ export default function AdminItemsPage() {
     </button>
   );
 
+  const DestacadoButton = ({ item }) => (
+    <button
+      onClick={() => toggleDestacado(item)}
+      title="Últimas oportunidades (Home)"
+      className={`rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
+        item.destacado
+          ? "bg-brand text-white"
+          : "border border-white/15 text-white/50 hover:border-brand hover:text-white"
+      }`}
+    >
+      {item.destacado ? "★ Está en destacados" : "Mostrar en destacados"}
+    </button>
+  );
+
   const Acciones = ({ item }) => (
     <div className="flex items-center justify-end gap-3">
-      <button
-        onClick={() => toggleDestacado(item)}
-        title="Últimas oportunidades (Home)"
-        className={item.destacado ? "text-brand" : "text-white/25 hover:text-white/50"}
-      >
-        {item.destacado ? "★" : "☆"}
-      </button>
       <Link href={`/admin/items/${item.id}`} className="text-white/50 hover:text-white">
         ✎
       </Link>
@@ -148,6 +163,12 @@ export default function AdminItemsPage() {
         </select>
       </div>
 
+      {avisoDestacados && (
+        <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          ⚠ {avisoDestacados}
+        </p>
+      )}
+
       {cargando ? (
         <p className="text-white/40">Cargando...</p>
       ) : items.length === 0 ? (
@@ -173,6 +194,9 @@ export default function AdminItemsPage() {
                   <StockControl item={item} />
                   <EstadoToggle item={item} />
                 </div>
+                <div className="mt-3">
+                  <DestacadoButton item={item} />
+                </div>
                 <div className="mt-3 border-t border-white/5 pt-2.5">
                   <Acciones item={item} />
                 </div>
@@ -189,6 +213,7 @@ export default function AdminItemsPage() {
                   <th className="px-3 py-2">Precio</th>
                   <th className="px-3 py-2">Stock</th>
                   <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Destacado</th>
                   <th className="px-3 py-2" />
                 </tr>
               </thead>
@@ -213,6 +238,9 @@ export default function AdminItemsPage() {
                     </td>
                     <td className="px-3 py-2">
                       <EstadoToggle item={item} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <DestacadoButton item={item} />
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Acciones item={item} />

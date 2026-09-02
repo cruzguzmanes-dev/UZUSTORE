@@ -73,10 +73,26 @@ export async function PATCH(req, { params }) {
   if (guard) return guard;
 
   const body = await req.json().catch(() => ({}));
+  const db = supabaseAdmin();
+
   const patch = {};
   if (body.stock !== undefined) patch.stock = Math.max(0, parseInt(body.stock, 10) || 0);
   if (body.estado !== undefined) patch.estado = body.estado;
   if (body.destacado !== undefined) {
+    if (body.destacado) {
+      // Límite de 20 destacados a la vez -- se checa en el servidor (no en lo que esté
+      // filtrado/cargado del lado del cliente, que puede no reflejar el total real).
+      const { count } = await db
+        .from("items")
+        .select("id", { count: "exact", head: true })
+        .eq("destacado", true);
+      if ((count || 0) >= 20) {
+        return NextResponse.json(
+          { error: "Ya tienes 20 productos en destacados (el máximo) -- quita alguno primero." },
+          { status: 400 }
+        );
+      }
+    }
     patch.destacado = !!body.destacado;
     patch.destacado_at = body.destacado ? new Date().toISOString() : null;
   }
@@ -85,7 +101,6 @@ export async function PATCH(req, { params }) {
     return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
   }
 
-  const db = supabaseAdmin();
   const { data, error } = await db.from("items").update(patch).eq("id", params.id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data);
