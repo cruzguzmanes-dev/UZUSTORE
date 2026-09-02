@@ -28,6 +28,12 @@ export default function ResultsList({ q, categoria }) {
       if (categoria) params.set("categoria", categoria);
       const res = await fetch(`/api/publico/resultados?${params}`);
       const data = await res.json();
+      // Si el server devolvió un error ({error: "..."}), data no es un arreglo --
+      // no crashear el render, solo dejar de pedir más.
+      if (!res.ok || !Array.isArray(data)) {
+        setHayMas(false);
+        return;
+      }
       setItems((prev) => [...prev, ...data]);
       setHayMas(data.length === PAGE_SIZE);
       setOffset((o) => o + data.length);
