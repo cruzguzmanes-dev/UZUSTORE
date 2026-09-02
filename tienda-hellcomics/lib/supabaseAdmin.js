@@ -5,10 +5,17 @@ import { createClient } from "@supabase/supabase-js";
 // un componente con "use client".
 let client = null;
 
+// Quita cualquier carácter que no sea ASCII imprimible (ej. viñetas "•", comillas
+// "curvas", espacios raros de un copy-paste) -- una URL o un JWT reales nunca los
+// llevan, así que es seguro limpiarlos en vez de tronar con un error críptico de fetch.
+function limpiar(valor) {
+  return (valor || "").replace(/[^\x20-\x7E]/g, "").trim();
+}
+
 export function supabaseAdmin() {
   if (client) return client;
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = limpiar(process.env.SUPABASE_URL);
+  const key = limpiar(process.env.SUPABASE_SERVICE_ROLE_KEY);
   if (!url || !key) {
     throw new Error("Faltan SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY en las variables de entorno");
   }
