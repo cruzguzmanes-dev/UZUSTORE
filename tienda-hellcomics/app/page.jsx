@@ -36,7 +36,7 @@ export default async function HomePage() {
                 <Link
                   key={c.id}
                   href={`/resultados?categoria=${c.slug}`}
-                  className="rounded-full border border-white/15 px-4 py-1.5 text-sm text-white/80 transition hover:border-brand hover:text-white"
+                  className="rounded-full bg-gradient-to-r from-brand-flame-start to-brand px-4 py-2 text-sm font-semibold text-white shadow-md shadow-black/30 transition hover:scale-105 hover:shadow-lg hover:shadow-brand/30 active:scale-95"
                 >
                   {c.nombre}
                 </Link>
