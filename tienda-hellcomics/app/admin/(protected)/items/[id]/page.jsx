@@ -116,7 +116,12 @@ export default function ItemFormPage() {
             <span className="mt-1 block font-mono text-white/50">{origin}/producto/{slugify(form.nombre) || "..."}</span>
           )}
           {!esNuevo && slugExistente && (
-            <span className="mt-1 block font-mono text-white/50">{origin}/producto/{slugExistente}</span>
+            <span className="mt-2 block">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-brand">
+                Este es el link de este producto
+              </span>
+              <span className="font-mono text-brand">{origin}/producto/{slugExistente}</span>
+            </span>
           )}
         </p>
       </Campo>
