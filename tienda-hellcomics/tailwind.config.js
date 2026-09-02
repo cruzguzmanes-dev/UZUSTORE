@@ -15,8 +15,11 @@ module.exports = {
         },
       },
       fontFamily: {
-        display: ["var(--font-display)", "sans-serif"],
-        mono: ["var(--font-mono)", "monospace"],
+        // Una sola familia legible (Inter) para todo -- display y mono apuntan a lo
+        // mismo para no tener que tocar los className existentes uno por uno.
+        sans: ["var(--font-sans)", "sans-serif"],
+        display: ["var(--font-sans)", "sans-serif"],
+        mono: ["var(--font-sans)", "sans-serif"],
       },
     },
   },
