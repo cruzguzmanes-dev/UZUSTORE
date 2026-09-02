@@ -23,8 +23,25 @@ async function getCategorias() {
   return data || [];
 }
 
+// Curado a mano por el dueño (⭐ en /admin/items) -- no es automático por stock/fecha.
+async function getOportunidades() {
+  const db = supabaseAdmin();
+  const { data } = await db
+    .from("items")
+    .select("id,nombre,slug,precio,stock,estado,categorias(nombre,slug),imagenes(url,orden)")
+    .eq("estado", "activo")
+    .eq("destacado", true)
+    .order("destacado_at", { ascending: false })
+    .limit(12);
+  return (data || []).map((it) => ({ ...it, imagenes: (it.imagenes || []).sort((a, b) => a.orden - b.orden) }));
+}
+
 export default async function HomePage() {
-  const [novedades, categorias] = await Promise.all([getNovedades(), getCategorias()]);
+  const [novedades, categorias, oportunidades] = await Promise.all([
+    getNovedades(),
+    getCategorias(),
+    getOportunidades(),
+  ]);
 
   return (
     <div>
@@ -41,6 +58,22 @@ export default async function HomePage() {
                 >
                   {c.nombre}
                 </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {oportunidades.length > 0 && (
+          <section className="mb-8">
+            <div className="mb-4 flex items-center gap-2">
+              <span className="text-lg">🔥</span>
+              <h2 className="font-display text-lg font-extrabold uppercase tracking-wide text-white">
+                Últimas oportunidades
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {oportunidades.map((item) => (
+                <ItemCard key={item.id} item={item} />
               ))}
             </div>
           </section>

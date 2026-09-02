@@ -66,7 +66,8 @@ export async function PUT(req, { params }) {
   return NextResponse.json(item);
 }
 
-// PATCH /api/admin/items/:id -- ediciones rápidas desde la lista (stock +/-, toggle de estado)
+// PATCH /api/admin/items/:id -- ediciones rápidas desde la lista (stock +/-, toggle de
+// estado, toggle de destacado)
 export async function PATCH(req, { params }) {
   const guard = requireAdmin();
   if (guard) return guard;
@@ -75,6 +76,10 @@ export async function PATCH(req, { params }) {
   const patch = {};
   if (body.stock !== undefined) patch.stock = Math.max(0, parseInt(body.stock, 10) || 0);
   if (body.estado !== undefined) patch.estado = body.estado;
+  if (body.destacado !== undefined) {
+    patch.destacado = !!body.destacado;
+    patch.destacado_at = body.destacado ? new Date().toISOString() : null;
+  }
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });

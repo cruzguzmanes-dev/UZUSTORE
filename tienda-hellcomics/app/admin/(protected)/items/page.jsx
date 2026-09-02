@@ -47,6 +47,16 @@ export default function AdminItemsPage() {
     });
   };
 
+  const toggleDestacado = async (item) => {
+    const nuevo = !item.destacado;
+    setItems((prev) => prev.map((it) => (it.id === item.id ? { ...it, destacado: nuevo } : it)));
+    await fetch(`/api/admin/items/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destacado: nuevo }),
+    });
+  };
+
   const eliminar = async (item) => {
     await fetch(`/api/admin/items/${item.id}`, { method: "DELETE" });
     setItems((prev) => prev.filter((it) => it.id !== item.id));
@@ -145,6 +155,13 @@ export default function AdminItemsPage() {
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => toggleDestacado(item)}
+                        title="Últimas oportunidades (Home)"
+                        className={item.destacado ? "text-brand" : "text-white/25 hover:text-white/50"}
+                      >
+                        {item.destacado ? "★" : "☆"}
+                      </button>
                       <Link href={`/admin/items/${item.id}`} className="text-white/50 hover:text-white">
                         ✎
                       </Link>
