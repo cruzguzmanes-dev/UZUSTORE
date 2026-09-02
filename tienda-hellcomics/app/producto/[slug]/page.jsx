@@ -131,7 +131,7 @@ export default async function ProductoPage({ params }) {
               rel="noopener noreferrer"
               className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
             >
-              💬 Me interesa — escribir por WhatsApp
+              💬 Me interesa
             </a>
           </div>
         </div>
