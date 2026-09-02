@@ -111,7 +111,7 @@ export default function ItemFormPage() {
         <p className="mt-1.5 text-xs text-white/40">
           {esNuevo
             ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores."
-            : "El nombre lo puedes editar cuando quieras. Lo que NO cambia es el link de abajo (aunque edites el nombre) -- así nunca se rompe un link que ya compartiste."}
+            : "El nombre lo puedes editar cuando quieras (ej. de \"Spiderman\" a \"Spiderman 4\"). Lo que NO cambia es el link de abajo -- se queda tal cual como en la creación, así nunca se rompe un link que ya compartiste."}
           {esNuevo && form.nombre.trim() && (
             <span className="mt-1 block font-mono text-white/50">{origin}/producto/{slugify(form.nombre) || "..."}</span>
           )}
