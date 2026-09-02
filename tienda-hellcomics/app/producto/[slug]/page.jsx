@@ -119,7 +119,7 @@ export default async function ProductoPage({ params }) {
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {item.tags.map((t) => (
                   <span key={t.id} className="rounded-full bg-white/5 px-2.5 py-1 text-[11px] text-white/50">
-                    #{t.nombre}
+                    {t.nombre}
                   </span>
                 ))}
               </div>
