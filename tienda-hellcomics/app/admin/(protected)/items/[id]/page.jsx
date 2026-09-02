@@ -26,10 +26,16 @@ export default function ItemFormPage() {
   const router = useRouter();
 
   const [form, setForm] = useState(VACIO);
+  const [slugExistente, setSlugExistente] = useState(""); // solo en edición, el link ya fijo del item
   const [categorias, setCategorias] = useState([]);
   const [cargando, setCargando] = useState(!esNuevo);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     fetch("/api/admin/categorias")
@@ -55,6 +61,7 @@ export default function ItemFormPage() {
           tags: data.tags || [],
           imagenes: (data.imagenes || []).map((i) => i.url),
         });
+        setSlugExistente(data.slug || "");
       })
       .finally(() => setCargando(false));
   }, [id, esNuevo]);
@@ -99,15 +106,17 @@ export default function ItemFormPage() {
         <input
           value={form.nombre}
           onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-          disabled={!esNuevo}
-          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
         />
         <p className="mt-1.5 text-xs text-white/40">
           {esNuevo
-            ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores. Ponle algo claro y completo: ya no se va a poder editar después."
-            : "El nombre ya no se puede editar una vez creado el item (protege el link que ya se compartió). Si de plano está mal, borra este item y crea uno nuevo."}
+            ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores."
+            : "El nombre lo puedes editar cuando quieras. Lo que NO cambia es el link de abajo (aunque edites el nombre) -- así nunca se rompe un link que ya compartiste."}
           {esNuevo && form.nombre.trim() && (
-            <span className="mt-1 block font-mono text-white/50">/producto/{slugify(form.nombre) || "..."}</span>
+            <span className="mt-1 block font-mono text-white/50">{origin}/producto/{slugify(form.nombre) || "..."}</span>
+          )}
+          {!esNuevo && slugExistente && (
+            <span className="mt-1 block font-mono text-white/50">{origin}/producto/{slugExistente}</span>
           )}
         </p>
       </Campo>
