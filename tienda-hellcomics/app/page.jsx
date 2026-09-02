@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import ItemCard from "@/components/ItemCard";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
@@ -64,6 +65,7 @@ export default async function HomePage() {
           )}
         </section>
       </main>
+      <Footer />
     </div>
   );
 }
