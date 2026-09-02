@@ -38,7 +38,8 @@ export default function AdminLoginPage() {
 
         <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">Código de acceso</label>
         <input
-          type="password"
+          type="text"
+          autoComplete="off"
           value={codigo}
           onChange={(e) => setCodigo(e.target.value)}
           autoFocus

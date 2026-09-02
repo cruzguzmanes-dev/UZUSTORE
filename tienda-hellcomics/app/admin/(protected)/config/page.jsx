@@ -48,7 +48,8 @@ export default function ConfigPage() {
         Cambiar código de acceso (dejar vacío para no cambiarlo)
       </label>
       <input
-        type="password"
+        type="text"
+        autoComplete="off"
         value={nuevoCodigo}
         onChange={(e) => setNuevoCodigo(e.target.value)}
         placeholder="Nuevo código (mínimo 8 caracteres)"
