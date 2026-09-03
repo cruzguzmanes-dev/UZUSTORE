@@ -1,7 +1,7 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import ItemCard from "@/components/ItemCard";
+import ProductGallery from "@/components/ProductGallery";
 import TallaSelector from "@/components/TallaSelector";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { linkWhatsapp } from "@/lib/whatsapp";
@@ -84,22 +84,7 @@ export default async function ProductoPage({ params }) {
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
         <div className="grid gap-8 md:grid-cols-2">
           <div>
-            <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl border border-white/10 bg-brand-surface">
-              {item.imagenes[0] ? (
-                <Image src={item.imagenes[0].url} alt={item.nombre} fill className="object-cover" priority />
-              ) : (
-                <div className="flex h-full items-center justify-center text-white/20">Sin foto</div>
-              )}
-            </div>
-            {item.imagenes.length > 1 && (
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                {item.imagenes.slice(1).map((img) => (
-                  <div key={img.url} className="relative aspect-square overflow-hidden rounded-lg border border-white/10">
-                    <Image src={img.url} alt={item.nombre} fill className="object-cover" />
-                  </div>
-                ))}
-              </div>
-            )}
+            <ProductGallery imagenes={item.imagenes} nombre={item.nombre} />
           </div>
 
           <div>
