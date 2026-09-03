@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import VenderModal from "@/components/admin/VenderModal";
 
 const fmt = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0);
 
@@ -12,6 +13,7 @@ export default function AdminItemsPage() {
   const [estado, setEstado] = useState("");
   const [borrando, setBorrando] = useState(null);
   const [avisoDestacados, setAvisoDestacados] = useState("");
+  const [vendiendo, setVendiendo] = useState(null);
 
   const fetchItems = useCallback(async () => {
     setCargando(true);
@@ -123,6 +125,9 @@ export default function AdminItemsPage() {
 
   const Acciones = ({ item }) => (
     <div className="flex items-center justify-end gap-3">
+      <button onClick={() => setVendiendo(item)} className="text-xs font-semibold text-brand hover:underline">
+        Vender
+      </button>
       <Link href={`/admin/items/${item.id}`} className="text-white/50 hover:text-white">
         ✎
       </Link>
@@ -258,6 +263,17 @@ export default function AdminItemsPage() {
             </table>
           </div>
         </>
+      )}
+
+      {vendiendo && (
+        <VenderModal
+          item={vendiendo}
+          onClose={() => setVendiendo(null)}
+          onVendido={(nuevoStock) => {
+            setItems((prev) => prev.map((it) => (it.id === vendiendo.id ? { ...it, stock: nuevoStock } : it)));
+            setVendiendo(null);
+          }}
+        />
       )}
     </div>
   );
