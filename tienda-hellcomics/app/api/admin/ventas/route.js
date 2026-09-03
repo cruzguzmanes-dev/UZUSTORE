@@ -24,13 +24,23 @@ export async function GET() {
 
   const db = supabaseAdmin();
 
+  // Ingresos: las ventas sueltas (sin grupo) se cuentan por su total normal, pero las
+  // que son parte de una venta combinada NO se suman línea por línea (eso duplicaría el
+  // precio de lista) -- se cuenta una sola vez el total real cobrado en venta_grupos.
   const sumar = async (desde) => {
-    let q = db.from("ventas").select("total, cantidad");
-    if (desde) q = q.gte("created_at", desde);
-    const { data } = await q;
+    let qSueltas = db.from("ventas").select("total, cantidad").is("grupo_id", null);
+    let qGrupos = db.from("venta_grupos").select("total");
+    let qPiezas = db.from("ventas").select("cantidad");
+    if (desde) {
+      qSueltas = qSueltas.gte("created_at", desde);
+      qGrupos = qGrupos.gte("created_at", desde);
+      qPiezas = qPiezas.gte("created_at", desde);
+    }
+    const [{ data: sueltas }, { data: grupos }, { data: piezas }] = await Promise.all([qSueltas, qGrupos, qPiezas]);
     return {
-      ingresos: (data || []).reduce((s, v) => s + Number(v.total), 0),
-      piezas: (data || []).reduce((s, v) => s + v.cantidad, 0),
+      ingresos:
+        (sueltas || []).reduce((s, v) => s + Number(v.total), 0) + (grupos || []).reduce((s, g) => s + Number(g.total), 0),
+      piezas: (piezas || []).reduce((s, v) => s + v.cantidad, 0),
     };
   };
 
@@ -41,11 +51,32 @@ export async function GET() {
     sumar(null),
   ]);
 
-  const { data: recientes } = await db
+  const { data: recientesSueltas } = await db
     .from("ventas")
-    .select("id, item_id, item_nombre, talla, cantidad, precio_unitario, total, created_at")
+    .select("id, item_nombre, talla, cantidad, total, created_at")
+    .is("grupo_id", null)
     .order("created_at", { ascending: false })
     .limit(50);
+
+  const { data: gruposRecientes } = await db
+    .from("venta_grupos")
+    .select("id, subtotal, total, created_at, ventas(item_nombre, talla, cantidad)")
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const recientes = [
+    ...(recientesSueltas || []).map((v) => ({ tipo: "simple", id: `v${v.id}`, ...v })),
+    ...(gruposRecientes || []).map((g) => ({
+      tipo: "grupo",
+      id: `g${g.id}`,
+      subtotal: g.subtotal,
+      total: g.total,
+      created_at: g.created_at,
+      lineas: g.ventas || [],
+    })),
+  ]
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 50);
 
   const { data: ultimoMes } = await db
     .from("ventas")
@@ -67,7 +98,7 @@ export async function GET() {
     semana,
     mes,
     total,
-    recientes: (recientes || []).map((v) => ({ ...v, dia: fechaMx(v.created_at) })),
+    recientes: recientes.map((v) => ({ ...v, dia: fechaMx(v.created_at) })),
     topVendidos,
   });
 }
