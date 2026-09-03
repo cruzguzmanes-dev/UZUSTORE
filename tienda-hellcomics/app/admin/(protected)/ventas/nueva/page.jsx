@@ -35,6 +35,7 @@ export default function NuevaVentaPage() {
         nombre: item.nombre,
         precio: item.precio,
         tiene_tallas: item.tiene_tallas,
+        stock: item.stock, // solo se usa si NO tiene tallas -- si tiene, el límite es el de la talla elegida
         talla: "",
         tallas: item.tiene_tallas ? null : undefined, // null = cargando, undefined = no aplica
         cantidad: "1",
@@ -56,6 +57,32 @@ export default function NuevaVentaPage() {
     setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: valor } : l)));
 
   const quitar = (key) => setLineas((prev) => prev.filter((l) => l.key !== key));
+
+  // Cuánto hay disponible para esa línea -- del stock de la talla elegida, o del stock
+  // simple si el item no maneja tallas. Mientras cargan las tallas, no se sabe: 1.
+  const maxDisponible = (l) => {
+    if (l.tiene_tallas) return l.tallas?.find((v) => v.talla === l.talla)?.stock ?? 1;
+    return l.stock ?? 1;
+  };
+
+  // Cambia la talla y, si la nueva talla tiene menos stock que la cantidad ya puesta,
+  // la recorta para que no quede una cantidad imposible de vender.
+  const cambiarTalla = (l, talla) => {
+    const nuevoMax = l.tallas?.find((v) => v.talla === talla)?.stock ?? 1;
+    setLineas((prev) =>
+      prev.map((x) =>
+        x.key === l.key
+          ? { ...x, talla, cantidad: String(Math.min(parseInt(x.cantidad, 10) || 1, Math.max(1, nuevoMax))) }
+          : x
+      )
+    );
+  };
+
+  const cambiarCantidad = (l, valor) => {
+    const max = Math.max(1, maxDisponible(l));
+    const limpio = valor === "" ? "" : String(Math.max(1, Math.min(parseInt(valor, 10) || 1, max)));
+    actualizar(l.key, "cantidad", limpio);
+  };
 
   const subtotal = lineas.reduce((s, l) => s + l.precio * (parseInt(l.cantidad, 10) || 0), 0);
   const totalNum = total === "" ? subtotal : parseFloat(total) || 0;
@@ -149,7 +176,7 @@ export default function NuevaVentaPage() {
                 ) : (
                   <select
                     value={l.talla}
-                    onChange={(e) => actualizar(l.key, "talla", e.target.value)}
+                    onChange={(e) => cambiarTalla(l, e.target.value)}
                     className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-xs text-white outline-none"
                   >
                     {l.tallas.map((v) => (
@@ -160,13 +187,17 @@ export default function NuevaVentaPage() {
                   </select>
                 ))}
 
-              <input
-                type="number"
-                min="1"
-                value={l.cantidad}
-                onChange={(e) => actualizar(l.key, "cantidad", e.target.value)}
-                className="w-14 rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-center text-sm text-white outline-none"
-              />
+              <div className="flex flex-col items-center">
+                <input
+                  type="number"
+                  min="1"
+                  max={maxDisponible(l)}
+                  value={l.cantidad}
+                  onChange={(e) => cambiarCantidad(l, e.target.value)}
+                  className="w-14 rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-center text-sm text-white outline-none"
+                />
+                <span className="text-[10px] text-white/30">de {maxDisponible(l)}</span>
+              </div>
 
               <button type="button" onClick={() => quitar(l.key)} className="text-white/40 hover:text-red-400" aria-label="Quitar">
                 ✕

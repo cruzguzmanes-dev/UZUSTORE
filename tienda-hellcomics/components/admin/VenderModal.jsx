@@ -22,6 +22,20 @@ export default function VenderModal({ item, onClose, onVendido }) {
       });
   }, [item]);
 
+  // Cuánto hay disponible para vender -- de la talla elegida, o del stock simple.
+  const maxDisponible = item.tiene_tallas ? variantes?.find((v) => v.talla === talla)?.stock ?? 1 : item.stock ?? 1;
+
+  const elegirTalla = (nuevaTalla) => {
+    setTalla(nuevaTalla);
+    const max = Math.max(1, variantes?.find((v) => v.talla === nuevaTalla)?.stock ?? 1);
+    setCantidad((c) => String(Math.min(parseInt(c, 10) || 1, max)));
+  };
+
+  const cambiarCantidad = (valor) => {
+    const max = Math.max(1, maxDisponible);
+    setCantidad(valor === "" ? "" : String(Math.max(1, Math.min(parseInt(valor, 10) || 1, max))));
+  };
+
   const confirmar = async (e) => {
     e.preventDefault();
     setError("");
@@ -66,7 +80,7 @@ export default function VenderModal({ item, onClose, onVendido }) {
             ) : (
               <select
                 value={talla}
-                onChange={(e) => setTalla(e.target.value)}
+                onChange={(e) => elegirTalla(e.target.value)}
                 className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none"
               >
                 {variantes.map((v) => (
@@ -80,12 +94,15 @@ export default function VenderModal({ item, onClose, onVendido }) {
         )}
 
         <div className="mb-4">
-          <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">Cantidad</label>
+          <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">
+            Cantidad {!cargandoTallas && <span className="normal-case text-white/30">(de {maxDisponible} disponibles)</span>}
+          </label>
           <input
             type="number"
             min="1"
+            max={maxDisponible}
             value={cantidad}
-            onChange={(e) => setCantidad(e.target.value)}
+            onChange={(e) => cambiarCantidad(e.target.value)}
             className="w-24 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
           />
         </div>
