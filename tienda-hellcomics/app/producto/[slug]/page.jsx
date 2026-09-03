@@ -2,6 +2,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import ItemCard from "@/components/ItemCard";
+import TallaSelector from "@/components/TallaSelector";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { linkWhatsapp } from "@/lib/whatsapp";
 
@@ -14,7 +15,7 @@ async function getItem(slug) {
   const { data } = await db
     .from("items")
     .select(
-      "id,nombre,slug,descripcion,precio,stock,estado,categorias(nombre,slug),imagenes(url,orden),item_tags(tags(id,nombre))"
+      "id,nombre,slug,descripcion,precio,stock,estado,tiene_tallas,categorias(nombre,slug),imagenes(url,orden),item_tags(tags(id,nombre)),variantes(talla,stock,orden)"
     )
     .eq("slug", slug)
     .eq("estado", "activo")
@@ -24,6 +25,7 @@ async function getItem(slug) {
     ...data,
     imagenes: (data.imagenes || []).sort((a, b) => a.orden - b.orden),
     tags: (data.item_tags || []).map((t) => t.tags).filter(Boolean),
+    variantes: (data.variantes || []).sort((a, b) => a.orden - b.orden),
   };
 }
 
@@ -125,14 +127,18 @@ export default async function ProductoPage({ params }) {
               </div>
             )}
 
-            <a
-              href={linkWhatsapp(whatsapp, item, urlProducto)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
-            >
-              Me interesa
-            </a>
+            {item.tiene_tallas && item.variantes.length > 0 ? (
+              <TallaSelector variantes={item.variantes} numero={whatsapp} item={item} urlProducto={urlProducto} />
+            ) : (
+              <a
+                href={linkWhatsapp(whatsapp, item, urlProducto)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
+              >
+                Me interesa
+              </a>
+            )}
           </div>
         </div>
 

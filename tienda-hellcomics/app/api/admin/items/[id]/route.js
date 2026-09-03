@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminGuard";
-import { resolverCategoria, guardarTags, guardarImagenes } from "@/lib/itemsHelpers";
+import { resolverCategoria, guardarTags, guardarImagenes, guardarVariantes } from "@/lib/itemsHelpers";
 
 // GET /api/admin/items/:id -- detalle completo para el formulario de edición
 export async function GET(_req, { params }) {
@@ -11,7 +11,9 @@ export async function GET(_req, { params }) {
   const db = supabaseAdmin();
   const { data, error } = await db
     .from("items")
-    .select("*, categorias(id,nombre), imagenes(id,url,orden), item_tags(tags(id,nombre))")
+    .select(
+      "*, categorias(id,nombre), imagenes(id,url,orden), item_tags(tags(id,nombre)), variantes(id,talla,stock,orden)"
+    )
     .eq("id", params.id)
     .maybeSingle();
 
@@ -22,6 +24,7 @@ export async function GET(_req, { params }) {
     ...data,
     imagenes: (data.imagenes || []).sort((a, b) => a.orden - b.orden),
     tags: (data.item_tags || []).map((t) => t.tags?.nombre).filter(Boolean),
+    variantes: (data.variantes || []).sort((a, b) => a.orden - b.orden),
   });
 }
 
@@ -37,6 +40,11 @@ export async function PUT(req, { params }) {
   if (!body.imagenes || body.imagenes.length === 0) {
     return NextResponse.json({ error: "Agrega al menos una foto" }, { status: 400 });
   }
+  const tieneTallas = !!body.tiene_tallas;
+  const variantesValidas = (body.variantes || []).filter((v) => v.talla?.trim());
+  if (tieneTallas && variantesValidas.length === 0) {
+    return NextResponse.json({ error: "Agrega al menos una talla con su stock" }, { status: 400 });
+  }
 
   const db = supabaseAdmin();
   const categoria_id = await resolverCategoria(db, body);
@@ -50,7 +58,10 @@ export async function PUT(req, { params }) {
       descripcion: body.descripcion?.trim() || null,
       precio: parseFloat(body.precio),
       costo: body.costo != null && body.costo !== "" ? parseFloat(body.costo) : null,
-      stock: parseInt(body.stock, 10) || 0,
+      // Si maneja tallas, el stock real lo calcula guardarVariantes() justo abajo (este
+      // valor es solo un placeholder mientras tanto).
+      stock: tieneTallas ? 0 : parseInt(body.stock, 10) || 0,
+      tiene_tallas: tieneTallas,
       categoria_id,
       estado: body.estado || "activo",
     })
@@ -62,6 +73,11 @@ export async function PUT(req, { params }) {
 
   if (body.tags) await guardarTags(db, item.id, body.tags);
   if (body.imagenes) await guardarImagenes(db, item.id, body.imagenes);
+  if (tieneTallas) {
+    item.stock = await guardarVariantes(db, item.id, variantesValidas);
+  } else {
+    await db.from("variantes").delete().eq("item_id", item.id);
+  }
 
   return NextResponse.json(item);
 }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminGuard";
 import { slugUnico } from "@/lib/slugify";
-import { resolverCategoria, guardarTags, guardarImagenes } from "@/lib/itemsHelpers";
+import { resolverCategoria, guardarTags, guardarImagenes, guardarVariantes } from "@/lib/itemsHelpers";
 
 // GET /api/admin/items?q=&categoria_id=&estado=  -- lista para el panel (todas las columnas, incluye costo)
 export async function GET(req) {
@@ -41,6 +41,11 @@ export async function POST(req) {
   if (!body.imagenes || body.imagenes.length === 0) {
     return NextResponse.json({ error: "Agrega al menos una foto" }, { status: 400 });
   }
+  const tieneTallas = !!body.tiene_tallas;
+  const variantesValidas = (body.variantes || []).filter((v) => v.talla?.trim());
+  if (tieneTallas && variantesValidas.length === 0) {
+    return NextResponse.json({ error: "Agrega al menos una talla con su stock" }, { status: 400 });
+  }
 
   const db = supabaseAdmin();
   const categoria_id = await resolverCategoria(db, body);
@@ -56,7 +61,9 @@ export async function POST(req) {
       descripcion: body.descripcion?.trim() || null,
       precio: parseFloat(body.precio),
       costo: body.costo != null && body.costo !== "" ? parseFloat(body.costo) : null,
-      stock: parseInt(body.stock, 10) || 0,
+      // Si maneja tallas, el stock real lo calcula guardarVariantes() justo abajo.
+      stock: tieneTallas ? 0 : parseInt(body.stock, 10) || 0,
+      tiene_tallas: tieneTallas,
       categoria_id,
       estado: body.estado || "activo",
     })
@@ -77,6 +84,7 @@ export async function POST(req) {
 
   await guardarTags(db, item.id, body.tags || []);
   await guardarImagenes(db, item.id, body.imagenes || []);
+  if (tieneTallas) item.stock = await guardarVariantes(db, item.id, variantesValidas);
 
   return NextResponse.json(item);
 }

@@ -1,6 +1,7 @@
-export function linkWhatsapp(numero, item, urlProducto) {
+export function linkWhatsapp(numero, item, urlProducto, talla) {
   const num = String(numero || "").replace(/[^0-9]/g, "");
-  const mensaje = `Hola! Me interesa: ${item.nombre}${urlProducto ? `\n${urlProducto}` : ""}`;
+  const tallaTexto = talla ? ` (talla ${talla})` : "";
+  const mensaje = `Hola! Me interesa: ${item.nombre}${tallaTexto}${urlProducto ? `\n${urlProducto}` : ""}`;
   return `https://wa.me/${num}?text=${encodeURIComponent(mensaje)}`;
 }
 

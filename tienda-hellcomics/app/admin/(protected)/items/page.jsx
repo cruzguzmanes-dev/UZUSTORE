@@ -71,23 +71,30 @@ export default function AdminItemsPage() {
     setBorrando(null);
   };
 
-  const StockControl = ({ item }) => (
-    <div className="flex items-center gap-1.5">
-      <button
-        onClick={() => cambiarStock(item, -1)}
-        className="h-7 w-7 shrink-0 rounded bg-white/10 text-white/70 hover:bg-white/20"
-      >
-        −
-      </button>
-      <span className="w-6 text-center">{item.stock}</span>
-      <button
-        onClick={() => cambiarStock(item, 1)}
-        className="h-7 w-7 shrink-0 rounded bg-white/10 text-white/70 hover:bg-white/20"
-      >
-        +
-      </button>
-    </div>
-  );
+  // Cuando el item maneja tallas, el stock es la suma de sus variantes -- el +/- rápido
+  // no aplica (¿a cuál talla le sube?), se edita desde el formulario completo.
+  const StockControl = ({ item }) =>
+    item.tiene_tallas ? (
+      <Link href={`/admin/items/${item.id}`} className="text-white/60 hover:text-brand">
+        {item.stock} <span className="text-white/30">(tallas)</span>
+      </Link>
+    ) : (
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={() => cambiarStock(item, -1)}
+          className="h-7 w-7 shrink-0 rounded bg-white/10 text-white/70 hover:bg-white/20"
+        >
+          −
+        </button>
+        <span className="w-6 text-center">{item.stock}</span>
+        <button
+          onClick={() => cambiarStock(item, 1)}
+          className="h-7 w-7 shrink-0 rounded bg-white/10 text-white/70 hover:bg-white/20"
+        >
+          +
+        </button>
+      </div>
+    );
 
   const EstadoToggle = ({ item }) => (
     <button

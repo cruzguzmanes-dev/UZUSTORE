@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import TagInput from "@/components/admin/TagInput";
 import ImageUploader from "@/components/admin/ImageUploader";
 import CategorySelect from "@/components/admin/CategorySelect";
+import VarianteEditor from "@/components/admin/VarianteEditor";
 import { slugify } from "@/lib/slugify";
 
 const VACIO = {
@@ -18,6 +19,8 @@ const VACIO = {
   categoria_nueva: "",
   tags: [],
   imagenes: [],
+  tiene_tallas: false,
+  variantes: [],
 };
 
 export default function ItemFormPage() {
@@ -60,6 +63,8 @@ export default function ItemFormPage() {
           categoria_nueva: "",
           tags: data.tags || [],
           imagenes: (data.imagenes || []).map((i) => i.url),
+          tiene_tallas: !!data.tiene_tallas,
+          variantes: (data.variantes || []).map((v) => ({ talla: v.talla, stock: String(v.stock) })),
         });
         setSlugExistente(data.slug || "");
       })
@@ -75,6 +80,10 @@ export default function ItemFormPage() {
     }
     if (form.imagenes.length === 0) {
       setError("Agrega al menos una foto");
+      return;
+    }
+    if (form.tiene_tallas && form.variantes.filter((v) => v.talla.trim()).length === 0) {
+      setError("Agrega al menos una talla con su stock");
       return;
     }
     setGuardando(true);
@@ -135,7 +144,7 @@ export default function ItemFormPage() {
         />
       </Campo>
 
-      <div className="mb-4 grid grid-cols-2 gap-3">
+      <div className={`mb-4 grid gap-3 ${form.tiene_tallas ? "grid-cols-1" : "grid-cols-2"}`}>
         <Campo label="Precio *">
           <input
             type="number" step="0.01" min="0"
@@ -144,15 +153,38 @@ export default function ItemFormPage() {
             className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
           />
         </Campo>
-        <Campo label="Stock">
-          <input
-            type="number" min="0"
-            value={form.stock}
-            onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
-            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+        {!form.tiene_tallas && (
+          <Campo label="Stock">
+            <input
+              type="number" min="0"
+              value={form.stock}
+              onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
+              className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+            />
+          </Campo>
+        )}
+      </div>
+
+      <Campo label="¿Maneja tallas? (ej. playeras)">
+        <button
+          type="button"
+          onClick={() => setForm((f) => ({ ...f, tiene_tallas: !f.tiene_tallas }))}
+          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+            form.tiene_tallas ? "border-brand bg-brand/15 text-white" : "border-white/15 text-white/60 hover:border-white/30"
+          }`}
+        >
+          {form.tiene_tallas ? "Sí, maneja tallas" : "No, un solo stock"}
+        </button>
+      </Campo>
+
+      {form.tiene_tallas && (
+        <Campo label="Tallas y stock *">
+          <VarianteEditor
+            value={form.variantes}
+            onChange={(variantes) => setForm((f) => ({ ...f, variantes }))}
           />
         </Campo>
-      </div>
+      )}
 
       <Campo label="Costo (opcional)">
         <input

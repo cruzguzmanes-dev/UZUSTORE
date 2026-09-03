@@ -44,3 +44,18 @@ export async function guardarImagenes(db, itemId, urls) {
   const rows = (urls || []).map((url, orden) => ({ item_id: itemId, url, orden }));
   if (rows.length) await db.from("imagenes").insert(rows);
 }
+
+// Reemplaza el set de variantes (tallas) de un item y deja items.stock cacheado con la
+// suma de todas -- así lo que ya lee items.stock (tarjetas, "agotado", listados) no
+// necesita saber que este item tiene tallas. Regresa el total resultante.
+export async function guardarVariantes(db, itemId, variantes) {
+  await db.from("variantes").delete().eq("item_id", itemId);
+  const filas = (variantes || [])
+    .map((v, orden) => ({ talla: (v.talla || "").trim(), stock: Math.max(0, parseInt(v.stock, 10) || 0), orden }))
+    .filter((v) => v.talla);
+  if (filas.length) await db.from("variantes").insert(filas.map((v) => ({ item_id: itemId, ...v })));
+
+  const total = filas.reduce((suma, v) => suma + v.stock, 0);
+  await db.from("items").update({ stock: total }).eq("id", itemId);
+  return total;
+}
