@@ -35,12 +35,12 @@ export default function TallaSelector({ variantes, numero, item, urlProducto }) 
       <p className="mt-2 text-xs text-white/50">{agotada ? "Talla agotada" : `Quedan ${actual.stock}`}</p>
 
       <a
-        href={linkWhatsapp(numero, item, urlProducto, talla)}
+        href={linkWhatsapp(numero, item, urlProducto, talla, agotada)}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-4 inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
       >
-        Me interesa
+        {agotada ? "Preguntar" : "Me interesa"}
       </a>
     </div>
   );

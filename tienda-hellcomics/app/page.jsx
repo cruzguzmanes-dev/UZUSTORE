@@ -11,7 +11,7 @@ async function getNovedades() {
   const { data } = await db
     .from("items")
     .select("id,nombre,slug,precio,stock,estado,created_at,categorias(nombre,slug),imagenes(url,orden)")
-    .eq("estado", "activo")
+    .neq("estado", "oculto") // "agotado" también se muestra -- solo "oculto" se esconde
     .order("created_at", { ascending: false })
     .limit(20);
   return (data || []).map((it) => ({ ...it, imagenes: (it.imagenes || []).sort((a, b) => a.orden - b.orden) }));
@@ -29,7 +29,7 @@ async function getOportunidades() {
   const { data } = await db
     .from("items")
     .select("id,nombre,slug,precio,stock,estado,categorias(nombre,slug),imagenes(url,orden)")
-    .eq("estado", "activo")
+    .neq("estado", "oculto")
     .eq("destacado", true)
     .order("destacado_at", { ascending: false })
     .limit(12);

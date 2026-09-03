@@ -42,7 +42,7 @@ async function getRelacionados(item) {
   const vistos = new Map();
   for (const row of data || []) {
     const it = row.items;
-    if (it && it.estado === "activo" && !vistos.has(it.id)) {
+    if (it && it.estado !== "oculto" && !vistos.has(it.id)) {
       vistos.set(it.id, { ...it, imagenes: (it.imagenes || []).sort((a, b) => a.orden - b.orden) });
     }
   }
@@ -120,12 +120,12 @@ export default async function ProductoPage({ params }) {
               <TallaSelector variantes={item.variantes} numero={whatsapp} item={item} urlProducto={urlProducto} />
             ) : (
               <a
-                href={linkWhatsapp(whatsapp, item, urlProducto)}
+                href={linkWhatsapp(whatsapp, item, urlProducto, null, agotado)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
               >
-                Me interesa
+                {agotado ? "Preguntar" : "Me interesa"}
               </a>
             )}
           </div>

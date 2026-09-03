@@ -37,7 +37,7 @@ export async function GET(req) {
   let query = db
     .from("items")
     .select(SELECT_PUBLICO)
-    .eq("estado", "activo")
+    .neq("estado", "oculto") // "agotado" también se muestra -- solo "oculto" se esconde
     .order("created_at", { ascending: false })
     .range(offset, offset + 9);
 
