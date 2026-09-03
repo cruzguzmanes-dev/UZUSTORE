@@ -112,7 +112,7 @@ export default function AdminItemsPage() {
   const DestacadoButton = ({ item }) => (
     <button
       onClick={() => toggleDestacado(item)}
-      title="Últimas oportunidades (Home)"
+      title="Destacados (Home)"
       className={`rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
         item.destacado
           ? "bg-brand text-white"

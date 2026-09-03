@@ -66,10 +66,7 @@ export default async function HomePage() {
         {oportunidades.length > 0 && (
           <section className="mb-8">
             <div className="mb-4 flex items-center gap-2">
-              <span className="text-lg">🔥</span>
-              <h2 className="font-display text-lg font-extrabold uppercase tracking-wide text-white">
-                Últimas oportunidades
-              </h2>
+              <h2 className="font-display text-lg font-extrabold uppercase tracking-wide text-white">Destacados</h2>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {oportunidades.map((item) => (
