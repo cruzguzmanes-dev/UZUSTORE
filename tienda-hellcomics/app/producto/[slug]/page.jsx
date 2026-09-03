@@ -18,7 +18,7 @@ async function getItem(slug) {
       "id,nombre,slug,descripcion,precio,stock,estado,tiene_tallas,categorias(nombre,slug),imagenes(url,orden),item_tags(tags(id,nombre)),variantes(talla,stock,orden)"
     )
     .eq("slug", slug)
-    .eq("estado", "activo")
+    .neq("estado", "oculto") // "agotado" sí se sigue mostrando (con menos detalle) -- solo "oculto" da 404
     .maybeSingle();
   if (!data) return null;
   return {
@@ -76,7 +76,11 @@ export default async function ProductoPage({ params }) {
 
   const [relacionados, whatsapp] = await Promise.all([getRelacionados(item), getWhatsapp()]);
   const urlProducto = `${process.env.SITE_URL || ""}/producto/${item.slug}`;
-  const agotado = item.stock <= 0;
+  // Para el aviso "Agotado" cuenta tanto el toggle manual como quedarse en 0 -- pero
+  // solo el toggle manual (item.estado === "agotado", más abajo) esconde la parte de
+  // tallas/inventario. Si se acabó solo por stock (con estado activo), las tallas se
+  // siguen viendo con su desglose -- ahí sí es útil ver cuál sigue disponible.
+  const agotado = item.estado === "agotado" || item.stock <= 0;
 
   return (
     <div>
@@ -112,7 +116,7 @@ export default async function ProductoPage({ params }) {
               </div>
             )}
 
-            {item.tiene_tallas && item.variantes.length > 0 ? (
+            {item.tiene_tallas && item.estado !== "agotado" && item.variantes.length > 0 ? (
               <TallaSelector variantes={item.variantes} numero={whatsapp} item={item} urlProducto={urlProducto} />
             ) : (
               <a
