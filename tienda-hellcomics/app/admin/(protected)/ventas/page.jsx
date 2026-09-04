@@ -144,13 +144,13 @@ export default function VentasPage() {
           <p className="p-4 text-sm text-white/40">Todavía no registras ninguna venta -- usa el botón "Vender" en Items.</p>
         ) : (
           datos.recientes.map((v) =>
-            v.tipo === "grupo" ? (
+            v.tipo === "grupo" && v.lineas.length > 1 ? (
               <div key={v.id} className="border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
                 <div className="flex items-center justify-between">
                   <span className="text-white/80">
                     Venta combinada
                     <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/40">
-                      {v.lineas.length} {v.lineas.length === 1 ? "producto" : "productos"}
+                      {v.lineas.length} productos
                     </span>
                   </span>
                   <span className="font-semibold text-brand">{fmt(v.total)}</span>
@@ -173,14 +173,25 @@ export default function VentasPage() {
                 </div>
               </div>
             ) : (
+              // Venta normal (o un "grupo" de un solo producto -- ej. una venta libre sin
+              // catálogo desde "Nueva venta" -- se ve igual, no tiene caso llamarla "combinada").
               <div key={v.id} className="flex items-center justify-between border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
                 <div className="min-w-0">
                   <div className="truncate text-white/80">
-                    {v.item_nombre}
-                    {v.talla && <span className="text-white/40"> · talla {v.talla}</span>}
-                    {v.cantidad > 1 && <span className="text-white/40"> · x{v.cantidad}</span>}
+                    {v.tipo === "grupo" ? v.lineas[0]?.item_nombre : v.item_nombre}
+                    {(v.tipo === "grupo" ? v.lineas[0]?.talla : v.talla) && (
+                      <span className="text-white/40"> · talla {v.tipo === "grupo" ? v.lineas[0].talla : v.talla}</span>
+                    )}
+                    {(v.tipo === "grupo" ? v.lineas[0]?.cantidad : v.cantidad) > 1 && (
+                      <span className="text-white/40"> · x{v.tipo === "grupo" ? v.lineas[0].cantidad : v.cantidad}</span>
+                    )}
                   </div>
-                  <div className="text-xs text-white/30">{fmtFecha(v.created_at)}</div>
+                  <div className="text-xs text-white/30">
+                    {fmtFecha(v.created_at)}
+                    {v.tipo === "grupo" && Number(v.subtotal) !== Number(v.total) && (
+                      <span> · lista {fmt(v.subtotal)} → descuento {fmt(v.subtotal - v.total)}</span>
+                    )}
+                  </div>
                 </div>
                 <span className="shrink-0 font-semibold text-brand">{fmt(v.total)}</span>
               </div>
