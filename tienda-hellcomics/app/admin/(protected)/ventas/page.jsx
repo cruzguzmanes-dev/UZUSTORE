@@ -15,12 +15,32 @@ const fmtFecha = (iso) =>
 
 export default function VentasPage() {
   const [datos, setDatos] = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [textoConfirm, setTextoConfirm] = useState("");
+  const [borrando, setBorrando] = useState(false);
+  const [errorBorrar, setErrorBorrar] = useState("");
+
+  const cargar = () => fetch("/api/admin/ventas").then((r) => r.json()).then(setDatos);
 
   useEffect(() => {
-    fetch("/api/admin/ventas")
-      .then((r) => r.json())
-      .then(setDatos);
+    cargar();
   }, []);
+
+  const borrarHistorial = async () => {
+    setBorrando(true);
+    setErrorBorrar("");
+    try {
+      const res = await fetch("/api/admin/ventas", { method: "DELETE" });
+      if (!res.ok) throw new Error("No se pudo borrar el historial");
+      setConfirmando(false);
+      setTextoConfirm("");
+      await cargar();
+    } catch (err) {
+      setErrorBorrar(err.message);
+    } finally {
+      setBorrando(false);
+    }
+  };
 
   if (!datos) return <p className="text-white/40">Cargando...</p>;
 
@@ -40,6 +60,59 @@ export default function VentasPage() {
         "Nueva venta" es para combinar varios productos en una sola transacción con un total propio
         (por ejemplo, con descuento).
       </p>
+
+      <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+        {!confirmando ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-white/50">
+              ¿Terminaste de probar? Puedes borrar todo el historial de ventas para empezar limpio.
+            </p>
+            <button
+              type="button"
+              onClick={() => setConfirmando(true)}
+              className="shrink-0 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/10"
+            >
+              Borrar historial de ventas
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="mb-2 text-sm text-red-400">
+              Esto borra TODO el historial de ventas para siempre (no se puede deshacer). El stock de los items no se
+              toca -- si tus pruebas también movieron stock, ajústalo aparte en Items. Escribe <b>BORRAR</b> para
+              confirmar.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={textoConfirm}
+                onChange={(e) => setTextoConfirm(e.target.value)}
+                placeholder="BORRAR"
+                className="w-32 rounded-lg border border-red-500/30 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-red-400"
+              />
+              <button
+                type="button"
+                onClick={borrarHistorial}
+                disabled={textoConfirm !== "BORRAR" || borrando}
+                className="rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+              >
+                {borrando ? "Borrando..." : "Confirmar borrado"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmando(false);
+                  setTextoConfirm("");
+                  setErrorBorrar("");
+                }}
+                className="rounded-lg px-3 py-2 text-sm text-white/50 hover:text-white"
+              >
+                Cancelar
+              </button>
+            </div>
+            {errorBorrar && <p className="mt-2 text-sm text-red-400">⚠ {errorBorrar}</p>}
+          </div>
+        )}
+      </div>
 
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile label="Hoy" datos={datos.hoy} />

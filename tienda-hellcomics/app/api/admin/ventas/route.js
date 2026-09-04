@@ -103,6 +103,23 @@ export async function GET() {
   });
 }
 
+// DELETE /api/admin/ventas -- borra TODO el historial de ventas (irreversible). Pensado
+// para limpiar las ventas de prueba antes de arrancar de verdad. NO toca el stock de los
+// items -- si las pruebas también movieron stock, eso se corrige aparte a mano.
+export async function DELETE() {
+  const guard = requireAdmin();
+  if (guard) return guard;
+
+  const db = supabaseAdmin();
+  const { error: errVentas } = await db.from("ventas").delete().gt("id", 0);
+  if (errVentas) return NextResponse.json({ error: errVentas.message }, { status: 500 });
+
+  const { error: errGrupos } = await db.from("venta_grupos").delete().gt("id", 0);
+  if (errGrupos) return NextResponse.json({ error: errGrupos.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true });
+}
+
 // POST /api/admin/ventas -- registra una venta: resta stock (de la talla si aplica) y
 // guarda el renglón del historial con el precio del momento.
 export async function POST(req) {

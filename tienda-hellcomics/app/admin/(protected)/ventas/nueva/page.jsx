@@ -8,11 +8,17 @@ const fmt = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency:
 export default function NuevaVentaPage() {
   const [q, setQ] = useState("");
   const [resultados, setResultados] = useState([]);
-  const [lineas, setLineas] = useState([]); // { key, item_id, nombre, precio, tiene_tallas, talla, tallas, cantidad }
+  const [lineas, setLineas] = useState([]); // { key, item_id, nombre, precio, tiene_tallas, talla, tallas, cantidad, libre }
   const [total, setTotal] = useState("");
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [hecha, setHecha] = useState(null);
+
+  // Producto que aún no está cargado como item en el catálogo (inventario viejo sin
+  // digitalizar) -- solo nombre + precio, sin buscador ni control de stock.
+  const [mostrarLibre, setMostrarLibre] = useState(false);
+  const [libreNombre, setLibreNombre] = useState("");
+  const [librePrecio, setLibrePrecio] = useState("");
 
   const buscar = async (texto) => {
     setQ(texto);
@@ -53,14 +59,40 @@ export default function NuevaVentaPage() {
     }
   };
 
+  const agregarLibre = () => {
+    const nombre = libreNombre.trim();
+    const precio = parseFloat(librePrecio);
+    if (!nombre) return;
+    if (isNaN(precio) || precio < 0) return;
+    setLineas((prev) => [
+      ...prev,
+      {
+        key: `libre-${Date.now()}`,
+        item_id: null,
+        libre: true,
+        nombre,
+        precio,
+        tiene_tallas: false,
+        talla: "",
+        tallas: undefined,
+        cantidad: "1",
+      },
+    ]);
+    setLibreNombre("");
+    setLibrePrecio("");
+    setMostrarLibre(false);
+  };
+
   const actualizar = (key, campo, valor) =>
     setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: valor } : l)));
 
   const quitar = (key) => setLineas((prev) => prev.filter((l) => l.key !== key));
 
   // Cuánto hay disponible para esa línea -- del stock de la talla elegida, o del stock
-  // simple si el item no maneja tallas. Mientras cargan las tallas, no se sabe: 1.
+  // simple si el item no maneja tallas. Mientras cargan las tallas, no se sabe: 1. Las
+  // líneas libres (sin catálogo) no tienen stock que limitar.
   const maxDisponible = (l) => {
+    if (l.libre) return Infinity;
     if (l.tiene_tallas) return l.tallas?.find((v) => v.talla === l.talla)?.stock ?? 1;
     return l.stock ?? 1;
   };
@@ -104,7 +136,11 @@ export default function NuevaVentaPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          lineas: lineas.map((l) => ({ item_id: l.item_id, talla: l.tiene_tallas ? l.talla : undefined, cantidad: l.cantidad })),
+          lineas: lineas.map((l) =>
+            l.libre
+              ? { nombre: l.nombre, precio: l.precio, cantidad: l.cantidad }
+              : { item_id: l.item_id, talla: l.tiene_tallas ? l.talla : undefined, cantidad: l.cantidad }
+          ),
           total: totalNum,
         }),
       });
@@ -159,6 +195,58 @@ export default function NuevaVentaPage() {
         )}
       </div>
 
+      {!mostrarLibre ? (
+        <button
+          type="button"
+          onClick={() => setMostrarLibre(true)}
+          className="mb-4 text-xs font-semibold text-white/50 hover:text-brand"
+        >
+          + Agregar producto sin catálogo (inventario aún no cargado)
+        </button>
+      ) : (
+        <div className="mb-4 rounded-lg border border-white/10 p-3">
+          <p className="mb-2 text-xs text-white/40">
+            Para inventario que todavía no has cargado como item -- solo se guarda en el historial, no afecta stock.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={libreNombre}
+              onChange={(e) => setLibreNombre(e.target.value)}
+              placeholder="Nombre del producto"
+              className="min-w-[10rem] flex-1 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
+            />
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={librePrecio}
+              onChange={(e) => setLibrePrecio(e.target.value)}
+              placeholder="Precio"
+              className="w-28 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
+            />
+            <button
+              type="button"
+              onClick={agregarLibre}
+              disabled={!libreNombre.trim() || librePrecio === "" || isNaN(parseFloat(librePrecio))}
+              className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              Agregar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarLibre(false);
+                setLibreNombre("");
+                setLibrePrecio("");
+              }}
+              className="text-sm text-white/40 hover:text-white"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       {lineas.length === 0 ? (
         <p className="mb-6 text-sm text-white/40">Busca arriba y agrega los productos que se vendieron.</p>
       ) : (
@@ -166,7 +254,14 @@ export default function NuevaVentaPage() {
           {lineas.map((l) => (
             <div key={l.key} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2.5">
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm text-white">{l.nombre}</div>
+                <div className="truncate text-sm text-white">
+                  {l.nombre}
+                  {l.libre && (
+                    <span className="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 align-middle text-[9px] uppercase tracking-wide text-white/40">
+                      sin catálogo
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-white/40">{fmt(l.precio)} c/u</div>
               </div>
 
@@ -191,12 +286,14 @@ export default function NuevaVentaPage() {
                 <input
                   type="number"
                   min="1"
-                  max={maxDisponible(l)}
+                  max={Number.isFinite(maxDisponible(l)) ? maxDisponible(l) : undefined}
                   value={l.cantidad}
                   onChange={(e) => cambiarCantidad(l, e.target.value)}
                   className="w-14 rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-center text-sm text-white outline-none"
                 />
-                <span className="text-[10px] text-white/30">de {maxDisponible(l)}</span>
+                {Number.isFinite(maxDisponible(l)) && (
+                  <span className="text-[10px] text-white/30">de {maxDisponible(l)}</span>
+                )}
               </div>
 
               <button type="button" onClick={() => quitar(l.key)} className="text-white/40 hover:text-red-400" aria-label="Quitar">

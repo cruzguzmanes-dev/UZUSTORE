@@ -4,7 +4,10 @@ import { requireAdmin } from "@/lib/adminGuard";
 
 // POST /api/admin/ventas/grupo -- venta de varios productos juntos con un total propio
 // (para cuando se hace descuento sobre el conjunto, ej. $2500 de lista → se cobran $2300).
-// body: { lineas: [{ item_id, talla?, cantidad }], total }
+// body: { lineas: [{ item_id, talla?, cantidad } | { nombre, precio, cantidad }], total }
+// La segunda forma (nombre + precio, sin item_id) es para inventario que todavía no está
+// cargado como item en el catálogo -- se registra en el historial tal cual, sin tocar
+// stock de nada (no hay a quién restárselo).
 export async function POST(req) {
   const guard = requireAdmin();
   if (guard) return guard;
@@ -27,6 +30,23 @@ export async function POST(req) {
   let subtotal = 0;
 
   for (const l of lineasBody) {
+    const cantidad = Math.max(1, parseInt(l.cantidad, 10) || 1);
+
+    // Línea libre: producto que aún no está en el catálogo -- solo nombre y precio, sin
+    // item_id. No hay stock que validar ni restar.
+    if (!l.item_id) {
+      const nombre = (l.nombre || "").trim();
+      const precio = parseFloat(l.precio);
+      if (!nombre) return NextResponse.json({ error: "Falta el nombre de un producto sin catálogo" }, { status: 400 });
+      if (isNaN(precio) || precio < 0) {
+        return NextResponse.json({ error: `Precio inválido para "${nombre}"` }, { status: 400 });
+      }
+      const totalLinea = precio * cantidad;
+      subtotal += totalLinea;
+      resueltas.push({ libre: true, nombre, precio, cantidad, totalLinea });
+      continue;
+    }
+
     const { data: item } = await db
       .from("items")
       .select("id, nombre, precio, stock, tiene_tallas")
@@ -34,7 +54,6 @@ export async function POST(req) {
       .maybeSingle();
     if (!item) return NextResponse.json({ error: "Uno de los productos ya no existe" }, { status: 400 });
 
-    const cantidad = Math.max(1, parseInt(l.cantidad, 10) || 1);
     let talla = null;
     let variante = null;
 
@@ -72,6 +91,19 @@ export async function POST(req) {
   if (errGrupo) return NextResponse.json({ error: errGrupo.message }, { status: 500 });
 
   for (const r of resueltas) {
+    if (r.libre) {
+      await db.from("ventas").insert({
+        grupo_id: grupo.id,
+        item_id: null,
+        item_nombre: r.nombre,
+        talla: null,
+        cantidad: r.cantidad,
+        precio_unitario: r.precio,
+        total: r.totalLinea,
+      });
+      continue;
+    }
+
     let stockItem;
     if (r.variante) {
       await db.from("variantes").update({ stock: r.variante.stock - r.cantidad }).eq("id", r.variante.id);
