@@ -1,0 +1,505 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import BarcodeScanner from "@/components/admin/BarcodeScanner";
+import { reproducirBeep } from "@/lib/beep";
+
+const fmt = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0);
+
+export default function NuevoApartadoPage() {
+  const [clienteNombre, setClienteNombre] = useState("");
+  const [clienteTelefono, setClienteTelefono] = useState("");
+
+  const [q, setQ] = useState("");
+  const [resultados, setResultados] = useState([]);
+  const [lineas, setLineas] = useState([]); // { key, item_id, nombre, precio, tiene_tallas, talla, tallas, cantidad, libre }
+  const [total, setTotal] = useState("");
+  const [anticipo, setAnticipo] = useState("");
+  const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [hecho, setHecho] = useState(null);
+
+  const [mostrarLibre, setMostrarLibre] = useState(false);
+  const [libreNombre, setLibreNombre] = useState("");
+  const [librePrecio, setLibrePrecio] = useState("");
+
+  const [escaneando, setEscaneando] = useState(false);
+  const [candidatos, setCandidatos] = useState(null);
+  const [ultimoAgregado, setUltimoAgregado] = useState("");
+
+  const buscar = async (texto) => {
+    setQ(texto);
+    if (!texto.trim()) {
+      setResultados([]);
+      return;
+    }
+    const res = await fetch(`/api/admin/items?q=${encodeURIComponent(texto)}`);
+    const data = res.ok ? await res.json() : [];
+    setResultados(data.slice(0, 8));
+  };
+
+  const agregar = async (item) => {
+    const key = `${item.id}-${Date.now()}`;
+    setLineas((prev) => [
+      ...prev,
+      {
+        key,
+        item_id: item.id,
+        nombre: item.nombre,
+        precio: item.precio,
+        tiene_tallas: item.tiene_tallas,
+        stock: item.stock,
+        talla: "",
+        tallas: item.tiene_tallas ? null : undefined,
+        cantidad: "1",
+      },
+    ]);
+    setResultados([]);
+    setQ("");
+
+    if (item.tiene_tallas) {
+      const r = await fetch(`/api/admin/items/${item.id}`);
+      const data = await r.json();
+      const tallas = data.variantes || [];
+      const primera = tallas.find((v) => v.stock > 0)?.talla || tallas[0]?.talla || "";
+      setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, tallas, talla: primera } : l)));
+    }
+  };
+
+  const agregarCandidato = async (candidato) => {
+    const key = `${candidato.item_id}-${Date.now()}`;
+    setLineas((prev) => [
+      ...prev,
+      {
+        key,
+        item_id: candidato.item_id,
+        nombre: candidato.nombre,
+        precio: candidato.precio,
+        tiene_tallas: candidato.tiene_tallas,
+        stock: candidato.stock,
+        talla: candidato.talla || "",
+        tallas: candidato.tiene_tallas ? null : undefined,
+        cantidad: "1",
+      },
+    ]);
+    setCandidatos(null);
+
+    if (candidato.tiene_tallas) {
+      const r = await fetch(`/api/admin/items/${candidato.item_id}`);
+      const data = await r.json();
+      setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, tallas: data.variantes || [] } : l)));
+    }
+  };
+
+  const buscarPorCodigo = async (codigo) => {
+    reproducirBeep();
+    setError("");
+    setUltimoAgregado("");
+    try {
+      const res = await fetch(`/api/admin/items/codigo?codigo=${encodeURIComponent(codigo)}`);
+      const data = await res.json();
+      const encontrados = data.candidatos || [];
+      if (encontrados.length === 0) {
+        setEscaneando(false);
+        setError(`No encontramos ningún producto con el código "${codigo}" -- puedes buscarlo por nombre o agregarlo como "sin catálogo" abajo.`);
+      } else if (encontrados.length === 1) {
+        const c = encontrados[0];
+        await agregarCandidato(c);
+        setUltimoAgregado(`${c.nombre}${c.talla ? ` (talla ${c.talla})` : ""}`);
+      } else {
+        setEscaneando(false);
+        setCandidatos(encontrados);
+      }
+    } catch {
+      setEscaneando(false);
+      setError("No se pudo buscar ese código");
+    }
+  };
+
+  const agregarLibre = () => {
+    const nombre = libreNombre.trim();
+    const precio = parseFloat(librePrecio);
+    if (!nombre) return;
+    if (isNaN(precio) || precio < 0) return;
+    setLineas((prev) => [
+      ...prev,
+      {
+        key: `libre-${Date.now()}`,
+        item_id: null,
+        libre: true,
+        nombre,
+        precio,
+        tiene_tallas: false,
+        talla: "",
+        tallas: undefined,
+        cantidad: "1",
+      },
+    ]);
+    setLibreNombre("");
+    setLibrePrecio("");
+    setMostrarLibre(false);
+  };
+
+  const actualizar = (key, campo, valor) =>
+    setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, [campo]: valor } : l)));
+
+  const quitar = (key) => setLineas((prev) => prev.filter((l) => l.key !== key));
+
+  const maxDisponible = (l) => {
+    if (l.libre) return Infinity;
+    if (l.tiene_tallas) return l.tallas?.find((v) => v.talla === l.talla)?.stock ?? 1;
+    return l.stock ?? 1;
+  };
+
+  const cambiarTalla = (l, talla) => {
+    const nuevoMax = l.tallas?.find((v) => v.talla === talla)?.stock ?? 1;
+    setLineas((prev) =>
+      prev.map((x) =>
+        x.key === l.key
+          ? { ...x, talla, cantidad: String(Math.min(parseInt(x.cantidad, 10) || 1, Math.max(1, nuevoMax))) }
+          : x
+      )
+    );
+  };
+
+  const cambiarCantidad = (l, valor) => {
+    const max = Math.max(1, maxDisponible(l));
+    const limpio = valor === "" ? "" : String(Math.max(1, Math.min(parseInt(valor, 10) || 1, max)));
+    actualizar(l.key, "cantidad", limpio);
+  };
+
+  const subtotal = lineas.reduce((s, l) => s + l.precio * (parseInt(l.cantidad, 10) || 0), 0);
+  const totalNum = total === "" ? subtotal : parseFloat(total) || 0;
+  const anticipoNum = parseFloat(anticipo) || 0;
+  const diferencia = subtotal - totalNum;
+
+  const confirmar = async () => {
+    setError("");
+    if (!clienteNombre.trim()) {
+      setError("Falta el nombre del comprador");
+      return;
+    }
+    if (!clienteTelefono.trim()) {
+      setError("Falta el teléfono del comprador");
+      return;
+    }
+    if (lineas.length === 0) {
+      setError("Agrega al menos un producto");
+      return;
+    }
+    if (lineas.some((l) => l.tiene_tallas && !l.talla)) {
+      setError("Falta elegir la talla de algún producto");
+      return;
+    }
+    setGuardando(true);
+    try {
+      const res = await fetch("/api/admin/apartados", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cliente_nombre: clienteNombre,
+          cliente_telefono: clienteTelefono,
+          lineas: lineas.map((l) =>
+            l.libre
+              ? { nombre: l.nombre, precio: l.precio, cantidad: l.cantidad }
+              : { item_id: l.item_id, talla: l.tiene_tallas ? l.talla : undefined, cantidad: l.cantidad }
+          ),
+          total: totalNum,
+          anticipo: anticipoNum,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo registrar el apartado");
+      setHecho(data.apartado);
+      setLineas([]);
+      setTotal("");
+      setAnticipo("");
+      setClienteNombre("");
+      setClienteTelefono("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div className="max-w-xl">
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="font-display text-lg font-extrabold text-white">Nuevo apartado</h1>
+        <Link href="/admin/apartados" className="text-sm text-white/50 hover:text-brand">
+          ← Apartados
+        </Link>
+      </div>
+
+      {hecho && (
+        <p className="mb-4 rounded-lg border border-brand/30 bg-brand/10 px-3 py-2 text-sm text-brand">
+          Apartado registrado ✓ -- puedes armar otro abajo.
+        </p>
+      )}
+
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">Nombre del comprador *</label>
+          <input
+            value={clienteNombre}
+            onChange={(e) => setClienteNombre(e.target.value)}
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">Teléfono *</label>
+          <input
+            value={clienteTelefono}
+            onChange={(e) => setClienteTelefono(e.target.value)}
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          />
+        </div>
+      </div>
+
+      <div className="mb-4 flex gap-2">
+        <div className="relative flex-1">
+          <input
+            value={q}
+            onChange={(e) => buscar(e.target.value)}
+            placeholder="Buscar producto para agregar..."
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          />
+          {resultados.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full rounded-lg border border-white/10 bg-brand-dark shadow-lg">
+              {resultados.map((it) => (
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => agregar(it)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-white hover:bg-white/5"
+                >
+                  <span>
+                    {it.nombre}
+                    {it.ubicacion && <span className="text-white/30"> · 📦 {it.ubicacion}</span>}
+                  </span>
+                  <span className="text-white/40">{fmt(it.precio)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setEscaneando(true)}
+          className="shrink-0 rounded-lg border border-white/15 px-3 text-sm text-white/70 hover:border-brand hover:text-white"
+        >
+          📷
+        </button>
+      </div>
+
+      {!mostrarLibre ? (
+        <button
+          type="button"
+          onClick={() => setMostrarLibre(true)}
+          className="mb-4 text-xs font-semibold text-white/50 hover:text-brand"
+        >
+          + Agregar producto sin catálogo (inventario aún no cargado)
+        </button>
+      ) : (
+        <div className="mb-4 rounded-lg border border-white/10 p-3">
+          <p className="mb-2 text-xs text-white/40">
+            Para inventario que todavía no has cargado como item -- solo se guarda en el historial, no afecta stock.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={libreNombre}
+              onChange={(e) => setLibreNombre(e.target.value)}
+              placeholder="Nombre del producto"
+              className="min-w-[10rem] flex-1 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
+            />
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={librePrecio}
+              onChange={(e) => setLibrePrecio(e.target.value)}
+              placeholder="Precio"
+              className="w-28 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
+            />
+            <button
+              type="button"
+              onClick={agregarLibre}
+              disabled={!libreNombre.trim() || librePrecio === "" || isNaN(parseFloat(librePrecio))}
+              className="rounded-lg bg-white/10 px-3 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              Agregar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMostrarLibre(false);
+                setLibreNombre("");
+                setLibrePrecio("");
+              }}
+              className="text-sm text-white/40 hover:text-white"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {lineas.length === 0 ? (
+        <p className="mb-6 text-sm text-white/40">Busca arriba y agrega los productos que se van a apartar.</p>
+      ) : (
+        <div className="mb-6 flex flex-col gap-2">
+          {lineas.map((l) => (
+            <div key={l.key} className="flex flex-wrap items-center gap-2 rounded-lg border border-white/10 p-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm text-white">
+                  {l.nombre}
+                  {l.libre && (
+                    <span className="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 align-middle text-[9px] uppercase tracking-wide text-white/40">
+                      sin catálogo
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-white/40">{fmt(l.precio)} c/u</div>
+              </div>
+
+              {l.tiene_tallas &&
+                (l.tallas === null ? (
+                  <span className="text-xs text-white/40">cargando tallas...</span>
+                ) : (
+                  <select
+                    value={l.talla}
+                    onChange={(e) => cambiarTalla(l, e.target.value)}
+                    className="rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-xs text-white outline-none"
+                  >
+                    {l.tallas.map((v) => (
+                      <option key={v.talla} value={v.talla} disabled={v.stock <= 0}>
+                        {v.talla} {v.stock <= 0 ? "(agotada)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                ))}
+
+              <div className="flex flex-col items-center">
+                <input
+                  type="number"
+                  min="1"
+                  max={Number.isFinite(maxDisponible(l)) ? maxDisponible(l) : undefined}
+                  value={l.cantidad}
+                  onChange={(e) => cambiarCantidad(l, e.target.value)}
+                  className="w-14 rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-center text-sm text-white outline-none"
+                />
+                {Number.isFinite(maxDisponible(l)) && (
+                  <span className="text-[10px] text-white/30">de {maxDisponible(l)}</span>
+                )}
+              </div>
+
+              <button type="button" onClick={() => quitar(l.key)} className="text-white/40 hover:text-red-400" aria-label="Quitar">
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mb-2 flex items-center justify-between text-sm text-white/60">
+        <span>Subtotal ({lineas.length} {lineas.length === 1 ? "producto" : "productos"})</span>
+        <span>{fmt(subtotal)}</span>
+      </div>
+
+      <div className="mb-2 flex items-center justify-between">
+        <label className="text-sm text-white/60">Total acordado</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={total}
+          onChange={(e) => setTotal(e.target.value)}
+          placeholder={subtotal.toFixed(2)}
+          className="w-32 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-right text-white outline-none focus:border-brand"
+        />
+      </div>
+
+      {diferencia > 0 && <p className="mb-2 text-right text-xs text-white/40">Descuento: {fmt(diferencia)}</p>}
+      {diferencia < 0 && <p className="mb-2 text-right text-xs text-white/40">Recargo: {fmt(-diferencia)}</p>}
+
+      <div className="mb-4 flex items-center justify-between">
+        <label className="text-sm text-white/60">Anticipo / depósito inicial (opcional)</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={anticipo}
+          onChange={(e) => setAnticipo(e.target.value)}
+          placeholder="0.00"
+          className="w-32 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-right text-white outline-none focus:border-brand"
+        />
+      </div>
+
+      <p className="mb-4 text-xs text-white/40">
+        Al confirmar, se resta el stock de los productos (quedan reservados) y el anticipo -- si le pones algo --
+        queda registrado como el primer abono.
+      </p>
+
+      {error && <p className="mb-4 text-sm text-red-400">⚠ {error}</p>}
+
+      <button
+        type="button"
+        onClick={confirmar}
+        disabled={guardando || lineas.length === 0}
+        className="w-full rounded-lg bg-brand px-6 py-3 font-display font-bold text-white disabled:opacity-50"
+      >
+        {guardando ? "Guardando..." : `Confirmar apartado -- resta ${fmt(totalNum - anticipoNum)}`}
+      </button>
+
+      {escaneando && (
+        <BarcodeScanner
+          onScan={buscarPorCodigo}
+          onClose={() => {
+            setEscaneando(false);
+            setUltimoAgregado("");
+          }}
+          continuo
+          statusText={ultimoAgregado ? `✓ ${ultimoAgregado} agregado` : undefined}
+        />
+      )}
+
+      {candidatos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setCandidatos(null)}>
+          <div
+            className="w-full max-w-sm rounded-xl border border-white/10 bg-brand-dark p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-1 font-display text-sm font-extrabold text-white">Ese código coincide con varios</h2>
+            <p className="mb-3 text-xs text-white/40">Elige cuál era.</p>
+            <div className="flex flex-col gap-1.5">
+              {candidatos.map((c, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => agregarCandidato(c)}
+                  className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2 text-left text-sm text-white hover:border-brand"
+                >
+                  <span>
+                    {c.nombre}
+                    {c.talla && <span className="text-white/40"> · talla {c.talla}</span>}
+                    {c.ubicacion && <span className="text-white/30"> · 📦 {c.ubicacion}</span>}
+                  </span>
+                  <span className="text-white/40">{fmt(c.precio)}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCandidatos(null)}
+              className="mt-3 text-sm text-white/40 hover:text-white"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
