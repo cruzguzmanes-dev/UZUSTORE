@@ -17,8 +17,11 @@ export async function GET(req) {
   const db = supabaseAdmin();
 
   const [{ data: itemsMatch }, { data: variantesMatch }] = await Promise.all([
-    db.from("items").select("id, nombre, precio, tiene_tallas, stock").eq("codigo_barras", codigo),
-    db.from("variantes").select("talla, stock, items(id, nombre, precio, tiene_tallas)").eq("codigo_barras", codigo),
+    db.from("items").select("id, nombre, precio, tiene_tallas, stock, ubicacion").eq("codigo_barras", codigo),
+    db
+      .from("variantes")
+      .select("talla, stock, items(id, nombre, precio, tiene_tallas, ubicacion)")
+      .eq("codigo_barras", codigo),
   ]);
 
   const candidatos = [
@@ -29,6 +32,7 @@ export async function GET(req) {
       tiene_tallas: it.tiene_tallas,
       talla: null,
       stock: it.stock,
+      ubicacion: it.ubicacion,
     })),
     ...(variantesMatch || [])
       .filter((v) => v.items)
@@ -39,6 +43,7 @@ export async function GET(req) {
         tiene_tallas: true,
         talla: v.talla,
         stock: v.stock,
+        ubicacion: v.items.ubicacion,
       })),
   ];
 

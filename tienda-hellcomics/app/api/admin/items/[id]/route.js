@@ -68,6 +68,7 @@ export async function PUT(req, { params }) {
       publico,
       video_url: body.video_url?.trim() || null,
       codigo_barras: body.codigo_barras?.trim() || null,
+      ubicacion: body.ubicacion?.trim() || null,
     })
     .eq("id", params.id)
     .select()

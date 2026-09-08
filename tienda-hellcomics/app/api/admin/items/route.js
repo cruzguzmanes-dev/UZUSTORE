@@ -14,6 +14,7 @@ export async function GET(req) {
   const categoria_id = searchParams.get("categoria_id");
   const estado = searchParams.get("estado");
   const publico = searchParams.get("publico"); // "1" | "0" | null (todos)
+  const ubicacion = searchParams.get("ubicacion") || "";
 
   const db = supabaseAdmin();
   let query = db
@@ -26,6 +27,7 @@ export async function GET(req) {
   if (estado) query = query.eq("estado", estado);
   if (publico === "1") query = query.eq("publico", true);
   if (publico === "0") query = query.eq("publico", false);
+  if (ubicacion) query = query.ilike("ubicacion", `%${ubicacion}%`);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -75,6 +77,7 @@ export async function POST(req) {
       publico,
       video_url: body.video_url?.trim() || null,
       codigo_barras: body.codigo_barras?.trim() || null,
+      ubicacion: body.ubicacion?.trim() || null,
     })
     .select()
     .single();

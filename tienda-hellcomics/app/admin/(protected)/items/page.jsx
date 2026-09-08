@@ -21,6 +21,7 @@ export default function AdminItemsPage() {
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
   const [publico, setPublico] = useState("");
+  const [ubicacion, setUbicacion] = useState("");
   const [borrando, setBorrando] = useState(null);
   const [avisoDestacados, setAvisoDestacados] = useState("");
   const [vendiendo, setVendiendo] = useState(null);
@@ -31,10 +32,11 @@ export default function AdminItemsPage() {
     if (q) params.set("q", q);
     if (estado) params.set("estado", estado);
     if (publico) params.set("publico", publico);
+    if (ubicacion) params.set("ubicacion", ubicacion);
     const res = await fetch(`/api/admin/items?${params}`);
     setItems(res.ok ? await res.json() : []);
     setCargando(false);
-  }, [q, estado, publico]);
+  }, [q, estado, publico, ubicacion]);
 
   useEffect(() => {
     const t = setTimeout(fetchItems, 250); // debounce del buscador
@@ -193,6 +195,12 @@ export default function AdminItemsPage() {
           <option value="1">Solo públicos</option>
           <option value="0">Solo no públicos (control interno)</option>
         </select>
+        <input
+          value={ubicacion}
+          onChange={(e) => setUbicacion(e.target.value)}
+          placeholder="Buscar por caja (ej. A-1)"
+          className="rounded-lg border border-white/15 bg-brand-surface px-3 py-2 text-sm text-white outline-none focus:border-brand"
+        />
       </div>
 
       {avisoDestacados && (
@@ -221,7 +229,10 @@ export default function AdminItemsPage() {
                       {item.nombre}
                       {!item.publico && <NoPublicoBadge />}
                     </div>
-                    <div className="text-xs text-white/40">{item.categorias?.nombre || "Sin categoría"}</div>
+                    <div className="text-xs text-white/40">
+                      {item.categorias?.nombre || "Sin categoría"}
+                      {item.ubicacion && <span> · 📦 {item.ubicacion}</span>}
+                    </div>
                     <div className="mt-1 font-semibold text-brand">{fmt(item.precio)}</div>
                   </div>
                 </div>
@@ -266,7 +277,10 @@ export default function AdminItemsPage() {
                             {item.nombre}
                             {!item.publico && <NoPublicoBadge />}
                           </div>
-                          <div className="text-xs text-white/40">{item.categorias?.nombre || "Sin categoría"}</div>
+                          <div className="text-xs text-white/40">
+                            {item.categorias?.nombre || "Sin categoría"}
+                            {item.ubicacion && <span> · 📦 {item.ubicacion}</span>}
+                          </div>
                         </div>
                       </div>
                     </td>

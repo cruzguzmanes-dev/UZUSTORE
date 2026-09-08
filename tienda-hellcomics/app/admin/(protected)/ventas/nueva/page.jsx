@@ -245,7 +245,10 @@ export default function NuevaVentaPage() {
                   onClick={() => agregar(it)}
                   className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-white hover:bg-white/5"
                 >
-                  <span>{it.nombre}</span>
+                  <span>
+                    {it.nombre}
+                    {it.ubicacion && <span className="text-white/30"> · 📦 {it.ubicacion}</span>}
+                  </span>
                   <span className="text-white/40">{fmt(it.precio)}</span>
                 </button>
               ))}
@@ -424,6 +427,7 @@ export default function NuevaVentaPage() {
                   <span>
                     {c.nombre}
                     {c.talla && <span className="text-white/40"> · talla {c.talla}</span>}
+                    {c.ubicacion && <span className="text-white/30"> · 📦 {c.ubicacion}</span>}
                   </span>
                   <span className="text-white/40">{fmt(c.precio)}</span>
                 </button>

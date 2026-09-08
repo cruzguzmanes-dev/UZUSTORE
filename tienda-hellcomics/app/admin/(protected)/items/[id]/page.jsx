@@ -25,6 +25,7 @@ const VACIO = {
   publico: false, // por defecto simple -- el que carga la mayoría es inventario interno
   video_url: "",
   codigo_barras: "",
+  ubicacion: "",
 };
 
 export default function ItemFormPage() {
@@ -77,6 +78,7 @@ export default function ItemFormPage() {
           publico: data.publico !== false,
           video_url: data.video_url || "",
           codigo_barras: data.codigo_barras || "",
+          ubicacion: data.ubicacion || "",
         });
         setSlugExistente(data.slug || "");
       })
@@ -250,6 +252,16 @@ export default function ItemFormPage() {
           placeholder="Solo tú lo ves -- para calcular ganancia más adelante"
           className="w-full max-w-xs rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
         />
+      </Campo>
+
+      <Campo label="Ubicación / caja (opcional)">
+        <input
+          value={form.ubicacion}
+          onChange={(e) => setForm((f) => ({ ...f, ubicacion: e.target.value }))}
+          placeholder="Ej. A-1, B-2"
+          className="w-full max-w-xs rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
+        />
+        <p className="mt-1.5 text-xs text-white/40">Para encontrarlo rápido entre las cajas -- tú decides tu propia numeración.</p>
       </Campo>
 
       {!form.tiene_tallas && (
