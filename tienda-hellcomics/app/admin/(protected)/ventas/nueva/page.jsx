@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import BarcodeScanner from "@/components/admin/BarcodeScanner";
 
 const fmt = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0);
 
@@ -19,6 +20,12 @@ export default function NuevaVentaPage() {
   const [mostrarLibre, setMostrarLibre] = useState(false);
   const [libreNombre, setLibreNombre] = useState("");
   const [librePrecio, setLibrePrecio] = useState("");
+
+  // Escanear código de barras para agregar -- si el código está repetido entre varios
+  // productos, se muestra la lista para que elijan cuál era en vez de adivinar.
+  const [escaneando, setEscaneando] = useState(false);
+  const [buscandoCodigo, setBuscandoCodigo] = useState(false);
+  const [candidatos, setCandidatos] = useState(null);
 
   const buscar = async (texto) => {
     setQ(texto);
@@ -56,6 +63,56 @@ export default function NuevaVentaPage() {
       const tallas = data.variantes || [];
       const primera = tallas.find((v) => v.stock > 0)?.talla || tallas[0]?.talla || "";
       setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, tallas, talla: primera } : l)));
+    }
+  };
+
+  // Agrega un candidato encontrado por código de barras -- a diferencia de agregar(),
+  // aquí ya sabemos exactamente qué talla se escaneó (si aplica), así que se respeta esa
+  // en vez de asumir "la primera con stock".
+  const agregarCandidato = async (candidato) => {
+    const key = `${candidato.item_id}-${Date.now()}`;
+    setLineas((prev) => [
+      ...prev,
+      {
+        key,
+        item_id: candidato.item_id,
+        nombre: candidato.nombre,
+        precio: candidato.precio,
+        tiene_tallas: candidato.tiene_tallas,
+        stock: candidato.stock,
+        talla: candidato.talla || "",
+        tallas: candidato.tiene_tallas ? null : undefined,
+        cantidad: "1",
+      },
+    ]);
+    setCandidatos(null);
+
+    if (candidato.tiene_tallas) {
+      const r = await fetch(`/api/admin/items/${candidato.item_id}`);
+      const data = await r.json();
+      setLineas((prev) => prev.map((l) => (l.key === key ? { ...l, tallas: data.variantes || [] } : l)));
+    }
+  };
+
+  const buscarPorCodigo = async (codigo) => {
+    setEscaneando(false);
+    setBuscandoCodigo(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/items/codigo?codigo=${encodeURIComponent(codigo)}`);
+      const data = await res.json();
+      const encontrados = data.candidatos || [];
+      if (encontrados.length === 0) {
+        setError(`No encontramos ningún producto con el código "${codigo}" -- puedes buscarlo por nombre o agregarlo como "sin catálogo" abajo.`);
+      } else if (encontrados.length === 1) {
+        await agregarCandidato(encontrados[0]);
+      } else {
+        setCandidatos(encontrados);
+      }
+    } catch {
+      setError("No se pudo buscar ese código");
+    } finally {
+      setBuscandoCodigo(false);
     }
   };
 
@@ -171,28 +228,38 @@ export default function NuevaVentaPage() {
         </p>
       )}
 
-      <div className="relative mb-4">
-        <input
-          value={q}
-          onChange={(e) => buscar(e.target.value)}
-          placeholder="Buscar producto para agregar..."
-          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
-        />
-        {resultados.length > 0 && (
-          <div className="absolute z-10 mt-1 w-full rounded-lg border border-white/10 bg-brand-dark shadow-lg">
-            {resultados.map((it) => (
-              <button
-                key={it.id}
-                type="button"
-                onClick={() => agregar(it)}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-white hover:bg-white/5"
-              >
-                <span>{it.nombre}</span>
-                <span className="text-white/40">{fmt(it.precio)}</span>
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="mb-4 flex gap-2">
+        <div className="relative flex-1">
+          <input
+            value={q}
+            onChange={(e) => buscar(e.target.value)}
+            placeholder="Buscar producto para agregar..."
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          />
+          {resultados.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full rounded-lg border border-white/10 bg-brand-dark shadow-lg">
+              {resultados.map((it) => (
+                <button
+                  key={it.id}
+                  type="button"
+                  onClick={() => agregar(it)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-white hover:bg-white/5"
+                >
+                  <span>{it.nombre}</span>
+                  <span className="text-white/40">{fmt(it.precio)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setEscaneando(true)}
+          disabled={buscandoCodigo}
+          className="shrink-0 rounded-lg border border-white/15 px-3 text-sm text-white/70 hover:border-brand hover:text-white disabled:opacity-50"
+        >
+          {buscandoCodigo ? "Buscando..." : "📷"}
+        </button>
       </div>
 
       {!mostrarLibre ? (
@@ -335,6 +402,43 @@ export default function NuevaVentaPage() {
       >
         {guardando ? "Guardando..." : `Confirmar venta -- ${fmt(totalNum)}`}
       </button>
+
+      {escaneando && <BarcodeScanner onScan={buscarPorCodigo} onClose={() => setEscaneando(false)} />}
+
+      {candidatos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setCandidatos(null)}>
+          <div
+            className="w-full max-w-sm rounded-xl border border-white/10 bg-brand-dark p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-1 font-display text-sm font-extrabold text-white">Ese código coincide con varios</h2>
+            <p className="mb-3 text-xs text-white/40">Elige cuál era.</p>
+            <div className="flex flex-col gap-1.5">
+              {candidatos.map((c, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => agregarCandidato(c)}
+                  className="flex items-center justify-between rounded-lg border border-white/10 px-3 py-2 text-left text-sm text-white hover:border-brand"
+                >
+                  <span>
+                    {c.nombre}
+                    {c.talla && <span className="text-white/40"> · talla {c.talla}</span>}
+                  </span>
+                  <span className="text-white/40">{fmt(c.precio)}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCandidatos(null)}
+              className="mt-3 text-sm text-white/40 hover:text-white"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
