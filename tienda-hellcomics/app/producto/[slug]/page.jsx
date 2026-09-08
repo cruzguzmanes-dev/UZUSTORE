@@ -122,7 +122,7 @@ export default async function ProductoPage({ params }) {
                 href={item.video_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline"
+                className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand bg-black px-6 py-3 font-display font-bold text-brand transition hover:bg-brand/10"
               >
                 ▶ Ver reseña en video
               </a>
