@@ -6,6 +6,7 @@ import TagInput from "@/components/admin/TagInput";
 import ImageUploader from "@/components/admin/ImageUploader";
 import CategorySelect from "@/components/admin/CategorySelect";
 import VarianteEditor from "@/components/admin/VarianteEditor";
+import BarcodeScanner from "@/components/admin/BarcodeScanner";
 import { slugify } from "@/lib/slugify";
 
 const VACIO = {
@@ -23,6 +24,7 @@ const VACIO = {
   variantes: [],
   publico: true,
   video_url: "",
+  codigo_barras: "",
 };
 
 export default function ItemFormPage() {
@@ -37,6 +39,7 @@ export default function ItemFormPage() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
   const [origin, setOrigin] = useState("");
+  const [escaneando, setEscaneando] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -69,6 +72,7 @@ export default function ItemFormPage() {
           variantes: (data.variantes || []).map((v) => ({ talla: v.talla, stock: String(v.stock) })),
           publico: data.publico !== false,
           video_url: data.video_url || "",
+          codigo_barras: data.codigo_barras || "",
         });
         setSlugExistente(data.slug || "");
       })
@@ -210,6 +214,24 @@ export default function ItemFormPage() {
         />
       </Campo>
 
+      <Campo label="Código de barras (opcional)">
+        <div className="flex gap-2">
+          <input
+            value={form.codigo_barras}
+            onChange={(e) => setForm((f) => ({ ...f, codigo_barras: e.target.value }))}
+            placeholder="Escanéalo o escríbelo a mano"
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
+          />
+          <button
+            type="button"
+            onClick={() => setEscaneando(true)}
+            className="shrink-0 rounded-lg border border-white/15 px-3 text-sm text-white/70 hover:border-brand hover:text-white"
+          >
+            📷 Escanear
+          </button>
+        </div>
+      </Campo>
+
       <Campo label="Categoría">
         <CategorySelect
           categorias={categorias}
@@ -264,6 +286,16 @@ export default function ItemFormPage() {
       >
         {guardando ? "Guardando..." : "Guardar →"}
       </button>
+
+      {escaneando && (
+        <BarcodeScanner
+          onScan={(codigo) => {
+            setForm((f) => ({ ...f, codigo_barras: codigo }));
+            setEscaneando(false);
+          }}
+          onClose={() => setEscaneando(false)}
+        />
+      )}
     </form>
   );
 }

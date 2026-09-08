@@ -74,6 +74,7 @@ export async function POST(req) {
       estado: body.estado || "activo",
       publico,
       video_url: body.video_url?.trim() || null,
+      codigo_barras: body.codigo_barras?.trim() || null,
     })
     .select()
     .single();
