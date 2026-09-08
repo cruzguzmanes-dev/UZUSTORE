@@ -117,28 +117,41 @@ export default async function ProductoPage({ params }) {
               </div>
             )}
 
-            {item.video_url && (
-              <a
-                href={item.video_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand bg-black px-6 py-3 font-display font-bold text-brand transition hover:bg-brand/10"
-              >
-                ▶ Ver reseña en video
-              </a>
-            )}
-
             {item.tiene_tallas && item.estado !== "agotado" && item.variantes.length > 0 ? (
-              <TallaSelector variantes={item.variantes} numero={whatsapp} item={item} urlProducto={urlProducto} />
+              <>
+                {item.video_url && (
+                  <a
+                    href={item.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand bg-black px-6 py-3 font-display font-bold text-brand transition hover:bg-brand/10"
+                  >
+                    ▶ Ver reseña en video
+                  </a>
+                )}
+                <TallaSelector variantes={item.variantes} numero={whatsapp} item={item} urlProducto={urlProducto} />
+              </>
             ) : (
-              <a
-                href={linkWhatsapp(whatsapp, item, urlProducto, null, agotado)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
-              >
-                {agotado ? "Preguntar" : "Me interesa"}
-              </a>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {item.video_url && (
+                  <a
+                    href={item.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand bg-black px-6 py-3 font-display font-bold text-brand transition hover:bg-brand/10"
+                  >
+                    ▶ Ver reseña en video
+                  </a>
+                )}
+                <a
+                  href={linkWhatsapp(whatsapp, item, urlProducto, null, agotado)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
+                >
+                  {agotado ? "Preguntar" : "Me interesa"}
+                </a>
+              </div>
             )}
           </div>
         </div>
