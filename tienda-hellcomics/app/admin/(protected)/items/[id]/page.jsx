@@ -202,7 +202,7 @@ export default function ItemFormPage() {
         </>
       )}
 
-      <div className={`mb-4 grid gap-3 ${form.tiene_tallas ? "grid-cols-1" : "grid-cols-2"}`}>
+      <div className="mb-4 grid grid-cols-2 gap-3">
         <Campo label="Precio *">
           <input
             type="number" step="0.01" min="0"
@@ -211,17 +211,27 @@ export default function ItemFormPage() {
             className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
           />
         </Campo>
-        {!form.tiene_tallas && (
-          <Campo label="Stock">
-            <input
-              type="number" min="0"
-              value={form.stock}
-              onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
-              className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
-            />
-          </Campo>
-        )}
+        <Campo label="Costo (opcional)">
+          <input
+            type="number" step="0.01" min="0"
+            value={form.costo}
+            onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))}
+            placeholder="Solo tú lo ves"
+            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
+          />
+        </Campo>
       </div>
+
+      {!form.tiene_tallas && (
+        <Campo label="Stock">
+          <input
+            type="number" min="0"
+            value={form.stock}
+            onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
+            className="w-full max-w-xs rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+          />
+        </Campo>
+      )}
 
       <Campo label="¿Maneja tallas? (ej. playeras)">
         <button
@@ -243,16 +253,6 @@ export default function ItemFormPage() {
           />
         </Campo>
       )}
-
-      <Campo label="Costo (opcional)">
-        <input
-          type="number" step="0.01" min="0"
-          value={form.costo}
-          onChange={(e) => setForm((f) => ({ ...f, costo: e.target.value }))}
-          placeholder="Solo tú lo ves -- para calcular ganancia más adelante"
-          className="w-full max-w-xs rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
-        />
-      </Campo>
 
       <Campo label="Ubicación / caja (opcional)">
         <input
