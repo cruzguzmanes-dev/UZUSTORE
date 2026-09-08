@@ -89,10 +89,7 @@ export default function VarianteEditor({ value, onChange }) {
 
       {escaneandoIndex !== null && (
         <BarcodeScanner
-          onScan={(codigo) => {
-            actualizar(escaneandoIndex, "codigo_barras", codigo);
-            setEscaneandoIndex(null);
-          }}
+          onScan={(codigo) => actualizar(escaneandoIndex, "codigo_barras", codigo)}
           onClose={() => setEscaneandoIndex(null)}
         />
       )}

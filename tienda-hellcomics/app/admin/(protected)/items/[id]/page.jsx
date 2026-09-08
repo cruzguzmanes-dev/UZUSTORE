@@ -329,10 +329,7 @@ export default function ItemFormPage() {
 
       {escaneando && (
         <BarcodeScanner
-          onScan={(codigo) => {
-            setForm((f) => ({ ...f, codigo_barras: codigo }));
-            setEscaneando(false);
-          }}
+          onScan={(codigo) => setForm((f) => ({ ...f, codigo_barras: codigo }))}
           onClose={() => setEscaneando(false)}
         />
       )}

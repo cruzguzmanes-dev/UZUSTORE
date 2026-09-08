@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { reproducirBeep } from "@/lib/beep";
 
 const ELEMENT_ID = "barcode-scanner-region";
 const COOLDOWN_MS = 1200; // en modo continuo, evita que el mismo código dispare varias veces mientras sigue frente a la cámara
@@ -9,16 +10,19 @@ const COOLDOWN_MS = 1200; // en modo continuo, evita que el mismo código dispar
 // productos de fábrica (EAN/UPC) además de Code128/39 por si imprimen sus propias
 // etiquetas. Todo corre en el navegador -- no manda nada a ningún servicio externo.
 //
-// continuo=false (default, para el form de item): se detiene después de la primera
-// lectura -- el padre cierra el modal.
-// continuo=true (para "Nueva venta"): sigue leyendo una tras otra, con un pequeño
-// cooldown para no releer el mismo código de inmediato. El padre decide cuándo cerrar.
+// continuo=false (default, para el form de item/tallas): al detectar un código, suena un
+// beep, se aplica de inmediato (onScan) y se muestra una confirmación con "Listo" (cierra)
+// o "Escanear otro" (sigue) -- así queda claro que sí lo detectó, en vez de cerrarse solo
+// sin avisar.
+// continuo=true (para "Nueva venta"/apartados): sigue leyendo una tras otra con un
+// cooldown, sin pedir confirmación -- el padre decide cuándo cerrar.
 export default function BarcodeScanner({ onScan, onClose, continuo = false, statusText }) {
   const scannerRef = useRef(null);
   const bloqueadoRef = useRef(false); // modo single-shot
   const enCooldownRef = useRef(false); // modo continuo
   const onScanRef = useRef(onScan);
   const [error, setError] = useState("");
+  const [pendiente, setPendiente] = useState(""); // último código detectado en modo single-shot, para la confirmación
 
   // El padre pasa una función nueva de onScan en cada render suyo (ej. cada vez que se
   // agrega un producto al carrito) -- si el efecto de abajo dependiera de onScan
@@ -55,14 +59,17 @@ export default function BarcodeScanner({ onScan, onClose, continuo = false, stat
             if (continuo) {
               if (enCooldownRef.current) return;
               enCooldownRef.current = true;
+              reproducirBeep();
               onScanRef.current(decodedText);
               setTimeout(() => {
                 enCooldownRef.current = false;
               }, COOLDOWN_MS);
             } else {
-              if (bloqueadoRef.current) return; // ignora lecturas repetidas del mismo frame
+              if (bloqueadoRef.current) return; // ya hay uno esperando confirmación, ignora más lecturas
               bloqueadoRef.current = true;
+              reproducirBeep();
               onScanRef.current(decodedText);
+              setPendiente(decodedText);
             }
           },
           () => {} // "no se detectó nada en este frame" -- se dispara constantemente, no es error real
@@ -81,6 +88,11 @@ export default function BarcodeScanner({ onScan, onClose, continuo = false, stat
     };
   }, [continuo]);
 
+  const escanearOtro = () => {
+    setPendiente("");
+    bloqueadoRef.current = false;
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
       <div
@@ -95,9 +107,32 @@ export default function BarcodeScanner({ onScan, onClose, continuo = false, stat
         </div>
         {error && <p className="mb-3 text-sm text-red-400">⚠ {error}</p>}
         <div id={ELEMENT_ID} className="overflow-hidden rounded-lg" />
-        <p className="mt-3 text-center text-xs text-white/40">
-          {continuo ? "Escanea uno tras otro -- se van agregando solos" : "Apunta la cámara al código de barras o QR"}
-        </p>
+
+        {!continuo && pendiente ? (
+          <div className="mt-3 rounded-lg border border-brand/30 bg-brand/10 p-3 text-center">
+            <p className="mb-2 text-sm text-brand">✓ Código detectado: {pendiente}</p>
+            <div className="flex justify-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white"
+              >
+                Listo
+              </button>
+              <button
+                type="button"
+                onClick={escanearOtro}
+                className="rounded-lg border border-white/15 px-4 py-2 text-sm text-white/70 hover:text-white"
+              >
+                Escanear otro
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-center text-xs text-white/40">
+            {continuo ? "Escanea uno tras otro -- se van agregando solos" : "Apunta la cámara al código de barras o QR"}
+          </p>
+        )}
         {statusText && <p className="mt-2 text-center text-sm font-semibold text-brand">{statusText}</p>}
       </div>
     </div>

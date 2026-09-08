@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import BarcodeScanner from "@/components/admin/BarcodeScanner";
-import { reproducirBeep } from "@/lib/beep";
 
 const fmt = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0);
 
@@ -93,7 +92,7 @@ export default function NuevoApartadoPage() {
   };
 
   const buscarPorCodigo = async (codigo) => {
-    reproducirBeep();
+    // El beep ya lo reprodujo BarcodeScanner al detectar el código, antes de llamar aquí.
     setError("");
     setUltimoAgregado("");
     try {
