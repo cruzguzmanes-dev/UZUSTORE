@@ -15,3 +15,11 @@ export function linkWhatsappContacto(numero) {
   const num = String(numero || "").replace(/[^0-9]/g, "");
   return `https://wa.me/${num}?text=${encodeURIComponent("Hola! Tengo una pregunta sobre Hell Comics México.")}`;
 }
+
+// Cuando una búsqueda no da resultados -- pregunta si lo tienen o lo pueden conseguir,
+// con el texto que buscó precargado.
+export function linkWhatsappBusqueda(numero, query) {
+  const num = String(numero || "").replace(/[^0-9]/g, "");
+  const mensaje = `Hola! Estaba buscando: "${query}" -- ¿de casualidad lo tienen o lo pueden conseguir?`;
+  return `https://wa.me/${num}?text=${encodeURIComponent(mensaje)}`;
+}

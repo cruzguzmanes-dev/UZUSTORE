@@ -12,6 +12,7 @@ async function getNovedades() {
     .from("items")
     .select("id,nombre,slug,precio,stock,estado,created_at,categorias(nombre,slug),imagenes(url,orden)")
     .neq("estado", "oculto") // "agotado" también se muestra -- solo "oculto" se esconde
+    .eq("publico", true)
     .order("created_at", { ascending: false })
     .limit(20);
   return (data || []).map((it) => ({ ...it, imagenes: (it.imagenes || []).sort((a, b) => a.orden - b.orden) }));
@@ -30,6 +31,7 @@ async function getOportunidades() {
     .from("items")
     .select("id,nombre,slug,precio,stock,estado,categorias(nombre,slug),imagenes(url,orden)")
     .neq("estado", "oculto")
+    .eq("publico", true)
     .eq("destacado", true)
     .order("destacado_at", { ascending: false })
     .limit(12);

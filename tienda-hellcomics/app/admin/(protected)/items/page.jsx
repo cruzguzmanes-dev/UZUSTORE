@@ -6,11 +6,21 @@ import VenderModal from "@/components/admin/VenderModal";
 
 const fmt = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0);
 
+const NoPublicoBadge = () => (
+  <span
+    title="No aparece en el catálogo público -- solo control interno"
+    className="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 align-middle text-[9px] uppercase tracking-wide text-white/40"
+  >
+    no público
+  </span>
+);
+
 export default function AdminItemsPage() {
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [q, setQ] = useState("");
   const [estado, setEstado] = useState("");
+  const [publico, setPublico] = useState("");
   const [borrando, setBorrando] = useState(null);
   const [avisoDestacados, setAvisoDestacados] = useState("");
   const [vendiendo, setVendiendo] = useState(null);
@@ -20,10 +30,11 @@ export default function AdminItemsPage() {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     if (estado) params.set("estado", estado);
+    if (publico) params.set("publico", publico);
     const res = await fetch(`/api/admin/items?${params}`);
     setItems(res.ok ? await res.json() : []);
     setCargando(false);
-  }, [q, estado]);
+  }, [q, estado, publico]);
 
   useEffect(() => {
     const t = setTimeout(fetchItems, 250); // debounce del buscador
@@ -173,6 +184,15 @@ export default function AdminItemsPage() {
           <option value="agotado">Agotado</option>
           <option value="oculto">Oculto</option>
         </select>
+        <select
+          value={publico}
+          onChange={(e) => setPublico(e.target.value)}
+          className="rounded-lg border border-white/15 bg-brand-surface px-3 py-2 text-sm text-white outline-none"
+        >
+          <option value="">Públicos y no públicos</option>
+          <option value="1">Solo públicos</option>
+          <option value="0">Solo no públicos (control interno)</option>
+        </select>
       </div>
 
       {avisoDestacados && (
@@ -197,7 +217,10 @@ export default function AdminItemsPage() {
                     <img src={item.imagenes[0].url} alt="" className="h-14 w-14 shrink-0 rounded object-cover" />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold text-white">{item.nombre}</div>
+                    <div className="truncate font-semibold text-white">
+                      {item.nombre}
+                      {!item.publico && <NoPublicoBadge />}
+                    </div>
                     <div className="text-xs text-white/40">{item.categorias?.nombre || "Sin categoría"}</div>
                     <div className="mt-1 font-semibold text-brand">{fmt(item.precio)}</div>
                   </div>
@@ -239,7 +262,10 @@ export default function AdminItemsPage() {
                           <img src={item.imagenes[0].url} alt="" className="h-10 w-10 rounded object-cover" />
                         )}
                         <div>
-                          <div className="font-semibold text-white">{item.nombre}</div>
+                          <div className="font-semibold text-white">
+                            {item.nombre}
+                            {!item.publico && <NoPublicoBadge />}
+                          </div>
                           <div className="text-xs text-white/40">{item.categorias?.nombre || "Sin categoría"}</div>
                         </div>
                       </div>

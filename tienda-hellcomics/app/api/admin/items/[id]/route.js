@@ -37,7 +37,8 @@ export async function PUT(req, { params }) {
   if (!body.nombre?.trim() || body.precio == null || body.precio === "") {
     return NextResponse.json({ error: "Nombre y precio son requeridos" }, { status: 400 });
   }
-  if (!body.imagenes || body.imagenes.length === 0) {
+  const publico = body.publico !== false; // default true
+  if (publico && (!body.imagenes || body.imagenes.length === 0)) {
     return NextResponse.json({ error: "Agrega al menos una foto" }, { status: 400 });
   }
   const tieneTallas = !!body.tiene_tallas;
@@ -64,6 +65,8 @@ export async function PUT(req, { params }) {
       tiene_tallas: tieneTallas,
       categoria_id,
       estado: body.estado || "activo",
+      publico,
+      video_url: body.video_url?.trim() || null,
     })
     .eq("id", params.id)
     .select()

@@ -15,10 +15,11 @@ async function getItem(slug) {
   const { data } = await db
     .from("items")
     .select(
-      "id,nombre,slug,descripcion,precio,stock,estado,tiene_tallas,categorias(nombre,slug),imagenes(url,orden),item_tags(tags(id,nombre)),variantes(talla,stock,orden)"
+      "id,nombre,slug,descripcion,precio,stock,estado,tiene_tallas,video_url,categorias(nombre,slug),imagenes(url,orden),item_tags(tags(id,nombre)),variantes(talla,stock,orden)"
     )
     .eq("slug", slug)
     .neq("estado", "oculto") // "agotado" sí se sigue mostrando (con menos detalle) -- solo "oculto" da 404
+    .eq("publico", true)
     .maybeSingle();
   if (!data) return null;
   return {
@@ -35,14 +36,14 @@ async function getRelacionados(item) {
   const tagIds = item.tags.map((t) => t.id);
   const { data } = await db
     .from("item_tags")
-    .select("item_id, items(id,nombre,slug,precio,estado,imagenes(url,orden))")
+    .select("item_id, items(id,nombre,slug,precio,estado,publico,imagenes(url,orden))")
     .in("tag_id", tagIds)
     .neq("item_id", item.id);
 
   const vistos = new Map();
   for (const row of data || []) {
     const it = row.items;
-    if (it && it.estado !== "oculto" && !vistos.has(it.id)) {
+    if (it && it.estado !== "oculto" && it.publico && !vistos.has(it.id)) {
       vistos.set(it.id, { ...it, imagenes: (it.imagenes || []).sort((a, b) => a.orden - b.orden) });
     }
   }
@@ -114,6 +115,17 @@ export default async function ProductoPage({ params }) {
                   </span>
                 ))}
               </div>
+            )}
+
+            {item.video_url && (
+              <a
+                href={item.video_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:underline"
+              >
+                ▶ Ver reseña en video
+              </a>
             )}
 
             {item.tiene_tallas && item.estado !== "agotado" && item.variantes.length > 0 ? (

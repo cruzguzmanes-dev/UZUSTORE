@@ -13,6 +13,7 @@ export async function GET(req) {
   const q = searchParams.get("q") || "";
   const categoria_id = searchParams.get("categoria_id");
   const estado = searchParams.get("estado");
+  const publico = searchParams.get("publico"); // "1" | "0" | null (todos)
 
   const db = supabaseAdmin();
   let query = db
@@ -23,6 +24,8 @@ export async function GET(req) {
   if (q) query = query.ilike("nombre", `%${q}%`);
   if (categoria_id) query = query.eq("categoria_id", categoria_id);
   if (estado) query = query.eq("estado", estado);
+  if (publico === "1") query = query.eq("publico", true);
+  if (publico === "0") query = query.eq("publico", false);
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -38,7 +41,10 @@ export async function POST(req) {
   if (!body.nombre?.trim() || body.precio == null || body.precio === "") {
     return NextResponse.json({ error: "Nombre y precio son requeridos" }, { status: 400 });
   }
-  if (!body.imagenes || body.imagenes.length === 0) {
+  const publico = body.publico !== false; // default true
+  // La foto solo es obligatoria para items públicos -- inventario interno (publico=false,
+  // ej. cargado nada más para control/ventas) no necesita foto.
+  if (publico && (!body.imagenes || body.imagenes.length === 0)) {
     return NextResponse.json({ error: "Agrega al menos una foto" }, { status: 400 });
   }
   const tieneTallas = !!body.tiene_tallas;
@@ -66,6 +72,8 @@ export async function POST(req) {
       tiene_tallas: tieneTallas,
       categoria_id,
       estado: body.estado || "activo",
+      publico,
+      video_url: body.video_url?.trim() || null,
     })
     .select()
     .single();

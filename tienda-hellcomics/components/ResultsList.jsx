@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import ItemCard from "./ItemCard";
+import { linkWhatsappBusqueda } from "@/lib/whatsapp";
 
 const PAGE_SIZE = 10;
 const VISTA_KEY = "hc_vista_grid"; // "2" o "1" columnas base (en localStorage, por dispositivo)
@@ -9,7 +10,7 @@ const VISTA_KEY = "hc_vista_grid"; // "2" o "1" columnas base (en localStorage, 
 const GRID_2 = "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
 const GRID_1 = "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4";
 
-export default function ResultsList({ q, categoria }) {
+export default function ResultsList({ q, categoria, whatsapp }) {
   const [items, setItems] = useState([]);
   const [offset, setOffset] = useState(0);
   const [hayMas, setHayMas] = useState(true);
@@ -100,7 +101,24 @@ export default function ResultsList({ q, categoria }) {
       </div>
 
       {sinResultados ? (
-        <p className="py-16 text-center text-white/50">Sin resultados.</p>
+        q ? (
+          <div className="mx-auto flex max-w-sm flex-col items-center gap-4 py-16 text-center">
+            <p className="text-white/60">
+              No encontramos <span className="font-semibold text-white">"{q}"</span> en el catálogo por ahora -- pero
+              eso no quiere decir que no lo podamos conseguir. Pregúntanos directo por WhatsApp.
+            </p>
+            <a
+              href={linkWhatsappBusqueda(whatsapp, q)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-lg bg-brand px-6 py-3 font-display font-bold text-white transition hover:brightness-110"
+            >
+              Preguntar por WhatsApp
+            </a>
+          </div>
+        ) : (
+          <p className="py-16 text-center text-white/50">Sin resultados.</p>
+        )
       ) : (
         <div className={`grid gap-3 ${vista === "1" ? GRID_1 : GRID_2}`}>
           {items.map((item) => (

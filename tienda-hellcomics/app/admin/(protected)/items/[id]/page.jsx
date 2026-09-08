@@ -21,6 +21,8 @@ const VACIO = {
   imagenes: [],
   tiene_tallas: false,
   variantes: [],
+  publico: true,
+  video_url: "",
 };
 
 export default function ItemFormPage() {
@@ -65,6 +67,8 @@ export default function ItemFormPage() {
           imagenes: (data.imagenes || []).map((i) => i.url),
           tiene_tallas: !!data.tiene_tallas,
           variantes: (data.variantes || []).map((v) => ({ talla: v.talla, stock: String(v.stock) })),
+          publico: data.publico !== false,
+          video_url: data.video_url || "",
         });
         setSlugExistente(data.slug || "");
       })
@@ -78,7 +82,7 @@ export default function ItemFormPage() {
       setError("Nombre y precio son requeridos");
       return;
     }
-    if (form.imagenes.length === 0) {
+    if (form.publico && form.imagenes.length === 0) {
       setError("Agrega al menos una foto");
       return;
     }
@@ -141,6 +145,16 @@ export default function ItemFormPage() {
           onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
           rows={4}
           className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+        />
+      </Campo>
+
+      <Campo label="Link de reseña en video (opcional)">
+        <input
+          type="url"
+          value={form.video_url}
+          onChange={(e) => setForm((f) => ({ ...f, video_url: e.target.value }))}
+          placeholder="Link de Facebook, Instagram o TikTok"
+          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
         />
       </Campo>
 
@@ -221,7 +235,23 @@ export default function ItemFormPage() {
         </select>
       </Campo>
 
-      <Campo label="Fotos *">
+      <Campo label="¿Se publica en la tienda?">
+        <button
+          type="button"
+          onClick={() => setForm((f) => ({ ...f, publico: !f.publico }))}
+          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+            form.publico ? "border-brand bg-brand/15 text-white" : "border-white/15 text-white/60 hover:border-white/30"
+          }`}
+        >
+          {form.publico ? "Sí, es público" : "No, solo control interno"}
+        </button>
+        <p className="mt-1.5 text-xs text-white/40">
+          Distinto de "Estado" -- esto es para cargar inventario que quieres tener registrado (ventas, stock) sin que
+          aparezca todavía en el catálogo público. No pide foto.
+        </p>
+      </Campo>
+
+      <Campo label={form.publico ? "Fotos *" : "Fotos (opcional -- item no público)"}>
         <ImageUploader value={form.imagenes} onChange={(imagenes) => setForm((f) => ({ ...f, imagenes }))} />
       </Campo>
 
