@@ -129,42 +129,65 @@ export default function ItemFormPage() {
           onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
           className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
         />
-        <p className="mt-1.5 text-xs text-white/40">
-          {esNuevo
-            ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores."
-            : "El nombre lo puedes editar cuando quieras (ej. de \"Spiderman\" a \"Spiderman 4\"). Lo que NO cambia es el link de abajo -- se queda tal cual como en la creación, así nunca se rompe un link que ya compartiste."}
-          {esNuevo && form.nombre.trim() && (
-            <span className="mt-1 block font-mono text-white/50">{origin}/producto/{slugify(form.nombre) || "..."}</span>
-          )}
-          {!esNuevo && slugExistente && (
-            <span className="mt-2 block">
-              <span className="block text-[11px] font-semibold uppercase tracking-wide text-brand">
-                Este es el link de este producto
+        {form.publico && (
+          <p className="mt-1.5 text-xs text-white/40">
+            {esNuevo
+              ? "Con este nombre se genera el link único del producto -- así es como lo va a encontrar la gente en Google y otros buscadores."
+              : "El nombre lo puedes editar cuando quieras (ej. de \"Spiderman\" a \"Spiderman 4\"). Lo que NO cambia es el link de abajo -- se queda tal cual como en la creación, así nunca se rompe un link que ya compartiste."}
+            {esNuevo && form.nombre.trim() && (
+              <span className="mt-1 block font-mono text-white/50">{origin}/producto/{slugify(form.nombre) || "..."}</span>
+            )}
+            {!esNuevo && slugExistente && (
+              <span className="mt-2 block">
+                <span className="block text-[11px] font-semibold uppercase tracking-wide text-brand">
+                  Este es el link de este producto
+                </span>
+                <span className="font-mono text-brand">{origin}/producto/{slugExistente}</span>
               </span>
-              <span className="font-mono text-brand">{origin}/producto/{slugExistente}</span>
-            </span>
-          )}
+            )}
+          </p>
+        )}
+      </Campo>
+
+      <Campo label="¿Se publica en la tienda?">
+        <button
+          type="button"
+          onClick={() => setForm((f) => ({ ...f, publico: !f.publico }))}
+          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+            form.publico ? "border-brand bg-brand/15 text-white" : "border-white/15 text-white/60 hover:border-white/30"
+          }`}
+        >
+          {form.publico ? "Sí, es público" : "No, solo control interno"}
+        </button>
+        <p className="mt-1.5 text-xs text-white/40">
+          {form.publico
+            ? "Aparece en el catálogo. Si lo apagas, el formulario se simplifica -- solo lo necesario para tener el item registrado (ventas, stock), sin publicarlo."
+            : "Solo para tu control interno (stock, ventas) -- no aparece en la tienda. Por eso el resto del formulario se simplifica."}
         </p>
       </Campo>
 
-      <Campo label="Descripción">
-        <textarea
-          value={form.descripcion}
-          onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-          rows={4}
-          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
-        />
-      </Campo>
+      {form.publico && (
+        <>
+          <Campo label="Descripción">
+            <textarea
+              value={form.descripcion}
+              onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+              rows={4}
+              className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+            />
+          </Campo>
 
-      <Campo label="Link de reseña en video (opcional)">
-        <input
-          type="url"
-          value={form.video_url}
-          onChange={(e) => setForm((f) => ({ ...f, video_url: e.target.value }))}
-          placeholder="Link de Facebook, Instagram o TikTok"
-          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
-        />
-      </Campo>
+          <Campo label="Link de reseña en video (opcional)">
+            <input
+              type="url"
+              value={form.video_url}
+              onChange={(e) => setForm((f) => ({ ...f, video_url: e.target.value }))}
+              placeholder="Link de Facebook, Instagram o TikTok"
+              className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
+            />
+          </Campo>
+        </>
+      )}
 
       <div className={`mb-4 grid gap-3 ${form.tiene_tallas ? "grid-cols-1" : "grid-cols-2"}`}>
         <Campo label="Precio *">
@@ -238,50 +261,38 @@ export default function ItemFormPage() {
         </Campo>
       )}
 
-      <Campo label="Categoría">
-        <CategorySelect
-          categorias={categorias}
-          categoriaId={form.categoria_id}
-          categoriaNueva={form.categoria_nueva}
-          onChange={({ categoria_id, categoria_nueva }) => setForm((f) => ({ ...f, categoria_id, categoria_nueva }))}
-        />
-      </Campo>
+      {form.publico && (
+        <>
+          <Campo label="Categoría">
+            <CategorySelect
+              categorias={categorias}
+              categoriaId={form.categoria_id}
+              categoriaNueva={form.categoria_nueva}
+              onChange={({ categoria_id, categoria_nueva }) => setForm((f) => ({ ...f, categoria_id, categoria_nueva }))}
+            />
+          </Campo>
 
-      <Campo label="Tags">
-        <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
-      </Campo>
+          <Campo label="Tags">
+            <TagInput value={form.tags} onChange={(tags) => setForm((f) => ({ ...f, tags }))} />
+          </Campo>
 
-      <Campo label="Estado">
-        <select
-          value={form.estado}
-          onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
-          className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none"
-        >
-          <option value="activo">Activo</option>
-          <option value="agotado">Agotado</option>
-          <option value="oculto">Oculto (no aparece en el catálogo)</option>
-        </select>
-      </Campo>
+          <Campo label="Estado">
+            <select
+              value={form.estado}
+              onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
+              className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none"
+            >
+              <option value="activo">Activo</option>
+              <option value="agotado">Agotado</option>
+              <option value="oculto">Oculto (no aparece en el catálogo)</option>
+            </select>
+          </Campo>
 
-      <Campo label="¿Se publica en la tienda?">
-        <button
-          type="button"
-          onClick={() => setForm((f) => ({ ...f, publico: !f.publico }))}
-          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-            form.publico ? "border-brand bg-brand/15 text-white" : "border-white/15 text-white/60 hover:border-white/30"
-          }`}
-        >
-          {form.publico ? "Sí, es público" : "No, solo control interno"}
-        </button>
-        <p className="mt-1.5 text-xs text-white/40">
-          Distinto de "Estado" -- esto es para cargar inventario que quieres tener registrado (ventas, stock) sin que
-          aparezca todavía en el catálogo público. No pide foto.
-        </p>
-      </Campo>
-
-      <Campo label={form.publico ? "Fotos *" : "Fotos (opcional -- item no público)"}>
-        <ImageUploader value={form.imagenes} onChange={(imagenes) => setForm((f) => ({ ...f, imagenes }))} />
-      </Campo>
+          <Campo label="Fotos *">
+            <ImageUploader value={form.imagenes} onChange={(imagenes) => setForm((f) => ({ ...f, imagenes }))} />
+          </Campo>
+        </>
+      )}
 
       {error && <p className="mb-4 text-sm text-red-400">⚠ {error}</p>}
 
