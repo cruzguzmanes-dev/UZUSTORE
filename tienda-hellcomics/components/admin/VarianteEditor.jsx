@@ -1,10 +1,16 @@
 "use client";
 
+import { useState } from "react";
+import BarcodeScanner from "./BarcodeScanner";
+
 const PRESETS = ["S", "M", "L", "XL", "XXL"];
 
-// value: [{ talla, stock }]
+// value: [{ talla, stock, codigo_barras }] -- el código de barras va por talla porque en
+// ropa cada talla suele traer uno distinto de fábrica.
 export default function VarianteEditor({ value, onChange }) {
-  const agregar = (talla = "") => onChange([...value, { talla, stock: "0" }]);
+  const [escaneandoIndex, setEscaneandoIndex] = useState(null);
+
+  const agregar = (talla = "") => onChange([...value, { talla, stock: "0", codigo_barras: "" }]);
   const quitar = (i) => onChange(value.filter((_, idx) => idx !== i));
   const actualizar = (i, campo, val) =>
     onChange(value.map((v, idx) => (idx === i ? { ...v, [campo]: val } : v)));
@@ -30,29 +36,47 @@ export default function VarianteEditor({ value, onChange }) {
 
       <div className="flex flex-col gap-2">
         {value.map((v, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              value={v.talla}
-              onChange={(e) => actualizar(i, "talla", e.target.value)}
-              placeholder="Talla (ej. M, 32, única)"
-              className="flex-1 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-            />
-            <input
-              type="number"
-              min="0"
-              value={v.stock}
-              onChange={(e) => actualizar(i, "stock", e.target.value)}
-              placeholder="Stock"
-              className="w-20 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
-            />
-            <button
-              type="button"
-              onClick={() => quitar(i)}
-              className="shrink-0 text-white/40 hover:text-red-400"
-              aria-label="Quitar talla"
-            >
-              ✕
-            </button>
+          <div key={i} className="rounded-lg border border-white/10 p-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={v.talla}
+                onChange={(e) => actualizar(i, "talla", e.target.value)}
+                placeholder="Talla (ej. M, 32, única)"
+                className="flex-1 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
+              />
+              <input
+                type="number"
+                min="0"
+                value={v.stock}
+                onChange={(e) => actualizar(i, "stock", e.target.value)}
+                placeholder="Stock"
+                className="w-20 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-brand"
+              />
+              <button
+                type="button"
+                onClick={() => quitar(i)}
+                className="shrink-0 text-white/40 hover:text-red-400"
+                aria-label="Quitar talla"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input
+                value={v.codigo_barras || ""}
+                onChange={(e) => actualizar(i, "codigo_barras", e.target.value)}
+                placeholder="Código de barras de esta talla (opcional)"
+                className="flex-1 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-xs text-white outline-none placeholder:text-white/30 focus:border-brand"
+              />
+              <button
+                type="button"
+                onClick={() => setEscaneandoIndex(i)}
+                className="shrink-0 rounded-lg border border-white/15 px-2.5 py-2 text-xs text-white/70 hover:border-brand hover:text-white"
+                aria-label="Escanear código de esta talla"
+              >
+                📷
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -62,6 +86,16 @@ export default function VarianteEditor({ value, onChange }) {
       </button>
 
       {value.length === 0 && <p className="mt-1 text-xs text-white/40">Agrega al menos una talla con su stock.</p>}
+
+      {escaneandoIndex !== null && (
+        <BarcodeScanner
+          onScan={(codigo) => {
+            actualizar(escaneandoIndex, "codigo_barras", codigo);
+            setEscaneandoIndex(null);
+          }}
+          onClose={() => setEscaneandoIndex(null)}
+        />
+      )}
     </div>
   );
 }

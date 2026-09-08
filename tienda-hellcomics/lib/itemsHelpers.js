@@ -51,7 +51,12 @@ export async function guardarImagenes(db, itemId, urls) {
 export async function guardarVariantes(db, itemId, variantes) {
   await db.from("variantes").delete().eq("item_id", itemId);
   const filas = (variantes || [])
-    .map((v, orden) => ({ talla: (v.talla || "").trim(), stock: Math.max(0, parseInt(v.stock, 10) || 0), orden }))
+    .map((v, orden) => ({
+      talla: (v.talla || "").trim(),
+      stock: Math.max(0, parseInt(v.stock, 10) || 0),
+      codigo_barras: v.codigo_barras?.trim() || null,
+      orden,
+    }))
     .filter((v) => v.talla);
   if (filas.length) await db.from("variantes").insert(filas.map((v) => ({ item_id: itemId, ...v })));
 

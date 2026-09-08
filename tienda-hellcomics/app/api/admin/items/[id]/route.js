@@ -12,7 +12,7 @@ export async function GET(_req, { params }) {
   const { data, error } = await db
     .from("items")
     .select(
-      "*, categorias(id,nombre), imagenes(id,url,orden), item_tags(tags(id,nombre)), variantes(id,talla,stock,orden)"
+      "*, categorias(id,nombre), imagenes(id,url,orden), item_tags(tags(id,nombre)), variantes(id,talla,stock,orden,codigo_barras)"
     )
     .eq("id", params.id)
     .maybeSingle();

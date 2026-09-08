@@ -69,7 +69,11 @@ export default function ItemFormPage() {
           tags: data.tags || [],
           imagenes: (data.imagenes || []).map((i) => i.url),
           tiene_tallas: !!data.tiene_tallas,
-          variantes: (data.variantes || []).map((v) => ({ talla: v.talla, stock: String(v.stock) })),
+          variantes: (data.variantes || []).map((v) => ({
+            talla: v.talla,
+            stock: String(v.stock),
+            codigo_barras: v.codigo_barras || "",
+          })),
           publico: data.publico !== false,
           video_url: data.video_url || "",
           codigo_barras: data.codigo_barras || "",
@@ -214,23 +218,25 @@ export default function ItemFormPage() {
         />
       </Campo>
 
-      <Campo label="Código de barras (opcional)">
-        <div className="flex gap-2">
-          <input
-            value={form.codigo_barras}
-            onChange={(e) => setForm((f) => ({ ...f, codigo_barras: e.target.value }))}
-            placeholder="Escanéalo o escríbelo a mano"
-            className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
-          />
-          <button
-            type="button"
-            onClick={() => setEscaneando(true)}
-            className="shrink-0 rounded-lg border border-white/15 px-3 text-sm text-white/70 hover:border-brand hover:text-white"
-          >
-            📷 Escanear
-          </button>
-        </div>
-      </Campo>
+      {!form.tiene_tallas && (
+        <Campo label="Código de barras (opcional)">
+          <div className="flex gap-2">
+            <input
+              value={form.codigo_barras}
+              onChange={(e) => setForm((f) => ({ ...f, codigo_barras: e.target.value }))}
+              placeholder="Escanéalo o escríbelo a mano"
+              className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none placeholder:text-white/30 focus:border-brand"
+            />
+            <button
+              type="button"
+              onClick={() => setEscaneando(true)}
+              className="shrink-0 rounded-lg border border-white/15 px-3 text-sm text-white/70 hover:border-brand hover:text-white"
+            >
+              📷 Escanear
+            </button>
+          </div>
+        </Campo>
+      )}
 
       <Campo label="Categoría">
         <CategorySelect
