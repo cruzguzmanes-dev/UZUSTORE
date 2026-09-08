@@ -3,14 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 
 const ELEMENT_ID = "barcode-scanner-region";
+const COOLDOWN_MS = 1200; // en modo continuo, evita que el mismo código dispare varias veces mientras sigue frente a la cámara
 
 // Modal con la cámara abierta, leyendo QR y los formatos de barras que traen los
 // productos de fábrica (EAN/UPC) además de Code128/39 por si imprimen sus propias
 // etiquetas. Todo corre en el navegador -- no manda nada a ningún servicio externo.
-export default function BarcodeScanner({ onScan, onClose }) {
+//
+// continuo=false (default, para el form de item): se detiene después de la primera
+// lectura -- el padre cierra el modal.
+// continuo=true (para "Nueva venta"): sigue leyendo una tras otra, con un pequeño
+// cooldown para no releer el mismo código de inmediato. El padre decide cuándo cerrar.
+export default function BarcodeScanner({ onScan, onClose, continuo = false, statusText }) {
   const scannerRef = useRef(null);
-  const escaneadoRef = useRef(false);
+  const bloqueadoRef = useRef(false); // modo single-shot
+  const enCooldownRef = useRef(false); // modo continuo
+  const onScanRef = useRef(onScan);
   const [error, setError] = useState("");
+
+  // El padre pasa una función nueva de onScan en cada render suyo (ej. cada vez que se
+  // agrega un producto al carrito) -- si el efecto de abajo dependiera de onScan
+  // directamente, reiniciaría la cámara después de cada escaneo. Con el ref, siempre
+  // llama a la versión más reciente sin tener que reabrir la cámara.
+  useEffect(() => {
+    onScanRef.current = onScan;
+  }, [onScan]);
 
   useEffect(() => {
     let activo = true;
@@ -36,9 +52,18 @@ export default function BarcodeScanner({ onScan, onClose }) {
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 250, height: 150 } },
           (decodedText) => {
-            if (escaneadoRef.current) return; // ignora lecturas repetidas del mismo frame
-            escaneadoRef.current = true;
-            onScan(decodedText);
+            if (continuo) {
+              if (enCooldownRef.current) return;
+              enCooldownRef.current = true;
+              onScanRef.current(decodedText);
+              setTimeout(() => {
+                enCooldownRef.current = false;
+              }, COOLDOWN_MS);
+            } else {
+              if (bloqueadoRef.current) return; // ignora lecturas repetidas del mismo frame
+              bloqueadoRef.current = true;
+              onScanRef.current(decodedText);
+            }
           },
           () => {} // "no se detectó nada en este frame" -- se dispara constantemente, no es error real
         )
@@ -54,7 +79,7 @@ export default function BarcodeScanner({ onScan, onClose }) {
           .catch(() => {});
       }
     };
-  }, [onScan]);
+  }, [continuo]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
@@ -70,7 +95,10 @@ export default function BarcodeScanner({ onScan, onClose }) {
         </div>
         {error && <p className="mb-3 text-sm text-red-400">⚠ {error}</p>}
         <div id={ELEMENT_ID} className="overflow-hidden rounded-lg" />
-        <p className="mt-3 text-center text-xs text-white/40">Apunta la cámara al código de barras o QR</p>
+        <p className="mt-3 text-center text-xs text-white/40">
+          {continuo ? "Escanea uno tras otro -- se van agregando solos" : "Apunta la cámara al código de barras o QR"}
+        </p>
+        {statusText && <p className="mt-2 text-center text-sm font-semibold text-brand">{statusText}</p>}
       </div>
     </div>
   );

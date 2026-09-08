@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import BarcodeScanner from "@/components/admin/BarcodeScanner";
+import { reproducirBeep } from "@/lib/beep";
 
 const fmt = (n) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0);
 
@@ -21,11 +22,12 @@ export default function NuevaVentaPage() {
   const [libreNombre, setLibreNombre] = useState("");
   const [librePrecio, setLibrePrecio] = useState("");
 
-  // Escanear código de barras para agregar -- si el código está repetido entre varios
-  // productos, se muestra la lista para que elijan cuál era en vez de adivinar.
+  // Escanear código de barras para agregar -- modo continuo: no se cierra después de
+  // cada uno, se van agregando seguidos (como una caja registradora). Si un código está
+  // repetido entre varios productos, se pausa y se muestra la lista para elegir cuál era.
   const [escaneando, setEscaneando] = useState(false);
-  const [buscandoCodigo, setBuscandoCodigo] = useState(false);
   const [candidatos, setCandidatos] = useState(null);
+  const [ultimoAgregado, setUltimoAgregado] = useState("");
 
   const buscar = async (texto) => {
     setQ(texto);
@@ -95,24 +97,27 @@ export default function NuevaVentaPage() {
   };
 
   const buscarPorCodigo = async (codigo) => {
-    setEscaneando(false);
-    setBuscandoCodigo(true);
+    reproducirBeep(); // feedback inmediato, como un scanner real -- no espera a la búsqueda
     setError("");
+    setUltimoAgregado("");
     try {
       const res = await fetch(`/api/admin/items/codigo?codigo=${encodeURIComponent(codigo)}`);
       const data = await res.json();
       const encontrados = data.candidatos || [];
       if (encontrados.length === 0) {
+        setEscaneando(false); // pausa el escaneo continuo para que vean el aviso
         setError(`No encontramos ningún producto con el código "${codigo}" -- puedes buscarlo por nombre o agregarlo como "sin catálogo" abajo.`);
       } else if (encontrados.length === 1) {
-        await agregarCandidato(encontrados[0]);
+        const c = encontrados[0];
+        await agregarCandidato(c); // NO cierra el modal -- sigue listo para el siguiente
+        setUltimoAgregado(`${c.nombre}${c.talla ? ` (talla ${c.talla})` : ""}`);
       } else {
+        setEscaneando(false); // pausa para que elijan cuál era
         setCandidatos(encontrados);
       }
     } catch {
+      setEscaneando(false);
       setError("No se pudo buscar ese código");
-    } finally {
-      setBuscandoCodigo(false);
     }
   };
 
@@ -258,10 +263,9 @@ export default function NuevaVentaPage() {
         <button
           type="button"
           onClick={() => setEscaneando(true)}
-          disabled={buscandoCodigo}
-          className="shrink-0 rounded-lg border border-white/15 px-3 text-sm text-white/70 hover:border-brand hover:text-white disabled:opacity-50"
+          className="shrink-0 rounded-lg border border-white/15 px-3 text-sm text-white/70 hover:border-brand hover:text-white"
         >
-          {buscandoCodigo ? "Buscando..." : "📷"}
+          📷
         </button>
       </div>
 
@@ -406,7 +410,17 @@ export default function NuevaVentaPage() {
         {guardando ? "Guardando..." : `Confirmar venta -- ${fmt(totalNum)}`}
       </button>
 
-      {escaneando && <BarcodeScanner onScan={buscarPorCodigo} onClose={() => setEscaneando(false)} />}
+      {escaneando && (
+        <BarcodeScanner
+          onScan={buscarPorCodigo}
+          onClose={() => {
+            setEscaneando(false);
+            setUltimoAgregado("");
+          }}
+          continuo
+          statusText={ultimoAgregado ? `✓ ${ultimoAgregado} agregado` : undefined}
+        />
+      )}
 
       {candidatos && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setCandidatos(null)}>
