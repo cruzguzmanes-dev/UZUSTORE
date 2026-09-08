@@ -22,7 +22,7 @@ const VACIO = {
   imagenes: [],
   tiene_tallas: false,
   variantes: [],
-  publico: true,
+  publico: false, // por defecto simple -- el que carga la mayoría es inventario interno
   video_url: "",
   codigo_barras: "",
 };
@@ -150,15 +150,26 @@ export default function ItemFormPage() {
       </Campo>
 
       <Campo label="¿Se publica en la tienda?">
-        <button
-          type="button"
-          onClick={() => setForm((f) => ({ ...f, publico: !f.publico }))}
-          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-            form.publico ? "border-brand bg-brand/15 text-white" : "border-white/15 text-white/60 hover:border-white/30"
-          }`}
-        >
-          {form.publico ? "Sí, es público" : "No, solo control interno"}
-        </button>
+        <div className="inline-flex overflow-hidden rounded-lg border border-white/15">
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, publico: true }))}
+            className={`px-5 py-2 text-sm font-semibold transition ${
+              form.publico ? "bg-brand text-white" : "text-white/50 hover:text-white"
+            }`}
+          >
+            Sí
+          </button>
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, publico: false }))}
+            className={`border-l border-white/15 px-5 py-2 text-sm font-semibold transition ${
+              !form.publico ? "bg-brand text-white" : "text-white/50 hover:text-white"
+            }`}
+          >
+            No
+          </button>
+        </div>
         <p className="mt-1.5 text-xs text-white/40">
           {form.publico
             ? "Aparece en el catálogo. Si lo apagas, el formulario se simplifica -- solo lo necesario para tener el item registrado (ventas, stock), sin publicarlo."
