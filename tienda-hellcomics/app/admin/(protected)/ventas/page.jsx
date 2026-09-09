@@ -204,20 +204,23 @@ export default function VentasPage() {
                     <Cancelar />
                   </span>
                 </div>
-                <div className="mt-0.5 text-xs text-white/40">
+                <div className="mt-1 flex flex-col gap-0.5">
                   {v.lineas.map((l, i) => (
-                    <span key={i}>
-                      {i > 0 && ", "}
+                    <div key={i} className="text-xs text-white/40">
                       {l.item_nombre}
                       {l.talla && ` (${l.talla})`}
                       {l.cantidad > 1 && ` x${l.cantidad}`}
-                    </span>
+                    </div>
                   ))}
                 </div>
-                <div className="mt-0.5 text-xs text-white/30">
+                <div className="mt-1 text-xs text-white/30">
                   {fmtFecha(v.created_at)}
                   {Number(v.subtotal) !== Number(v.total) && (
-                    <span> · lista {fmt(v.subtotal)} → descuento {fmt(v.subtotal - v.total)}</span>
+                    <span>
+                      {" "}
+                      · lista {fmt(v.subtotal)} → descuento {fmt(v.subtotal - v.total)} (
+                      {Math.round(((v.subtotal - v.total) / v.subtotal) * 100)}%)
+                    </span>
                   )}
                 </div>
               </div>
@@ -238,7 +241,11 @@ export default function VentasPage() {
                   <div className="text-xs text-white/30">
                     {fmtFecha(v.created_at)}
                     {v.tipo === "grupo" && Number(v.subtotal) !== Number(v.total) && (
-                      <span> · lista {fmt(v.subtotal)} → descuento {fmt(v.subtotal - v.total)}</span>
+                      <span>
+                        {" "}
+                        · lista {fmt(v.subtotal)} → descuento {fmt(v.subtotal - v.total)} (
+                        {Math.round(((v.subtotal - v.total) / v.subtotal) * 100)}%)
+                      </span>
                     )}
                   </div>
                 </div>
