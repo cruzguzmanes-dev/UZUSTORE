@@ -246,20 +246,17 @@ export default function VentasPage() {
             };
 
             return v.tipo === "grupo" && v.lineas.length > 1 ? (
-              <div key={key} className="border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/80">
+              <div key={key} className="border-b border-white/5 px-4 py-3 text-sm last:border-0">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <span className="flex items-center gap-1.5 text-white/80">
                     Venta combinada
-                    <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/40">
+                    <span className="whitespace-nowrap rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/40">
                       {v.lineas.length} productos
                     </span>
                   </span>
-                  <span className="flex shrink-0 items-center gap-3">
-                    <span className="font-semibold text-brand">{fmt(v.total)}</span>
-                    <Cancelar />
-                  </span>
+                  <span className="font-semibold text-brand">{fmt(v.total)}</span>
                 </div>
-                <div className="mt-1 flex flex-col gap-0.5">
+                <div className="mt-1.5 flex flex-col gap-0.5">
                   {v.lineas.map((l, i) => (
                     <div key={i} className="text-xs text-white/40">
                       {l.item_nombre}
@@ -268,23 +265,26 @@ export default function VentasPage() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-1 text-xs text-white/30">
-                  {fmtFecha(v.created_at)}
-                  {Number(v.subtotal) !== Number(v.total) && (
-                    <span>
-                      {" "}
-                      · lista {fmt(v.subtotal)} → descuento {fmt(v.subtotal - v.total)} (
-                      {Math.round(((v.subtotal - v.total) / v.subtotal) * 100)}%)
-                    </span>
-                  )}
+                <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <span className="text-xs text-white/30">
+                    {fmtFecha(v.created_at)}
+                    {Number(v.subtotal) !== Number(v.total) && (
+                      <span>
+                        {" "}
+                        · lista {fmt(v.subtotal)} → descuento {fmt(v.subtotal - v.total)} (
+                        {Math.round(((v.subtotal - v.total) / v.subtotal) * 100)}%)
+                      </span>
+                    )}
+                  </span>
+                  <Cancelar />
                 </div>
               </div>
             ) : (
               // Venta normal (o un "grupo" de un solo producto -- ej. una venta libre sin
               // catálogo desde "Nueva venta" -- se ve igual, no tiene caso llamarla "combinada").
-              <div key={key} className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
-                <div className="min-w-0">
-                  <div className="truncate text-white/80">
+              <div key={key} className="border-b border-white/5 px-4 py-3 text-sm last:border-0">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <div className="min-w-0 truncate text-white/80">
                     {v.tipo === "grupo" ? v.lineas[0]?.item_nombre : v.item_nombre}
                     {(v.tipo === "grupo" ? v.lineas[0]?.talla : v.talla) && (
                       <span className="text-white/40"> · talla {v.tipo === "grupo" ? v.lineas[0].talla : v.talla}</span>
@@ -293,7 +293,10 @@ export default function VentasPage() {
                       <span className="text-white/40"> · x{v.tipo === "grupo" ? v.lineas[0].cantidad : v.cantidad}</span>
                     )}
                   </div>
-                  <div className="text-xs text-white/30">
+                  <span className="font-semibold text-brand">{fmt(v.total)}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <span className="text-xs text-white/30">
                     {fmtFecha(v.created_at)}
                     {v.tipo === "grupo" && Number(v.subtotal) !== Number(v.total) && (
                       <span>
@@ -302,12 +305,9 @@ export default function VentasPage() {
                         {Math.round(((v.subtotal - v.total) / v.subtotal) * 100)}%)
                       </span>
                     )}
-                  </div>
-                </div>
-                <span className="flex shrink-0 items-center gap-3">
-                  <span className="font-semibold text-brand">{fmt(v.total)}</span>
+                  </span>
                   <Cancelar />
-                </span>
+                </div>
               </div>
             );
           })
