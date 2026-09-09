@@ -7,6 +7,7 @@ import ImageUploader from "@/components/admin/ImageUploader";
 import CategorySelect from "@/components/admin/CategorySelect";
 import VarianteEditor from "@/components/admin/VarianteEditor";
 import BarcodeScanner from "@/components/admin/BarcodeScanner";
+import DictadoBoton from "@/components/admin/DictadoBoton";
 import { slugify } from "@/lib/slugify";
 
 const VACIO = {
@@ -187,6 +188,11 @@ export default function ItemFormPage() {
               onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
               rows={4}
               className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+            />
+            <DictadoBoton
+              onTexto={(texto) =>
+                setForm((f) => ({ ...f, descripcion: f.descripcion ? `${f.descripcion} ${texto}` : texto }))
+              }
             />
           </Campo>
 
