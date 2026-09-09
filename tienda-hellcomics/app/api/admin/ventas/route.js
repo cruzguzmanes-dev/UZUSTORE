@@ -17,12 +17,28 @@ function fechaMx(iso) {
   );
 }
 
-// GET /api/admin/ventas -- ingresos hoy/semana/mes/total, ventas recientes y top vendidos (30 días)
-export async function GET() {
+// Límites (en UTC) del mes "YYYY-MM" según hora de México. México ya no cambia de
+// horario (CST fijo, UTC-6) desde 2022, así que el desfase es constante -- 00:00 CDMX de
+// cualquier día siempre es 06:00 UTC de ese mismo día.
+function limitesMesMx(mesStr) {
+  const [anio, mes] = mesStr.split("-").map(Number);
+  const inicio = new Date(Date.UTC(anio, mes - 1, 1, 6, 0, 0));
+  const fin = new Date(Date.UTC(mes === 12 ? anio + 1 : anio, mes === 12 ? 0 : mes, 1, 6, 0, 0));
+  return { inicio: inicio.toISOString(), fin: fin.toISOString() };
+}
+
+// GET /api/admin/ventas?mes=YYYY-MM -- ingresos hoy/semana/mes/total (siempre relativos a
+// hoy), el historial del mes pedido (por defecto el mes actual -- así "se reinicia" cada
+// mes en vez de ser un scroll infinito de todo el historial) y top vendidos (30 días)
+export async function GET(req) {
   const guard = requireAdmin();
   if (guard) return guard;
 
   const db = supabaseAdmin();
+
+  const { searchParams } = new URL(req.url);
+  const mesParam = searchParams.get("mes") || fechaMx(new Date().toISOString()).slice(0, 7);
+  const { inicio: inicioMes, fin: finMes } = limitesMesMx(mesParam);
 
   // Ingresos: las ventas sueltas (sin grupo) se cuentan por su total normal, pero las
   // que son parte de una venta combinada NO se suman línea por línea (eso duplicaría el
@@ -55,14 +71,18 @@ export async function GET() {
     .from("ventas")
     .select("id, item_nombre, talla, cantidad, total, created_at")
     .is("grupo_id", null)
+    .gte("created_at", inicioMes)
+    .lt("created_at", finMes)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(500);
 
   const { data: gruposRecientes } = await db
     .from("venta_grupos")
     .select("id, subtotal, total, created_at, ventas(item_nombre, talla, cantidad)")
+    .gte("created_at", inicioMes)
+    .lt("created_at", finMes)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(500);
 
   const recientes = [
     ...(recientesSueltas || []).map((v) => ({ tipo: "simple", ...v })),
@@ -74,9 +94,17 @@ export async function GET() {
       created_at: g.created_at,
       lineas: g.ventas || [],
     })),
-  ]
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .slice(0, 50);
+  ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  // Qué meses tienen al menos una venta -- para poblar el selector del mes en el panel.
+  const [{ data: fechasVentas }, { data: fechasGrupos }] = await Promise.all([
+    db.from("ventas").select("created_at").is("grupo_id", null),
+    db.from("venta_grupos").select("created_at"),
+  ]);
+  const mesesDisponibles = [
+    ...new Set([...(fechasVentas || []), ...(fechasGrupos || [])].map((r) => fechaMx(r.created_at).slice(0, 7))),
+  ].sort((a, b) => b.localeCompare(a));
+  if (!mesesDisponibles.includes(mesParam)) mesesDisponibles.unshift(mesParam); // el mes actual siempre aparece, aunque esté vacío
 
   const { data: ultimoMes } = await db
     .from("ventas")
@@ -98,6 +126,8 @@ export async function GET() {
     semana,
     mes,
     total,
+    mesSeleccionado: mesParam,
+    mesesDisponibles,
     recientes: recientes.map((v) => ({ ...v, dia: fechaMx(v.created_at) })),
     topVendidos,
   });

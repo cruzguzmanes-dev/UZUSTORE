@@ -13,8 +13,31 @@ const fmtFecha = (iso) =>
     minute: "2-digit",
   }).format(new Date(iso));
 
+// "YYYY-MM" -> "septiembre 2026" (se arma en UTC a propósito, es solo para mostrar el mes/año,
+// no una hora real -- evita que se corra un día por el timezone del navegador).
+const labelMes = (mesStr) => {
+  const [a, m] = mesStr.split("-").map(Number);
+  const texto = new Intl.DateTimeFormat("es-MX", { year: "numeric", month: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(a, m - 1, 1))
+  );
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+};
+const sumarMeses = (mesStr, delta) => {
+  const [a, m] = mesStr.split("-").map(Number);
+  const d = new Date(Date.UTC(a, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+const mesActualMx = () =>
+  // Se pide año/mes/día completos (aunque solo interese "YYYY-MM") porque el formato de
+  // en-CA con solo año+mes no está garantizado -- así se usa el mismo patrón ya probado
+  // que fechaMx() del lado del servidor.
+  new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City", year: "numeric", month: "2-digit", day: "2-digit" })
+    .format(new Date())
+    .slice(0, 7);
+
 export default function VentasPage() {
   const [datos, setDatos] = useState(null);
+  const [mes, setMes] = useState(null); // "YYYY-MM" -- null hasta que el server nos diga el mes actual
   const [confirmando, setConfirmando] = useState(false);
   const [textoConfirm, setTextoConfirm] = useState("");
   const [borrando, setBorrando] = useState(false);
@@ -23,11 +46,21 @@ export default function VentasPage() {
   const [cancelandoId, setCancelandoId] = useState(null); // id (con prefijo tipo) en confirmación
   const [errorCancelar, setErrorCancelar] = useState("");
 
-  const cargar = () => fetch("/api/admin/ventas").then((r) => r.json()).then(setDatos);
+  const cargar = async (mesPedido) => {
+    const params = mesPedido ? `?mes=${mesPedido}` : "";
+    const data = await fetch(`/api/admin/ventas${params}`).then((r) => r.json());
+    setDatos(data);
+    setMes(data.mesSeleccionado);
+  };
 
+  // Solo la primera carga es automática (sin mes -- el server regresa el mes actual).
+  // Navegar de mes en mes pasa por irAMes(), directo, sin volver a disparar este efecto.
   useEffect(() => {
     cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const irAMes = (nuevoMes) => cargar(nuevoMes);
 
   const cancelarVenta = async (v) => {
     setErrorCancelar("");
@@ -37,7 +70,7 @@ export default function VentasPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "No se pudo cancelar");
       setCancelandoId(null);
-      await cargar();
+      await cargar(mes);
     } catch (err) {
       setErrorCancelar(err.message);
     }
@@ -51,7 +84,7 @@ export default function VentasPage() {
       if (!res.ok) throw new Error("No se pudo borrar el historial");
       setConfirmando(false);
       setTextoConfirm("");
-      await cargar();
+      await cargar(mes);
     } catch (err) {
       setErrorBorrar(err.message);
     } finally {
@@ -155,11 +188,33 @@ export default function VentasPage() {
         )}
       </div>
 
-      <h2 className="mb-3 text-sm font-semibold text-white/70">Ventas recientes</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-white/70">Ventas recientes</h2>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => irAMes(sumarMeses(mes, -1))}
+            className="rounded-lg px-2 py-1 text-white/50 hover:bg-white/5 hover:text-white"
+            aria-label="Mes anterior"
+          >
+            ‹
+          </button>
+          <span className="min-w-[9rem] text-center text-xs font-semibold text-white/70">{labelMes(mes)}</span>
+          <button
+            type="button"
+            onClick={() => irAMes(sumarMeses(mes, 1))}
+            disabled={mes >= mesActualMx()}
+            className="rounded-lg px-2 py-1 text-white/50 hover:bg-white/5 hover:text-white disabled:opacity-30 disabled:hover:bg-transparent"
+            aria-label="Mes siguiente"
+          >
+            ›
+          </button>
+        </div>
+      </div>
       {errorCancelar && <p className="mb-3 text-sm text-red-400">⚠ {errorCancelar}</p>}
       <div className="rounded-xl border border-white/10">
         {datos.recientes.length === 0 ? (
-          <p className="p-4 text-sm text-white/40">Todavía no registras ninguna venta -- usa el botón "Vender" en Items.</p>
+          <p className="p-4 text-sm text-white/40">Sin ventas en {labelMes(mes).toLowerCase()}.</p>
         ) : (
           datos.recientes.map((v) => {
             const key = `${v.tipo}-${v.id}`;
