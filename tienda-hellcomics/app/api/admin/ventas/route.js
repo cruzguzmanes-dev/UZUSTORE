@@ -65,10 +65,10 @@ export async function GET() {
     .limit(50);
 
   const recientes = [
-    ...(recientesSueltas || []).map((v) => ({ tipo: "simple", id: `v${v.id}`, ...v })),
+    ...(recientesSueltas || []).map((v) => ({ tipo: "simple", ...v })),
     ...(gruposRecientes || []).map((g) => ({
       tipo: "grupo",
-      id: `g${g.id}`,
+      id: g.id,
       subtotal: g.subtotal,
       total: g.total,
       created_at: g.created_at,

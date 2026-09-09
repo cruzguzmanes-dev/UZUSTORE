@@ -20,11 +20,28 @@ export default function VentasPage() {
   const [borrando, setBorrando] = useState(false);
   const [errorBorrar, setErrorBorrar] = useState("");
 
+  const [cancelandoId, setCancelandoId] = useState(null); // id (con prefijo tipo) en confirmación
+  const [errorCancelar, setErrorCancelar] = useState("");
+
   const cargar = () => fetch("/api/admin/ventas").then((r) => r.json()).then(setDatos);
 
   useEffect(() => {
     cargar();
   }, []);
+
+  const cancelarVenta = async (v) => {
+    setErrorCancelar("");
+    const url = v.tipo === "grupo" ? `/api/admin/ventas/grupo/${v.id}` : `/api/admin/ventas/${v.id}`;
+    try {
+      const res = await fetch(url, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "No se pudo cancelar");
+      setCancelandoId(null);
+      await cargar();
+    } catch (err) {
+      setErrorCancelar(err.message);
+    }
+  };
 
   const borrarHistorial = async () => {
     setBorrando(true);
@@ -139,21 +156,53 @@ export default function VentasPage() {
       </div>
 
       <h2 className="mb-3 text-sm font-semibold text-white/70">Ventas recientes</h2>
+      {errorCancelar && <p className="mb-3 text-sm text-red-400">⚠ {errorCancelar}</p>}
       <div className="rounded-xl border border-white/10">
         {datos.recientes.length === 0 ? (
           <p className="p-4 text-sm text-white/40">Todavía no registras ninguna venta -- usa el botón "Vender" en Items.</p>
         ) : (
-          datos.recientes.map((v) =>
-            v.tipo === "grupo" && v.lineas.length > 1 ? (
-              <div key={v.id} className="border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
-                <div className="flex items-center justify-between">
+          datos.recientes.map((v) => {
+            const key = `${v.tipo}-${v.id}`;
+            const esAbono = v.tipo === "simple" && v.item_nombre?.startsWith("Abono de apartado");
+
+            const Cancelar = () => {
+              if (esAbono) return null;
+              if (cancelandoId === key) {
+                return (
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs">
+                    <button onClick={() => cancelarVenta(v)} className="font-semibold text-red-400 hover:underline">
+                      Sí, cancelar
+                    </button>
+                    <button onClick={() => setCancelandoId(null)} className="text-white/40 hover:text-white">
+                      No
+                    </button>
+                  </span>
+                );
+              }
+              return (
+                <button
+                  onClick={() => setCancelandoId(key)}
+                  className="shrink-0 text-xs text-white/30 hover:text-red-400"
+                  title="Regresa el stock y la quita del historial"
+                >
+                  Cancelar
+                </button>
+              );
+            };
+
+            return v.tipo === "grupo" && v.lineas.length > 1 ? (
+              <div key={key} className="border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-white/80">
                     Venta combinada
                     <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/40">
                       {v.lineas.length} productos
                     </span>
                   </span>
-                  <span className="font-semibold text-brand">{fmt(v.total)}</span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="font-semibold text-brand">{fmt(v.total)}</span>
+                    <Cancelar />
+                  </span>
                 </div>
                 <div className="mt-0.5 text-xs text-white/40">
                   {v.lineas.map((l, i) => (
@@ -175,7 +224,7 @@ export default function VentasPage() {
             ) : (
               // Venta normal (o un "grupo" de un solo producto -- ej. una venta libre sin
               // catálogo desde "Nueva venta" -- se ve igual, no tiene caso llamarla "combinada").
-              <div key={v.id} className="flex items-center justify-between border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
+              <div key={key} className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2.5 text-sm last:border-0">
                 <div className="min-w-0">
                   <div className="truncate text-white/80">
                     {v.tipo === "grupo" ? v.lineas[0]?.item_nombre : v.item_nombre}
@@ -193,10 +242,13 @@ export default function VentasPage() {
                     )}
                   </div>
                 </div>
-                <span className="shrink-0 font-semibold text-brand">{fmt(v.total)}</span>
+                <span className="flex shrink-0 items-center gap-3">
+                  <span className="font-semibold text-brand">{fmt(v.total)}</span>
+                  <Cancelar />
+                </span>
               </div>
-            )
-          )
+            );
+          })
         )}
       </div>
     </div>
