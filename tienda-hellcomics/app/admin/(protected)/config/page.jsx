@@ -7,6 +7,7 @@ export default function ConfigPage() {
   const [direccion, setDireccion] = useState("");
   const [instagram, setInstagram] = useState("");
   const [facebook, setFacebook] = useState("");
+  const [tiktok, setTiktok] = useState("");
   const [nuevoCodigo, setNuevoCodigo] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
@@ -19,6 +20,7 @@ export default function ConfigPage() {
         setDireccion(d.direccion || "");
         setInstagram(d.instagram_url || "");
         setFacebook(d.facebook_url || "");
+        setTiktok(d.tiktok_url || "");
       });
   }, []);
 
@@ -31,6 +33,7 @@ export default function ConfigPage() {
       direccion,
       instagram_url: instagram,
       facebook_url: facebook,
+      tiktok_url: tiktok,
     };
     if (nuevoCodigo) body.nuevo_codigo = nuevoCodigo;
 
@@ -83,8 +86,17 @@ export default function ConfigPage() {
         className="mb-5 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
       />
 
+      <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">Link de TikTok</label>
+      <input
+        value={tiktok}
+        onChange={(e) => setTiktok(e.target.value)}
+        placeholder="https://www.tiktok.com/@..."
+        className="mb-5 w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-white outline-none focus:border-brand"
+      />
+
       <p className="mb-5 text-xs text-white/30">
-        Estos datos (redes + dirección) se muestran discretos al final del Home.
+        Estos datos (redes + dirección) se muestran discretos al final del Home, y también en{" "}
+        <code className="text-white/50">/nosotros</code> -- la mini página para un solo código QR.
       </p>
 
       <label className="mb-1 block text-xs uppercase tracking-wide text-white/50">

@@ -5,7 +5,7 @@ export async function getConfigPublica() {
   const db = supabaseAdmin();
   const { data } = await db
     .from("config")
-    .select("whatsapp_numero, direccion, instagram_url, facebook_url")
+    .select("whatsapp_numero, direccion, instagram_url, facebook_url, tiktok_url")
     .eq("id", 1)
     .maybeSingle();
   return {
@@ -13,5 +13,6 @@ export async function getConfigPublica() {
     direccion: data?.direccion || "",
     instagram_url: data?.instagram_url || "",
     facebook_url: data?.facebook_url || "",
+    tiktok_url: data?.tiktok_url || "",
   };
 }
