@@ -13,6 +13,7 @@ export default function AdminProtectedLayout({ children }) {
           <nav className="flex flex-wrap gap-1">
             <NavLink href="/admin/items">Items</NavLink>
             <NavLink href="/admin/categorias">Categorías</NavLink>
+            <NavLink href="/admin/secciones">Secciones</NavLink>
             <NavLink href="/admin/ventas">Ventas</NavLink>
             <NavLink href="/admin/apartados">Apartados</NavLink>
             <NavLink href="/admin/estadisticas">Estadísticas</NavLink>

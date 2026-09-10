@@ -24,25 +24,36 @@ async function getCategorias() {
   return data || [];
 }
 
-// Curado a mano por el dueño (⭐ en /admin/items) -- no es automático por stock/fecha.
-async function getOportunidades() {
+// Secciones curadas a mano por el dueño desde /admin/secciones -- no es automático.
+async function getSecciones() {
   const db = supabaseAdmin();
   const { data } = await db
-    .from("items")
-    .select("id,nombre,slug,precio,stock,estado,categorias(nombre,slug),imagenes(url,orden)")
-    .neq("estado", "oculto")
-    .eq("publico", true)
-    .eq("destacado", true)
-    .order("destacado_at", { ascending: false })
-    .limit(12);
-  return (data || []).map((it) => ({ ...it, imagenes: (it.imagenes || []).sort((a, b) => a.orden - b.orden) }));
+    .from("secciones")
+    .select(
+      "id, nombre, orden, seccion_items(orden, items(id,nombre,slug,precio,stock,estado,publico,categorias(nombre,slug),imagenes(url,orden)))"
+    )
+    .eq("activa", true)
+    .order("orden");
+
+  return (data || [])
+    .map((s) => ({
+      id: s.id,
+      nombre: s.nombre,
+      items: (s.seccion_items || [])
+        .sort((a, b) => a.orden - b.orden)
+        .map((si) => si.items)
+        .filter((it) => it && it.estado !== "oculto" && it.publico)
+        .map((it) => ({ ...it, imagenes: (it.imagenes || []).sort((a, b) => a.orden - b.orden) }))
+        .slice(0, 20),
+    }))
+    .filter((s) => s.items.length > 0);
 }
 
 export default async function HomePage() {
-  const [novedades, categorias, oportunidades] = await Promise.all([
+  const [novedades, categorias, secciones] = await Promise.all([
     getNovedades(),
     getCategorias(),
-    getOportunidades(),
+    getSecciones(),
   ]);
 
   return (
@@ -65,18 +76,18 @@ export default async function HomePage() {
           </section>
         )}
 
-        {oportunidades.length > 0 && (
-          <section className="mb-8">
+        {secciones.map((s) => (
+          <section key={s.id} className="mb-8">
             <div className="mb-4 flex items-center gap-2">
-              <h2 className="font-display text-lg font-extrabold uppercase tracking-wide text-white">Destacados</h2>
+              <h2 className="font-display text-lg font-extrabold uppercase tracking-wide text-white">{s.nombre}</h2>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {oportunidades.map((item) => (
+              {s.items.map((item) => (
                 <ItemCard key={item.id} item={item} />
               ))}
             </div>
           </section>
-        )}
+        ))}
 
         <section>
           <div className="mb-4 flex items-center justify-between">
