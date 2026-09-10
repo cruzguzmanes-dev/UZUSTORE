@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminGuard";
 
-// PUT { item_ids: [12, 5, 8] } -- reemplaza la lista COMPLETA de items de la sección, en
-// ese orden. Así una sola llamada cubre agregar, quitar y reordenar (el panel manda el
-// arreglo entero cada vez que cambia algo).
+// PUT { item_ids: [12, 5, 8] } -- reemplaza la lista COMPLETA de seccion_items de la
+// sección, en ese orden. Una sola llamada cubre agregar, quitar y reordenar (el panel
+// manda el arreglo entero cada vez que cambia algo).
+//   - Sección 'manual': item_ids = los items que se muestran, en orden.
+//   - Sección 'novedades': item_ids = los items EXCLUIDOS (los que NO se muestran).
 export async function PUT(req, { params }) {
   const guard = requireAdmin();
   if (guard) return guard;

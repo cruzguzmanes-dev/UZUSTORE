@@ -24,12 +24,21 @@ export async function PATCH(req, { params }) {
   return NextResponse.json(data);
 }
 
-// DELETE -- borra la sección (sus seccion_items se van en cascada)
+// DELETE -- borra la sección (sus seccion_items se van en cascada). La de Novedades no
+// se puede borrar -- solo ocultarla.
 export async function DELETE(_req, { params }) {
   const guard = requireAdmin();
   if (guard) return guard;
 
   const db = supabaseAdmin();
+  const { data: sec } = await db.from("secciones").select("tipo").eq("id", params.id).maybeSingle();
+  if (sec?.tipo === "novedades") {
+    return NextResponse.json(
+      { error: "La sección de Novedades no se puede borrar -- puedes ocultarla si no la quieres mostrar." },
+      { status: 400 }
+    );
+  }
+
   const { error } = await db.from("secciones").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
