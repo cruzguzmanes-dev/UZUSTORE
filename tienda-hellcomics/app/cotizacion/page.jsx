@@ -480,7 +480,7 @@ export default function CotizacionPage() {
                   <span className="detalle">Uso del sistema, mantenimiento, soporte y actualizaciones</span>
                 </td>
                 <td className="importe mono">
-                  $2,300.00
+                  $1,999.00
                   <span className="sub">/ mes</span>
                 </td>
               </tr>
@@ -490,11 +490,11 @@ export default function CotizacionPage() {
           <div className="totales">
             <div className="fila total">
               <span>Total mensual</span>
-              <span className="importe mono">$2,300.00 MXN</span>
+              <span className="importe mono">$1,999.00 MXN</span>
             </div>
           </div>
 
-          <p className="letras">Son: dos mil trescientos pesos 00/100 M.N. mensuales.</p>
+          <p className="letras">Son: mil novecientos noventa y nueve pesos 00/100 M.N. mensuales.</p>
 
           <span className="vigencia mono">Sin compromiso forzoso — cancelas cuando quieras.</span>
 
