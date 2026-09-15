@@ -272,6 +272,7 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
   const [deleteError, setDeleteError] = useState("");
   const [generando, setGenerando] = useState(null);
   const [genError, setGenError]   = useState("");
+  const [editError, setEditError] = useState("");
   const loaded = useRef(false);
 
   const fetchCompras = async () => {
@@ -337,6 +338,7 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
   const saveEdit = async () => {
     if (!editingCell) return;
     const { id, field } = editingCell;
+    setEditError("");
     try {
       if (field === "estado") {
         await sb(`lotes_compra?id=eq.${id}`, "PATCH", { estado: editVal });
@@ -346,8 +348,11 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
         await sb(`lotes_compra?id=eq.${id}`, "PATCH", { [field]: val });
       }
       await fetchCompras();
-    } catch (e) { console.error(e); }
-    finally { setEditingCell(null); }
+      setEditingCell(null);
+    } catch (e) {
+      console.error(e);
+      setEditError(`No se pudo guardar: ${e.message}`);
+    }
   };
 
   // Genera el lote de inventario para una compra suelta, SIN pasar por un
@@ -443,6 +448,7 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
 
       {errBox(deleteError)}
       {errBox(genError)}
+      {errBox(editError)}
 
       {loading ? (
         <Loader size={96} message="Cargando" />
