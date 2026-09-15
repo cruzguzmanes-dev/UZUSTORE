@@ -256,7 +256,7 @@ function SeccionFiguras({ onFigurasChange }) {
 }
 
 // ─── Sección: Compras ─────────────────────────────────────────────────────────
-function SeccionCompras({ figuras, onFigurasChange }) {
+function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
   const [compras, setCompras]   = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -270,11 +270,13 @@ function SeccionCompras({ figuras, onFigurasChange }) {
   const [editVal, setEditVal]   = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+  const [generando, setGenerando] = useState(null);
+  const [genError, setGenError]   = useState("");
   const loaded = useRef(false);
 
   const fetchCompras = async () => {
     try {
-      const data = await sb("lotes_compra?order=fecha_compra.desc&select=*,figuras(nombre,id_provisional,ml_sku)");
+      const data = await sb("lotes_compra?order=fecha_compra.desc&select=*,figuras(nombre,id_provisional,ml_sku,id_venta_directa)");
       setCompras(data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -338,10 +340,55 @@ function SeccionCompras({ figuras, onFigurasChange }) {
     try {
       if (field === "estado") {
         await sb(`lotes_compra?id=eq.${id}`, "PATCH", { estado: editVal });
+      } else if (field === "costo_envio_mxn" || field === "costo_aduana_mxn") {
+        const val = editVal.trim() === "" ? null : parseFloat(editVal);
+        if (val !== null && (isNaN(val) || val < 0)) { setEditingCell(null); return; }
+        await sb(`lotes_compra?id=eq.${id}`, "PATCH", { [field]: val });
       }
       await fetchCompras();
     } catch (e) { console.error(e); }
     finally { setEditingCell(null); }
+  };
+
+  // Genera el lote de inventario para una compra suelta, SIN pasar por un
+  // paquete -- para piezas que llegaron mezcladas en un envío viejo. Usa el
+  // precio_mxn ya asignado (vía pago ZenMarket) más el envío/aduana que se
+  // hayan capturado directamente en la compra.
+  const handleGenerarLoteDirecto = async (c) => {
+    setGenerando(c.id);
+    setGenError("");
+    try {
+      const fig = c.figuras;
+      const idVenta = fig?.ml_sku || fig?.id_venta_directa;
+      if (!idVenta) throw new Error("Esta figura no tiene ID de venta (ML o directa)");
+      if (c.precio_mxn == null) throw new Error("Esta compra aún no tiene precio MXN (falta asignarle un pago)");
+
+      const envioPorPieza  = (parseFloat(c.costo_envio_mxn) || 0) / c.cantidad;
+      const aduanaPorPieza = (parseFloat(c.costo_aduana_mxn) || 0) / c.cantidad;
+      const precioMxnPorUnidad = parseFloat(c.precio_mxn) / c.cantidad;
+      const costoUnitario = parseFloat((precioMxnPorUnidad + envioPorPieza + aduanaPorPieza).toFixed(2));
+
+      const [newLote] = await sb("lotes", "POST", {
+        titulo:              fig.nombre,
+        sku:                 idVenta,
+        cantidad_disponible: c.cantidad,
+        cantidad_inicial:    c.cantidad,
+        costo_unitario:      costoUnitario,
+        fecha_compra:        c.fecha_compra,
+      });
+
+      await sb(`lotes_compra?id=eq.${c.id}`, "PATCH", {
+        lote_generado_id: newLote.id,
+        estado: "recibido",
+      });
+
+      await fetchCompras();
+      onLoteEdited?.();
+    } catch (e) {
+      setGenError(e.message);
+    } finally {
+      setGenerando(null);
+    }
   };
 
   const ESTADOS = ["pendiente", "pagado", "en_transito", "recibido"];
@@ -395,6 +442,7 @@ function SeccionCompras({ figuras, onFigurasChange }) {
       )}
 
       {errBox(deleteError)}
+      {errBox(genError)}
 
       {loading ? (
         <Loader size={96} message="Cargando" />
@@ -404,10 +452,10 @@ function SeccionCompras({ figuras, onFigurasChange }) {
         </div>
       ) : (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                {["Figura", "Fecha", "Cant.", "Precio ¥", "Precio MXN", "Estado", "Lote Gen.", ""].map(h => (
+                {["Figura", "Fecha", "Cant.", "Precio ¥", "Precio MXN", "Envío", "Aduana", "Estado", "Lote Gen.", ""].map(h => (
                   <th key={h} style={thS}>{h}</th>
                 ))}
               </tr>
@@ -428,6 +476,38 @@ function SeccionCompras({ figuras, onFigurasChange }) {
                       {c.precio_mxn ? fmt(c.precio_mxn) : "— vía pago"}
                     </span>
                   </td>
+                  {/* Envío MXN — editable, para compras sueltas que no pasan por un paquete */}
+                  <td style={{ padding: "12px 16px" }}>
+                    {editingCell?.id === c.id && editingCell?.field === "costo_envio_mxn" ? (
+                      <input type="number" step="0.01" min="0" value={editVal}
+                        onChange={e => setEditVal(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingCell(null); }}
+                        autoFocus style={{ ...inp, width: 90, padding: "5px 8px", fontSize: 12 }} />
+                    ) : (
+                      <button onClick={() => { setEditingCell({ id: c.id, field: "costo_envio_mxn" }); setEditVal(c.costo_envio_mxn != null ? String(c.costo_envio_mxn) : ""); }}
+                        title="Click para editar"
+                        style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: c.costo_envio_mxn != null ? "#00C9FF" : "#444", padding: 0 }}>
+                        {c.costo_envio_mxn != null ? fmt(c.costo_envio_mxn) : "— ✎"}
+                      </button>
+                    )}
+                  </td>
+                  {/* Aduana MXN — editable, misma idea */}
+                  <td style={{ padding: "12px 16px" }}>
+                    {editingCell?.id === c.id && editingCell?.field === "costo_aduana_mxn" ? (
+                      <input type="number" step="0.01" min="0" value={editVal}
+                        onChange={e => setEditVal(e.target.value)}
+                        onBlur={saveEdit}
+                        onKeyDown={e => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") setEditingCell(null); }}
+                        autoFocus style={{ ...inp, width: 90, padding: "5px 8px", fontSize: 12 }} />
+                    ) : (
+                      <button onClick={() => { setEditingCell({ id: c.id, field: "costo_aduana_mxn" }); setEditVal(c.costo_aduana_mxn != null ? String(c.costo_aduana_mxn) : ""); }}
+                        title="Click para editar"
+                        style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: c.costo_aduana_mxn != null ? "#00C9FF" : "#444", padding: 0 }}>
+                        {c.costo_aduana_mxn != null ? fmt(c.costo_aduana_mxn) : "— ✎"}
+                      </button>
+                    )}
+                  </td>
                   {/* Estado — editable */}
                   <td style={{ padding: "12px 16px" }}>
                     {editingCell?.id === c.id && editingCell?.field === "estado" ? (
@@ -444,9 +524,15 @@ function SeccionCompras({ figuras, onFigurasChange }) {
                     )}
                   </td>
                   <td style={{ ...tdS, fontSize: 11 }}>
-                    {c.lote_generado_id
-                      ? <span style={{ color: "#00FF94" }}>✓ lote #{c.lote_generado_id}</span>
-                      : <span style={{ color: "#333" }}>—</span>}
+                    {c.lote_generado_id ? (
+                      <span style={{ color: "#00FF94" }}>✓ lote #{c.lote_generado_id}</span>
+                    ) : (
+                      <button onClick={() => handleGenerarLoteDirecto(c)} disabled={generando === c.id}
+                        title="Genera el lote de inventario directo, sin pasar por un paquete"
+                        style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#FFE000", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: generando === c.id ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                        {generando === c.id ? "Generando..." : "Generar Lote"}
+                      </button>
+                    )}
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     {deletingId === c.id ? (
@@ -1434,7 +1520,7 @@ export default function Almacen({ onLoteEdited }) {
       </div>
 
       {subTab === "figuras"  && <SeccionFiguras  onFigurasChange={fetchFiguras} />}
-      {subTab === "compras"  && <SeccionCompras  figuras={figuras} onFigurasChange={fetchFiguras} />}
+      {subTab === "compras"  && <SeccionCompras  figuras={figuras} onFigurasChange={fetchFiguras} onLoteEdited={onLoteEdited} />}
       {subTab === "paquetes" && <SeccionPaquetes onLoteEdited={onLoteEdited} />}
       {subTab === "pagos"    && <SeccionPagos />}
     </div>
