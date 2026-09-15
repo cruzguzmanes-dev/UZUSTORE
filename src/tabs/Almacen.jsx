@@ -458,10 +458,10 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
         </div>
       ) : (
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, overflow: "hidden", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 980 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1080 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                {["Figura", "Fecha", "Cant.", "Precio ¥", "Precio MXN", "Envío", "Aduana", "Estado", "Lote Gen.", ""].map(h => (
+                {["Figura", "Fecha", "Cant.", "Precio ¥", "Precio MXN", "Envío", "Aduana", "Costo Unit.", "Estado", "Lote Gen.", ""].map(h => (
                   <th key={h} style={thS}>{h}</th>
                 ))}
               </tr>
@@ -512,6 +512,16 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
                         style={{ background: "transparent", border: "none", cursor: "pointer", fontFamily: "'Space Mono', monospace", fontSize: 12, color: c.costo_aduana_mxn != null ? "#00C9FF" : "#444", padding: 0 }}>
                         {c.costo_aduana_mxn != null ? fmt(c.costo_aduana_mxn) : "— ✎"}
                       </button>
+                    )}
+                  </td>
+                  {/* Costo unitario final — preview de lo que quedaría el lote (precio + envío + aduana, entre cantidad) */}
+                  <td style={tdS}>
+                    {c.precio_mxn == null ? (
+                      <span style={{ color: "#444" }}>— falta pago</span>
+                    ) : (
+                      <span style={{ color: "#00FF94", fontWeight: 700 }}>
+                        {fmt((parseFloat(c.precio_mxn) + (parseFloat(c.costo_envio_mxn) || 0) + (parseFloat(c.costo_aduana_mxn) || 0)) / c.cantidad)}
+                      </span>
                     )}
                   </td>
                   {/* Estado — editable */}
