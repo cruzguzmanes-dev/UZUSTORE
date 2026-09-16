@@ -798,20 +798,24 @@ function SeccionPaquetes({ onLoteEdited }) {
       const fig = lc.figuras;
       const idVenta = fig.ml_sku || fig.id_venta_directa;
       if (!idVenta) throw new Error("Esta figura no tiene ID de venta (ML o directa)");
+      if (lc.precio_mxn == null) throw new Error("Esta compra aún no tiene precio MXN (falta asignarle un pago)");
 
-      // Obtener tipo de cambio del pago ZenMarket
+      // Tipo de cambio del pago que cubrió el ENVÍO de este paquete -- solo
+      // sirve para convertir el envío (está en ¥), NO para la compra: la
+      // compra ya tiene su propio precio_mxn, fijado con la tasa del pago
+      // que la saldó a ELLA (pudo ser en otra fecha, a otra tasa).
       const pagos = await sb(`pagos_zenmarket?id=eq.${paquete.pago_zenmarket_id}&select=mxn_pagados,jpy_obtenidos`);
       if (!pagos || pagos.length === 0) throw new Error("No se encontró el pago ZenMarket asignado");
-      const tc = parseFloat(pagos[0].mxn_pagados) / parseFloat(pagos[0].jpy_obtenidos);
+      const tcEnvio = parseFloat(pagos[0].mxn_pagados) / parseFloat(pagos[0].jpy_obtenidos);
 
       // Envío/aduana se prorratean entre TODAS las piezas del paquete, generadas o no
       const allItems = await sb(`paquete_items?paquete_id=eq.${paquete.id}&select=cantidad`);
       const totalPiezas    = (allItems || []).reduce((s, it) => s + it.cantidad, 0);
-      const envioPorPieza  = (parseFloat(paquete.costo_envio_jpy) || 0) * tc / totalPiezas;
+      const envioPorPieza  = (parseFloat(paquete.costo_envio_jpy) || 0) * tcEnvio / totalPiezas;
       const aduanaPorPieza = (parseFloat(paquete.costo_aduana_mxn) || 0) / totalPiezas;
 
-      // lc.precio_jpy es el costo TOTAL de la compra (no por pieza) -- se divide entre su cantidad
-      const precioMxnPorUnidad = (parseFloat(lc.precio_jpy) / lc.cantidad) * tc;
+      // precio_mxn ya es el costo TOTAL de la compra en pesos (a su propia tasa) -- se divide entre su cantidad
+      const precioMxnPorUnidad = parseFloat(lc.precio_mxn) / lc.cantidad;
       const costoUnitario      = parseFloat((precioMxnPorUnidad + envioPorPieza + aduanaPorPieza).toFixed(2));
 
       const [newLote] = await sb("lotes", "POST", {
@@ -1170,7 +1174,7 @@ function SeccionPaquetes({ onLoteEdited }) {
                           <div style={{ color: "#00FF94", marginBottom: 6, fontWeight: 700 }}>Vista previa de costos (costo final por pieza)</div>
                           {items.map(it => {
                             const lc = it.lotes_compra;
-                            const precioMxnPorUnidad = lc?.precio_jpy && lc?.cantidad ? (parseFloat(lc.precio_jpy) / lc.cantidad) * tc : null;
+                            const precioMxnPorUnidad = lc?.precio_mxn != null && lc?.cantidad ? parseFloat(lc.precio_mxn) / lc.cantidad : null;
                             const costoFinal = precioMxnPorUnidad != null
                               ? precioMxnPorUnidad + envioPorPiezaPreview + aduanaPorPiezaPreview
                               : null;
