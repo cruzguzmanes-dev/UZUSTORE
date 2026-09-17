@@ -646,10 +646,16 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
     } catch (e) { console.error(e); }
   };
 
+  // Excluye compras que ya viajan en CUALQUIER paquete (no solo el que se
+  // está editando) -- una compra física no puede ir en dos paquetes a la vez.
   const fetchComprasDisp = async () => {
     try {
-      const data = await sb("lotes_compra?lote_generado_id=is.null&order=fecha_compra.desc&select=id,cantidad,fecha_compra,precio_jpy,precio_mxn,figuras(nombre)");
-      setComprasDisp(data || []);
+      const [compras, usadas] = await Promise.all([
+        sb("lotes_compra?lote_generado_id=is.null&order=fecha_compra.desc&select=id,cantidad,fecha_compra,precio_jpy,precio_mxn,figuras(nombre)"),
+        sb("paquete_items?select=lote_compra_id"),
+      ]);
+      const usadasSet = new Set((usadas || []).map(u => u.lote_compra_id));
+      setComprasDisp((compras || []).filter(c => !usadasSet.has(c.id)));
     } catch (e) { console.error(e); }
   };
 
@@ -726,7 +732,8 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
         setItemsNuevoPaquete(prev => [...prev, { lote_compra_id: compra.id, nombre: nombre.trim(), cantidad: qty, precioJpy: null, precioMxn: precio }]);
       } else {
         await sb("paquete_items", "POST", { paquete_id: target, lote_compra_id: compra.id, cantidad: qty });
-        await Promise.all([fetchItems(target), fetchComprasDisp()]);
+        await sb(`paquetes?id=eq.${target}`, "PATCH", { costos_repartidos: false });
+        await Promise.all([fetchItems(target), fetchComprasDisp(), fetchPaquetes()]);
       }
       setDirectaForm({ nombre: "", precio_mxn: "", cantidad: "" });
       setShowDirecta(null);
@@ -849,7 +856,8 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
           costo_aduana_mxn: parseFloat((aduanaPorPieza * it.cantidad).toFixed(2)),
         });
       }
-      await fetchItems(paquete.id);
+      await sb(`paquetes?id=eq.${paquete.id}`, "PATCH", { costos_repartidos: true });
+      await Promise.all([fetchItems(paquete.id), fetchPaquetes()]);
     } catch (e) {
       setGenError(e.message);
     } finally {
@@ -868,15 +876,19 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
         lote_compra_id: parseInt(lote_compra_id),
         cantidad: qty,
       });
+      // Si ya se había repartido envío/aduana, este artículo nuevo lo dejó
+      // desactualizado -- que reaparezca el botón para volver a correrlo.
+      await sb(`paquetes?id=eq.${paqueteId}`, "PATCH", { costos_repartidos: false });
       setAddingItem({ paquete_id: paqueteId, lote_compra_id: "", cantidad: "" });
-      await Promise.all([fetchItems(paqueteId), fetchComprasDisp()]);
+      await Promise.all([fetchItems(paqueteId), fetchComprasDisp(), fetchPaquetes()]);
     } catch (e) { console.error(e); }
   };
 
   const handleRemoveItem = async (itemId, paqueteId) => {
     try {
       await sb(`paquete_items?id=eq.${itemId}`, "DELETE");
-      await Promise.all([fetchItems(paqueteId), fetchComprasDisp()]);
+      await sb(`paquetes?id=eq.${paqueteId}`, "PATCH", { costos_repartidos: false });
+      await Promise.all([fetchItems(paqueteId), fetchComprasDisp(), fetchPaquetes()]);
     } catch (e) { console.error(e); }
   };
 
@@ -1200,12 +1212,17 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
                     )}
                   </div>
 
-                  {costReady && (
+                  {costReady && !p.costos_repartidos && (
                     <button onClick={() => handleMarcarRecibido(p)} disabled={marcandoRecibido === p.id}
                       title="Reparte el envío y la aduana entre las compras de este paquete (proporcional a sus unidades) y lo guarda en Compras"
                       style={{ background: "rgba(0,201,255,0.08)", border: "1px solid rgba(0,201,255,0.25)", borderRadius: 6, padding: "5px 10px", color: "#00C9FF", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: marcandoRecibido === p.id ? "default" : "pointer", whiteSpace: "nowrap" }}>
                       {marcandoRecibido === p.id ? "Repartiendo..." : "📦 Repartir a Compras"}
                     </button>
+                  )}
+                  {costReady && p.costos_repartidos && (
+                    <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", padding: "3px 10px", borderRadius: 20, background: "rgba(0,201,255,0.1)", color: "#00C9FF", whiteSpace: "nowrap", letterSpacing: 1 }}>
+                      ✓ REPARTIDO
+                    </span>
                   )}
 
                   {p.lotes_generados && (
