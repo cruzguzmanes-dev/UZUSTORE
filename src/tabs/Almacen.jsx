@@ -647,7 +647,7 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
 
   const fetchComprasDisp = async () => {
     try {
-      const data = await sb("lotes_compra?lote_generado_id=is.null&order=fecha_compra.desc&select=id,cantidad,fecha_compra,figuras(nombre)");
+      const data = await sb("lotes_compra?lote_generado_id=is.null&order=fecha_compra.desc&select=id,cantidad,fecha_compra,precio_jpy,precio_mxn,figuras(nombre)");
       setComprasDisp(data || []);
     } catch (e) { console.error(e); }
   };
@@ -674,7 +674,10 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
     if (isNaN(qty) || qty <= 0) return;
     const compra = comprasDisp.find(c => c.id === parseInt(addingLoteNuevo));
     if (!compra) return;
-    setItemsNuevoPaquete(prev => [...prev, { lote_compra_id: compra.id, nombre: compra.figuras?.nombre || "—", cantidad: qty }]);
+    setItemsNuevoPaquete(prev => [...prev, {
+      lote_compra_id: compra.id, nombre: compra.figuras?.nombre || "—", cantidad: qty,
+      precioJpy: compra.precio_jpy, precioMxn: compra.precio_mxn,
+    }]);
     setAddingLoteNuevo(""); setAddingQtyNuevo("");
   };
 
@@ -719,7 +722,7 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
       const fecha = (target === "nuevo" ? form.fecha_envio : null) || new Date().toISOString().slice(0, 10);
       const compra = await crearCompraDirecta({ nombre, cantidad: qty, precioMxn: precio, fecha });
       if (target === "nuevo") {
-        setItemsNuevoPaquete(prev => [...prev, { lote_compra_id: compra.id, nombre: nombre.trim(), cantidad: qty }]);
+        setItemsNuevoPaquete(prev => [...prev, { lote_compra_id: compra.id, nombre: nombre.trim(), cantidad: qty, precioJpy: null, precioMxn: precio }]);
       } else {
         await sb("paquete_items", "POST", { paquete_id: target, lote_compra_id: compra.id, cantidad: qty });
         await Promise.all([fetchItems(target), fetchComprasDisp()]);
@@ -1026,6 +1029,9 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
                 <div key={idx} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                   <div style={{ flex: 1, fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#ddd" }}>{it.nombre}</div>
                   <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#888" }}>×{it.cantidad}</div>
+                  <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#00C9FF", minWidth: 90, textAlign: "right" }}>
+                    {it.precioMxn != null ? `${fmt(it.precioMxn)} total` : it.precioJpy != null ? `¥${Number(it.precioJpy).toLocaleString()} total` : <span style={{ color: "#444" }}>— vía pago</span>}
+                  </div>
                   <button onClick={() => setItemsNuevoPaquete(prev => prev.filter((_, i) => i !== idx))}
                     style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "3px 8px", color: "#555", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: "pointer" }}>
                     ✕
