@@ -839,7 +839,15 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
     setMarcandoRecibido(paquete.id);
     setGenError("");
     try {
-      const pagos = await sb(`pagos_zenmarket?id=eq.${paquete.pago_zenmarket_id}&select=mxn_pagados,jpy_obtenidos`);
+      // Se relee el paquete de la base (no se confía en el objeto recibido)
+      // porque el botón puede aparecer mientras se está escribiendo la
+      // aduana, antes de que ese valor se haya guardado todavía.
+      const fresh = await sb(`paquetes?id=eq.${paquete.id}&select=costo_envio_jpy,costo_aduana_mxn,pago_zenmarket_id`);
+      const p = fresh?.[0];
+      if (!p || p.pago_zenmarket_id == null) throw new Error("Este paquete todavía no tiene un pago de envío asignado");
+      if (p.costo_aduana_mxn == null) throw new Error("Captura y guarda la aduana antes de repartir (dale Enter o haz clic fuera del campo)");
+
+      const pagos = await sb(`pagos_zenmarket?id=eq.${p.pago_zenmarket_id}&select=mxn_pagados,jpy_obtenidos`);
       if (!pagos || pagos.length === 0) throw new Error("No se encontró el pago ZenMarket asignado al envío");
       const tcEnvio = parseFloat(pagos[0].mxn_pagados) / parseFloat(pagos[0].jpy_obtenidos);
 
@@ -847,8 +855,8 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
       const totalPiezas = (items || []).reduce((s, it) => s + it.cantidad, 0);
       if (totalPiezas === 0) throw new Error("Este paquete no tiene artículos");
 
-      const envioPorPieza  = (parseFloat(paquete.costo_envio_jpy) || 0) * tcEnvio / totalPiezas;
-      const aduanaPorPieza = (parseFloat(paquete.costo_aduana_mxn) || 0) / totalPiezas;
+      const envioPorPieza  = (parseFloat(p.costo_envio_jpy) || 0) * tcEnvio / totalPiezas;
+      const aduanaPorPieza = (parseFloat(p.costo_aduana_mxn) || 0) / totalPiezas;
 
       for (const it of items) {
         await sb(`lotes_compra?id=eq.${it.lote_compra_id}`, "PATCH", {
@@ -1104,9 +1112,15 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
       ) : (
         <div>
           {paquetes.map(p => {
+            // Mientras se está escribiendo la aduana de este paquete, ya cuenta
+            // como capturada (sin esperar a Enter/blur) para que el botón de
+            // "Repartir a Compras" aparezca de inmediato como retroalimentación.
+            const editandoAduanaAqui = editingCell?.id === p.id && editingCell?.field === "costo_aduana_mxn";
+            const aduanaEnVivo = editandoAduanaAqui && editVal.trim() !== "" && !isNaN(parseFloat(editVal))
+              ? parseFloat(editVal) : p.costo_aduana_mxn;
             const costReady = p.estado === "pagado"
               && p.pago_zenmarket_id != null
-              && p.costo_aduana_mxn != null;
+              && aduanaEnVivo != null;
             const yaPagado = p.estado === "pagado" && p.pago_zenmarket_id != null;
             const tc = p.pagos_zenmarket ? parseFloat(p.pagos_zenmarket.mxn_pagados) / parseFloat(p.pagos_zenmarket.jpy_obtenidos) : null;
             const envioMxn = tc != null && p.costo_envio_jpy != null ? p.costo_envio_jpy * tc : null;
