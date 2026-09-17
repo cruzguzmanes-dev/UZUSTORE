@@ -603,6 +603,7 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
   const [deleteError, setDeleteError]  = useState("");
   const [saldo, setSaldo]              = useState({ jpy: 0, mxn_costo: 0 });
   const [pagandoConSaldo, setPagandoConSaldo] = useState(null);
+  const [marcandoRecibido, setMarcandoRecibido] = useState(null);
   const [showDirecta, setShowDirecta]  = useState(null); // "nuevo" | id del paquete existente | null
   const [directaForm, setDirectaForm]  = useState({ nombre: "", precio_mxn: "", cantidad: "" });
   const [savingDirecta, setSavingDirecta] = useState(false);
@@ -820,6 +821,39 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
       setGenError(e.message);
     } finally {
       setPagandoConSaldo(null);
+    }
+  };
+
+  // Reparte el envío y la aduana del paquete entre sus compras (proporcional
+  // a las unidades de cada una) y lo escribe directo en lotes_compra.costo_envio_mxn
+  // / costo_aduana_mxn -- así se ve reflejado en la pestaña Compras sin tener
+  // que venir a ver el paquete. Se puede volver a correr si cambian los items.
+  const handleMarcarRecibido = async (paquete) => {
+    setMarcandoRecibido(paquete.id);
+    setGenError("");
+    try {
+      const pagos = await sb(`pagos_zenmarket?id=eq.${paquete.pago_zenmarket_id}&select=mxn_pagados,jpy_obtenidos`);
+      if (!pagos || pagos.length === 0) throw new Error("No se encontró el pago ZenMarket asignado al envío");
+      const tcEnvio = parseFloat(pagos[0].mxn_pagados) / parseFloat(pagos[0].jpy_obtenidos);
+
+      const items = await sb(`paquete_items?paquete_id=eq.${paquete.id}&select=lote_compra_id,cantidad`);
+      const totalPiezas = (items || []).reduce((s, it) => s + it.cantidad, 0);
+      if (totalPiezas === 0) throw new Error("Este paquete no tiene artículos");
+
+      const envioPorPieza  = (parseFloat(paquete.costo_envio_jpy) || 0) * tcEnvio / totalPiezas;
+      const aduanaPorPieza = (parseFloat(paquete.costo_aduana_mxn) || 0) / totalPiezas;
+
+      for (const it of items) {
+        await sb(`lotes_compra?id=eq.${it.lote_compra_id}`, "PATCH", {
+          costo_envio_mxn: parseFloat((envioPorPieza * it.cantidad).toFixed(2)),
+          costo_aduana_mxn: parseFloat((aduanaPorPieza * it.cantidad).toFixed(2)),
+        });
+      }
+      await fetchItems(paquete.id);
+    } catch (e) {
+      setGenError(e.message);
+    } finally {
+      setMarcandoRecibido(null);
     }
   };
 
@@ -1165,6 +1199,14 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
                       </div>
                     )}
                   </div>
+
+                  {costReady && (
+                    <button onClick={() => handleMarcarRecibido(p)} disabled={marcandoRecibido === p.id}
+                      title="Reparte el envío y la aduana entre las compras de este paquete (proporcional a sus unidades) y lo guarda en Compras"
+                      style={{ background: "rgba(0,201,255,0.08)", border: "1px solid rgba(0,201,255,0.25)", borderRadius: 6, padding: "5px 10px", color: "#00C9FF", fontSize: 10, fontFamily: "'Space Mono', monospace", cursor: marcandoRecibido === p.id ? "default" : "pointer", whiteSpace: "nowrap" }}>
+                      {marcandoRecibido === p.id ? "Repartiendo..." : "📦 Repartir a Compras"}
+                    </button>
+                  )}
 
                   {p.lotes_generados && (
                     <span style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", padding: "3px 10px", borderRadius: 20, background: "rgba(0,255,148,0.1)", color: "#00FF94", whiteSpace: "nowrap", letterSpacing: 1 }}>
