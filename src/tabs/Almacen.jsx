@@ -475,7 +475,7 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
                   </td>
                   <td style={tdS}>{c.fecha_compra}</td>
                   <td style={{ ...tdS, color: "#fff", fontWeight: 700 }}>{c.cantidad}</td>
-                  <td style={{ ...tdS, color: "#aaa" }}>¥{Number(c.precio_jpy).toLocaleString()}</td>
+                  <td style={{ ...tdS, color: "#aaa" }}>{c.precio_jpy != null ? `¥${Number(c.precio_jpy).toLocaleString()}` : <span style={{ color: "#444" }}>— directo MXN</span>}</td>
                   {/* Precio MXN — read-only, se llena automáticamente al asignar pago */}
                   <td style={tdS}>
                     <span style={{ color: c.precio_mxn ? "#00C9FF" : "#444" }}>
@@ -581,7 +581,7 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
 }
 
 // ─── Sección: Paquetes ────────────────────────────────────────────────────────
-function SeccionPaquetes({ onLoteEdited }) {
+function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
   const [paquetes, setPaquetes]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [showForm, setShowForm]   = useState(false);
@@ -603,6 +603,10 @@ function SeccionPaquetes({ onLoteEdited }) {
   const [deleteError, setDeleteError]  = useState("");
   const [saldo, setSaldo]              = useState({ jpy: 0, mxn_costo: 0 });
   const [pagandoConSaldo, setPagandoConSaldo] = useState(null);
+  const [showDirecta, setShowDirecta]  = useState(null); // "nuevo" | id del paquete existente | null
+  const [directaForm, setDirectaForm]  = useState({ nombre: "", precio_mxn: "", cantidad: "" });
+  const [savingDirecta, setSavingDirecta] = useState(false);
+  const [directaError, setDirectaError]   = useState("");
   const loaded = useRef(false);
 
   const fetchPaquetes = async () => {
@@ -672,6 +676,58 @@ function SeccionPaquetes({ onLoteEdited }) {
     if (!compra) return;
     setItemsNuevoPaquete(prev => [...prev, { lote_compra_id: compra.id, nombre: compra.figuras?.nombre || "—", cantidad: qty }]);
     setAddingLoteNuevo(""); setAddingQtyNuevo("");
+  };
+
+  // Crea una "compra" directo en pesos, para una pieza que ya tenías de hace
+  // tiempo (no viaja en el crédito de ZenMarket, no tiene ¥ asociado, y pudo
+  // haberse pagado con otra tasa de conversión). Queda "pagada" de una vez
+  // porque su precio en MXN ya se conoce -- no pasa por el flujo de Saldar.
+  const crearCompraDirecta = async ({ nombre, cantidad, precioMxn, fecha }) => {
+    const nombreTrim = nombre.trim();
+    let figuraId;
+    const existente = figuras.find(f => f.nombre.toLowerCase() === nombreTrim.toLowerCase());
+    if (existente) {
+      figuraId = existente.id;
+    } else {
+      const allFiguras = await sb("figuras?select=id&order=id.asc");
+      const idProv = `FIG-${String((allFiguras?.length || 0) + 1).padStart(3, "0")}`;
+      await sb("figuras", "POST", { nombre: nombreTrim, id_provisional: idProv });
+      onFigurasChange?.();
+      const fresh = await sb("figuras?order=id.desc&limit=1");
+      figuraId = fresh?.[0]?.id;
+    }
+    if (!figuraId) throw new Error("No se pudo crear la figura");
+    const [compra] = await sb("lotes_compra", "POST", {
+      figura_id: figuraId,
+      cantidad,
+      precio_jpy: null,
+      precio_mxn: precioMxn,
+      fecha_compra: fecha,
+      estado: "pagado",
+    });
+    return compra;
+  };
+
+  const handleAgregarDirecta = async (target) => {
+    const { nombre, precio_mxn, cantidad } = directaForm;
+    if (!nombre.trim() || !precio_mxn || !cantidad) { setDirectaError("Completa nombre, precio MXN y unidades"); return; }
+    const precio = parseFloat(precio_mxn), qty = parseInt(cantidad);
+    if (isNaN(precio) || precio <= 0) { setDirectaError("El precio MXN debe ser positivo"); return; }
+    if (isNaN(qty) || qty <= 0) { setDirectaError("Las unidades deben ser un número positivo"); return; }
+    setSavingDirecta(true); setDirectaError("");
+    try {
+      const fecha = (target === "nuevo" ? form.fecha_envio : null) || new Date().toISOString().slice(0, 10);
+      const compra = await crearCompraDirecta({ nombre, cantidad: qty, precioMxn: precio, fecha });
+      if (target === "nuevo") {
+        setItemsNuevoPaquete(prev => [...prev, { lote_compra_id: compra.id, nombre: nombre.trim(), cantidad: qty }]);
+      } else {
+        await sb("paquete_items", "POST", { paquete_id: target, lote_compra_id: compra.id, cantidad: qty });
+        await Promise.all([fetchItems(target), fetchComprasDisp()]);
+      }
+      setDirectaForm({ nombre: "", precio_mxn: "", cantidad: "" });
+      setShowDirecta(null);
+    } catch (e) { setDirectaError(e.message); }
+    finally { setSavingDirecta(false); }
   };
 
   const handleAddPaquete = async () => {
@@ -926,6 +982,44 @@ function SeccionPaquetes({ onLoteEdited }) {
               + Agregar
             </button>
           </div>
+
+          <button onClick={() => { setShowDirecta(showDirecta === "nuevo" ? null : "nuevo"); setDirectaError(""); }}
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginBottom: 10, fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
+            {showDirecta === "nuevo" ? "Cancelar" : "+ Pieza que ya tenías (sin conversión de ¥)"}
+          </button>
+          {showDirecta === "nuevo" && (
+            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: 14, marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <label style={lbl}>Nombre</label>
+                  <input type="text" value={directaForm.nombre}
+                    onChange={e => setDirectaForm(f => ({ ...f, nombre: e.target.value }))}
+                    placeholder="Naruto 9 colas" style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Precio MXN *</label>
+                  <input type="number" min="0.01" step="0.01" value={directaForm.precio_mxn}
+                    onChange={e => setDirectaForm(f => ({ ...f, precio_mxn: e.target.value }))}
+                    placeholder="450.00" style={{ ...inp, width: 110 }} />
+                </div>
+                <div>
+                  <label style={lbl}>Unidades *</label>
+                  <input type="number" min="1" value={directaForm.cantidad}
+                    onChange={e => setDirectaForm(f => ({ ...f, cantidad: e.target.value }))}
+                    placeholder="1" style={{ ...inp, width: 80 }} />
+                </div>
+                <button onClick={() => handleAgregarDirecta("nuevo")} disabled={savingDirecta}
+                  style={{ background: savingDirecta ? "#333" : "#FFE000", border: "none", borderRadius: 8, padding: "9px 16px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: savingDirecta ? "default" : "pointer" }}>
+                  {savingDirecta ? "Guardando..." : "+ Agregar"}
+                </button>
+              </div>
+              <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 8 }}>
+                Precio ya en pesos, tal cual la pagaste en su momento (con su propia tasa) -- no lleva ¥ ni pasa por Saldar.
+              </div>
+              {errBox(directaError)}
+            </div>
+          )}
+
           {itemsNuevoPaquete.length > 0 && (
             <div style={{ marginBottom: 14 }}>
               {itemsNuevoPaquete.map((it, idx) => (
@@ -1094,9 +1188,11 @@ function SeccionPaquetes({ onLoteEdited }) {
                               </span>
                             </div>
                             <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#888" }}>×{it.cantidad}</div>
-                            <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#aaa" }}>
-                              ¥{Number(it.lotes_compra?.precio_jpy).toLocaleString()} total
-                            </div>
+                            {it.lotes_compra?.precio_jpy != null && (
+                              <div style={{ fontSize: 12, fontFamily: "'Space Mono', monospace", color: "#aaa" }}>
+                                ¥{Number(it.lotes_compra.precio_jpy).toLocaleString()} total
+                              </div>
+                            )}
                             {it.lotes_compra?.precio_mxn && (
                               <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#00C9FF" }}>
                                 {fmt(it.lotes_compra.precio_mxn)} total
@@ -1162,6 +1258,47 @@ function SeccionPaquetes({ onLoteEdited }) {
                           + Agregar
                         </button>
                       </div>
+                    )}
+
+                    {!p.lotes_generados && (
+                      <>
+                        <button onClick={() => { setShowDirecta(showDirecta === p.id ? null : p.id); setDirectaError(""); }}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 10, fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
+                          {showDirecta === p.id ? "Cancelar" : "+ Pieza que ya tenías (sin conversión de ¥)"}
+                        </button>
+                        {showDirecta === p.id && (
+                          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10, padding: 14, marginTop: 8 }}>
+                            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                              <div style={{ flex: 1, minWidth: 180 }}>
+                                <label style={lbl}>Nombre</label>
+                                <input type="text" value={directaForm.nombre}
+                                  onChange={e => setDirectaForm(f => ({ ...f, nombre: e.target.value }))}
+                                  placeholder="Naruto 9 colas" style={inp} />
+                              </div>
+                              <div>
+                                <label style={lbl}>Precio MXN *</label>
+                                <input type="number" min="0.01" step="0.01" value={directaForm.precio_mxn}
+                                  onChange={e => setDirectaForm(f => ({ ...f, precio_mxn: e.target.value }))}
+                                  placeholder="450.00" style={{ ...inp, width: 110 }} />
+                              </div>
+                              <div>
+                                <label style={lbl}>Unidades *</label>
+                                <input type="number" min="1" value={directaForm.cantidad}
+                                  onChange={e => setDirectaForm(f => ({ ...f, cantidad: e.target.value }))}
+                                  placeholder="1" style={{ ...inp, width: 80 }} />
+                              </div>
+                              <button onClick={() => handleAgregarDirecta(p.id)} disabled={savingDirecta}
+                                style={{ background: savingDirecta ? "#333" : "#FFE000", border: "none", borderRadius: 8, padding: "9px 16px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: savingDirecta ? "default" : "pointer" }}>
+                                {savingDirecta ? "Guardando..." : "+ Agregar"}
+                              </button>
+                            </div>
+                            <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 8 }}>
+                              Precio ya en pesos, tal cual la pagaste en su momento (con su propia tasa) -- no lleva ¥ ni pasa por Saldar.
+                            </div>
+                            {errBox(directaError)}
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Vista previa de costos -- costo final por pieza, ya con envío + aduana prorrateados */}
@@ -1648,7 +1785,7 @@ export default function Almacen({ onLoteEdited }) {
 
       {subTab === "figuras"  && <SeccionFiguras  onFigurasChange={fetchFiguras} />}
       {subTab === "compras"  && <SeccionCompras  figuras={figuras} onFigurasChange={fetchFiguras} onLoteEdited={onLoteEdited} />}
-      {subTab === "paquetes" && <SeccionPaquetes onLoteEdited={onLoteEdited} />}
+      {subTab === "paquetes" && <SeccionPaquetes figuras={figuras} onFigurasChange={fetchFiguras} onLoteEdited={onLoteEdited} />}
       {subTab === "pagos"    && <SeccionPagos />}
     </div>
   );
