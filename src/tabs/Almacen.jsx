@@ -72,6 +72,7 @@ function SeccionFiguras({ onFigurasChange }) {
   const [editVal, setEditVal]   = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState("");
+  const [listasParaId, setListasParaId] = useState(new Set()); // figura_id con precio+envío+aduana ya capturados
   const loaded = useRef(false);
 
   const fetchFiguras = async () => {
@@ -80,6 +81,16 @@ function SeccionFiguras({ onFigurasChange }) {
       setFiguras(data || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  // Una figura queda "lista" para ponerle ID de venta en cuanto tiene alguna
+  // compra sin lote generado con sus 3 costos ya capturados (precio, envío,
+  // aduana) -- ya se sabe cuánto va a costar la pieza, solo falta el ID.
+  const fetchListasParaId = async () => {
+    try {
+      const data = await sb("lotes_compra?lote_generado_id=is.null&precio_mxn=not.is.null&costo_envio_mxn=not.is.null&costo_aduana_mxn=not.is.null&select=figura_id");
+      setListasParaId(new Set((data || []).map(c => c.figura_id)));
+    } catch (e) { console.error(e); }
   };
 
   const handleDelete = async (id) => {
@@ -98,6 +109,7 @@ function SeccionFiguras({ onFigurasChange }) {
     if (loaded.current) return;
     loaded.current = true;
     fetchFiguras();
+    fetchListasParaId();
   }, []);
 
   const genProvisional = (list) => `FIG-${String(list.length + 1).padStart(3, "0")}`;
@@ -217,10 +229,19 @@ function SeccionFiguras({ onFigurasChange }) {
                     </button>
                   )
                 );
+                const listaParaId = listasParaId.has(f.id) && !f.ml_sku && !f.id_venta_directa;
                 return (
-                  <tr key={f.id} style={{ borderBottom: i < figuras.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                  <tr key={f.id} style={{ borderBottom: i < figuras.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none", background: listaParaId ? "rgba(255,224,0,0.06)" : "transparent" }}>
                     <td style={{ ...tdS, color: "#444", fontSize: 11 }}>{f.id_provisional}</td>
-                    <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>{f.nombre}</td>
+                    <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: "'Syne', sans-serif" }}>
+                      {f.nombre}
+                      {listaParaId && (
+                        <span title="Ya tiene precio + envío + aduana capturados -- solo falta su ID de venta"
+                          style={{ marginLeft: 8, fontSize: 9, fontFamily: "'Space Mono', monospace", padding: "2px 8px", borderRadius: 20, background: "rgba(255,224,0,0.15)", color: "#FFE000", letterSpacing: 1, verticalAlign: "middle" }}>
+                          LISTA PARA ID
+                        </span>
+                      )}
+                    </td>
                     <td style={{ padding: "12px 16px" }}>{editCol("ml_sku", f.ml_sku, "#00C9FF")}</td>
                     <td style={{ padding: "12px 16px" }}>{editCol("id_venta_directa", f.id_venta_directa, "#00FF94")}</td>
                     <td style={{ ...tdS, fontSize: 11, color: "#444" }}>{f.created_at?.slice(0, 10)}</td>
