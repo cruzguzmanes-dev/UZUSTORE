@@ -292,6 +292,7 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState("");
   const [generando, setGenerando] = useState(null);
+  const [deshaciendoId, setDeshaciendoId] = useState(null);
   const [genError, setGenError]   = useState("");
   const [editError, setEditError] = useState("");
   const loaded = useRef(false);
@@ -414,6 +415,26 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
       setGenError(e.message);
     } finally {
       setGenerando(null);
+    }
+  };
+
+  // Desvincula el lote generado (ej. si se borró el lote de Inventario por
+  // error, o al limpiar datos de prueba) -- no borra nada, solo libera la
+  // compra para poder darle "Generar Lote" de nuevo. NO borra el lote en sí,
+  // eso se hace desde Inventario si hace falta.
+  const handleDeshacerLote = async (c) => {
+    setDeshaciendoId(c.id);
+    setGenError("");
+    try {
+      await sb(`lotes_compra?id=eq.${c.id}`, "PATCH", {
+        lote_generado_id: null,
+        estado: "pagado",
+      });
+      await fetchCompras();
+    } catch (e) {
+      setGenError(e.message);
+    } finally {
+      setDeshaciendoId(null);
     }
   };
 
@@ -562,7 +583,14 @@ function SeccionCompras({ figuras, onFigurasChange, onLoteEdited }) {
                   </td>
                   <td style={{ ...tdS, fontSize: 11 }}>
                     {c.lote_generado_id ? (
-                      <span style={{ color: "#00FF94" }}>✓ lote #{c.lote_generado_id}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ color: "#00FF94" }}>✓ lote #{c.lote_generado_id}</span>
+                        <button onClick={() => handleDeshacerLote(c)} disabled={deshaciendoId === c.id}
+                          title="Desvincula este lote (por ejemplo si se borró en Inventario) para poder generarlo de nuevo -- no borra el lote en sí"
+                          style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "2px 6px", color: "#555", fontSize: 10, cursor: deshaciendoId === c.id ? "default" : "pointer" }}>
+                          {deshaciendoId === c.id ? "..." : "↺"}
+                        </button>
+                      </div>
                     ) : (
                       <button onClick={() => handleGenerarLoteDirecto(c)} disabled={generando === c.id}
                         title="Genera el lote de inventario directo, sin pasar por un paquete"
