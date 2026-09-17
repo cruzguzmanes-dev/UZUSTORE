@@ -7,6 +7,7 @@ import Loader from "./components/Loader";
 import Resumen from "./tabs/Resumen";
 import Mensual from "./tabs/Mensual";
 import Inventario from "./tabs/Inventario";
+import Inventario2 from "./tabs/Inventario2";
 import Impuestos from "./tabs/Impuestos";
 import Ordenes from "./tabs/Ordenes";
 import Distribuidores from "./tabs/Distribuidores";
@@ -17,6 +18,7 @@ const TABS = [
   { key: "resumen",        label: "Resumen"        },
   { key: "mensual",        label: "Mensual"        },
   { key: "inventario",     label: "Inventario"     },
+  { key: "inventario2",    label: "Inventario 2.0" },
   { key: "almacen",        label: "Almacén"        },
   { key: "impuestos",      label: "Impuestos"      },
   { key: "ordenes",        label: "Órdenes"        },
@@ -345,6 +347,9 @@ export default function App() {
         )}
         {activeTab === "inventario" && (
           <Inventario lotes={lotes} loadingLotes={loadingLotes} onAgregarLote={() => setShowModalLote(true)} onLoteEdited={fetchLotes} />
+        )}
+        {activeTab === "inventario2" && (
+          <Inventario2 lotes={lotes} loadingLotes={loadingLotes} onLoteEdited={fetchLotes} />
         )}
         {activeTab === "almacen" && (
           <Almacen onLoteEdited={fetchLotes} />
