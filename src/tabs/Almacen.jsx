@@ -1498,7 +1498,7 @@ function SeccionPagos() {
   const [showAjusteSaldar, setShowAjusteSaldar] = useState(false);
   const [form, setForm]         = useState({
     fecha: new Date().toISOString().slice(0, 10),
-    mxn_pagados: "", jpy_obtenidos: "", notas: "", ajuste_jpy: "", ajuste_concepto: "",
+    mxn_pagados: "", jpy_obtenidos: "", notas: "", jpy_total_real: "", ajuste_concepto: "",
   });
   const [comprasPendientes, setComprasPendientes] = useState([]);
   const [paquetesPendientes, setPaquetesPendientes] = useState([]);
@@ -1618,28 +1618,35 @@ function SeccionPagos() {
   // como saldo a favor (junto con su costo en pesos, a tasa ponderada) para
   // usarse en envíos futuros sin necesitar otra recarga.
   const handleAdd = async () => {
-    const { fecha, mxn_pagados, jpy_obtenidos, ajuste_jpy, ajuste_concepto } = form;
+    const { fecha, mxn_pagados, jpy_obtenidos, jpy_total_real, ajuste_concepto } = form;
     if (!fecha || !mxn_pagados || !jpy_obtenidos) { setError("Fecha, MXN pagados y ¥ obtenidos son requeridos"); return; }
     const mxn = parseFloat(mxn_pagados);
     const jpyNuevo = parseFloat(jpy_obtenidos);
-    const ajusteJpy = ajuste_jpy.trim() === "" ? 0 : parseFloat(ajuste_jpy);
     if (isNaN(mxn) || mxn <= 0) { setError("El monto MXN debe ser positivo"); return; }
     if (isNaN(jpyNuevo) || jpyNuevo <= 0) { setError("Los ¥ obtenidos deben ser positivos"); return; }
-    if (isNaN(ajusteJpy)) { setError("El ajuste debe ser un número (positivo o negativo)"); return; }
-    // El total a cubrir puede diferir de la suma de tus compras por
-    // reembolsos chicos o cargos de almacén que ZenMarket aplica y no vale
-    // la pena rastrear compra por compra -- el ajuste sube o baja ESTE total,
-    // sin tocar el precio de ninguna compra individual.
-    const totalConAjuste = totalPorSaldarJpy + ajusteJpy;
-    const jpyDisponible = saldo.jpy + jpyNuevo;
-    if (totalConAjuste > 0 && jpyDisponible < totalConAjuste) {
-      setError(`Con esto no alcanza a cubrir lo pendiente -- te faltan ¥${Math.ceil(totalConAjuste - jpyDisponible).toLocaleString()}`);
+
+    const jpyDisponibleTeorico = saldo.jpy + jpyNuevo;
+    const usaTotalReal = jpy_total_real.trim() !== "";
+    let jpyTotalReal = null;
+    if (usaTotalReal) {
+      jpyTotalReal = parseFloat(jpy_total_real);
+      if (isNaN(jpyTotalReal) || jpyTotalReal < 0) { setError("El ¥ total de ZenMarket debe ser un número válido"); return; }
+    }
+    // Si das el ¥ TOTAL real de ZenMarket, ese es el que manda para saber si
+    // alcanza y cuánto sobra -- no el teórico (saldo + esta recarga), que no
+    // sabe de comisiones ni cargos de almacén que ya te descontaron ahí.
+    const jpyParaCubrir = usaTotalReal ? jpyTotalReal : jpyDisponibleTeorico;
+    if (totalPorSaldarJpy > 0 && jpyParaCubrir < totalPorSaldarJpy) {
+      setError(`Con esto no alcanza a cubrir lo pendiente -- te faltan ¥${Math.ceil(totalPorSaldarJpy - jpyParaCubrir).toLocaleString()}`);
       return;
     }
     setSaving(true); setError("");
     try {
       const mxnDisponible = saldo.mxn_costo + mxn;
-      const tc = mxnDisponible / jpyDisponible;
+      // La tasa para valuar tus compras SIEMPRE sale del teórico (lo que
+      // realmente pagaste vs lo que realmente te acreditaron) -- así el
+      // ruido de comisiones/cargos nunca se mete al precio de una compra.
+      const tc = mxnDisponible / jpyDisponibleTeorico;
 
       // 1. Crear el pago (registra la recarga real: lo que pagaste y lo que ZenMarket te acreditó)
       const [pago] = await sb("pagos_zenmarket", "POST", {
@@ -1667,21 +1674,25 @@ function SeccionPagos() {
         });
       }
 
-      // 3.5. El ajuste (reembolsos/cargos de ZenMarket) queda registrado en el
-      // mismo historial de gastos, sin prorratearse a ninguna compra
-      if (ajusteJpy !== 0) {
-        await sb("gastos_zenmarket", "POST", {
-          fecha, jpy: ajusteJpy, mxn: parseFloat((ajusteJpy * tc).toFixed(2)),
-          concepto: ajuste_concepto.trim() || "Ajuste al saldar (reembolsos/cargos ZenMarket)",
-        });
+      // 3.5. La diferencia entre lo teórico y el ¥ total real que diste
+      // (comisiones, cargos de almacén, reembolsos) queda registrada aparte,
+      // sin tocar el precio de ninguna compra.
+      if (usaTotalReal) {
+        const diferenciaJpy = parseFloat((jpyDisponibleTeorico - jpyTotalReal).toFixed(2));
+        if (diferenciaJpy !== 0) {
+          await sb("gastos_zenmarket", "POST", {
+            fecha, jpy: diferenciaJpy, mxn: parseFloat((diferenciaJpy * tc).toFixed(2)),
+            concepto: ajuste_concepto.trim() || "Ajuste al saldar (comisiones/cargos de ZenMarket)",
+          });
+        }
       }
 
-      // 4. Lo que sobra (si depositaste de más, ya con el ajuste aplicado) queda como saldo a favor
-      const jpySobrante = parseFloat((jpyDisponible - totalConAjuste).toFixed(2));
+      // 4. Lo que sobra (contra el ¥ real si lo diste, si no contra el teórico) queda como saldo a favor
+      const jpySobrante = parseFloat((jpyParaCubrir - totalPorSaldarJpy).toFixed(2));
       const mxnSobrante = parseFloat((jpySobrante * tc).toFixed(2));
       await sb("saldo_zenmarket?id=eq.1", "PATCH", { jpy: jpySobrante, mxn_costo: mxnSobrante, updated_at: new Date().toISOString() });
 
-      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "", ajuste_jpy: "", ajuste_concepto: "" });
+      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "", jpy_total_real: "", ajuste_concepto: "" });
       setShowForm(false);
       setShowAjusteSaldar(false);
       await Promise.all([fetchPagos(), fetchPorSaldar(), fetchSaldo(), fetchGastos()]);
@@ -1887,10 +1898,10 @@ function SeccionPagos() {
           {showAjusteSaldar && (
             <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
               <div>
-                <label style={lbl}>Ajuste ¥ (+ cargo, − reembolso)</label>
-                <input type="number" step="1" value={form.ajuste_jpy}
-                  onChange={e => setForm(f => ({ ...f, ajuste_jpy: e.target.value }))}
-                  placeholder="-1511 ó 1511" style={{ ...inp, width: 160 }} />
+                <label style={lbl}>¥ TOTAL en ZenMarket ahorita</label>
+                <input type="number" min="0" step="1" value={form.jpy_total_real}
+                  onChange={e => setForm(f => ({ ...f, jpy_total_real: e.target.value }))}
+                  placeholder="Lo que ves en tu cuenta" style={{ ...inp, width: 170 }} />
               </div>
               <div style={{ flex: 1, minWidth: 200 }}>
                 <label style={lbl}>Concepto</label>
@@ -1898,11 +1909,20 @@ function SeccionPagos() {
                   onChange={e => setForm(f => ({ ...f, ajuste_concepto: e.target.value }))}
                   placeholder="Reembolso ZenMarket / cargos de almacén" style={inp} />
               </div>
-              {form.ajuste_jpy.trim() !== "" && !isNaN(parseFloat(form.ajuste_jpy)) && (
-                <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", paddingBottom: 9 }}>
-                  Total real a cubrir: <span style={{ color: "#FFE000" }}>¥{(totalPorSaldarJpy + parseFloat(form.ajuste_jpy)).toLocaleString()}</span>
-                </div>
-              )}
+              {form.jpy_total_real.trim() !== "" && !isNaN(parseFloat(form.jpy_total_real)) && form.jpy_obtenidos && !isNaN(parseFloat(form.jpy_obtenidos)) && (() => {
+                const jpyTeorico = saldo.jpy + parseFloat(form.jpy_obtenidos);
+                const jpyReal = parseFloat(form.jpy_total_real);
+                const diferencia = jpyTeorico - jpyReal;
+                return (
+                  <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", paddingBottom: 9 }}>
+                    {diferencia > 0
+                      ? <>Se va a registrar un gasto de <span style={{ color: "#FF8080" }}>¥{diferencia.toLocaleString()}</span></>
+                      : diferencia < 0
+                        ? <>Vas a tener <span style={{ color: "#00FF94" }}>¥{Math.abs(diferencia).toLocaleString()}</span> extra a favor</>
+                        : "Sin diferencia"}
+                  </div>
+                );
+              })()}
             </div>
           )}
           {errBox(error)}
