@@ -1561,14 +1561,18 @@ function SeccionPagos() {
     if (diferenciaJpy === 0) { setAjusteError("No hay diferencia contra el saldo actual"); return; }
     setSavingAjuste(true); setAjusteError("");
     try {
+      // El gasto SIEMPRE se valúa a la tasa que ya tenía el saldo (consistente
+      // sin importar si hay que topar en 0) -- calcularlo a partir del
+      // saldo YA topado (como estaba antes) subvaluaba el gasto cuando el
+      // faltante era mayor al saldo completo.
+      const tcActual = saldo.jpy > 0 ? saldo.mxn_costo / saldo.jpy : 0;
+      const mxnDelAjuste = parseFloat((diferenciaJpy * tcActual).toFixed(2));
       // El saldo a favor nunca queda negativo -- si el ¥ real no alcanza a
       // cubrir lo pendiente, ese faltante ya se ve reflejado en "Por saldar"
       // (necesitas una recarga vía Saldar), no hace falta duplicarlo aquí
       // como una deuda. El gasto sí se registra completo, con el monto real.
       const jpySobranteReal = Math.max(0, jpySobranteRealCrudo);
-      const proporcion = saldo.jpy > 0 ? jpySobranteReal / saldo.jpy : 0;
-      const nuevoMxnCosto = parseFloat((saldo.mxn_costo * proporcion).toFixed(2));
-      const mxnDelAjuste = parseFloat((saldo.mxn_costo - nuevoMxnCosto).toFixed(2));
+      const nuevoMxnCosto = Math.max(0, parseFloat((saldo.mxn_costo - mxnDelAjuste).toFixed(2)));
 
       await sb("gastos_zenmarket", "POST", {
         fecha, jpy: diferenciaJpy, mxn: mxnDelAjuste,
