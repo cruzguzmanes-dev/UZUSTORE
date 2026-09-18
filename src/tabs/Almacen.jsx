@@ -1495,9 +1495,10 @@ function SeccionPagos() {
   const [pagos, setPagos]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [showAjusteSaldar, setShowAjusteSaldar] = useState(false);
   const [form, setForm]         = useState({
     fecha: new Date().toISOString().slice(0, 10),
-    mxn_pagados: "", jpy_obtenidos: "", notas: "",
+    mxn_pagados: "", jpy_obtenidos: "", notas: "", ajuste_jpy: "", ajuste_concepto: "",
   });
   const [comprasPendientes, setComprasPendientes] = useState([]);
   const [paquetesPendientes, setPaquetesPendientes] = useState([]);
@@ -1617,15 +1618,22 @@ function SeccionPagos() {
   // como saldo a favor (junto con su costo en pesos, a tasa ponderada) para
   // usarse en envíos futuros sin necesitar otra recarga.
   const handleAdd = async () => {
-    const { fecha, mxn_pagados, jpy_obtenidos } = form;
+    const { fecha, mxn_pagados, jpy_obtenidos, ajuste_jpy, ajuste_concepto } = form;
     if (!fecha || !mxn_pagados || !jpy_obtenidos) { setError("Fecha, MXN pagados y ¥ obtenidos son requeridos"); return; }
     const mxn = parseFloat(mxn_pagados);
     const jpyNuevo = parseFloat(jpy_obtenidos);
+    const ajusteJpy = ajuste_jpy.trim() === "" ? 0 : parseFloat(ajuste_jpy);
     if (isNaN(mxn) || mxn <= 0) { setError("El monto MXN debe ser positivo"); return; }
     if (isNaN(jpyNuevo) || jpyNuevo <= 0) { setError("Los ¥ obtenidos deben ser positivos"); return; }
+    if (isNaN(ajusteJpy)) { setError("El ajuste debe ser un número (positivo o negativo)"); return; }
+    // El total a cubrir puede diferir de la suma de tus compras por
+    // reembolsos chicos o cargos de almacén que ZenMarket aplica y no vale
+    // la pena rastrear compra por compra -- el ajuste sube o baja ESTE total,
+    // sin tocar el precio de ninguna compra individual.
+    const totalConAjuste = totalPorSaldarJpy + ajusteJpy;
     const jpyDisponible = saldo.jpy + jpyNuevo;
-    if (totalPorSaldarJpy > 0 && jpyDisponible < totalPorSaldarJpy) {
-      setError(`Con esto no alcanza a cubrir lo pendiente -- te faltan ¥${Math.ceil(totalPorSaldarJpy - jpyDisponible).toLocaleString()}`);
+    if (totalConAjuste > 0 && jpyDisponible < totalConAjuste) {
+      setError(`Con esto no alcanza a cubrir lo pendiente -- te faltan ¥${Math.ceil(totalConAjuste - jpyDisponible).toLocaleString()}`);
       return;
     }
     setSaving(true); setError("");
@@ -1659,14 +1667,24 @@ function SeccionPagos() {
         });
       }
 
-      // 4. Lo que sobra (si depositaste de más) queda como saldo a favor
-      const jpySobrante = parseFloat((jpyDisponible - totalPorSaldarJpy).toFixed(2));
+      // 3.5. El ajuste (reembolsos/cargos de ZenMarket) queda registrado en el
+      // mismo historial de gastos, sin prorratearse a ninguna compra
+      if (ajusteJpy !== 0) {
+        await sb("gastos_zenmarket", "POST", {
+          fecha, jpy: ajusteJpy, mxn: parseFloat((ajusteJpy * tc).toFixed(2)),
+          concepto: ajuste_concepto.trim() || "Ajuste al saldar (reembolsos/cargos ZenMarket)",
+        });
+      }
+
+      // 4. Lo que sobra (si depositaste de más, ya con el ajuste aplicado) queda como saldo a favor
+      const jpySobrante = parseFloat((jpyDisponible - totalConAjuste).toFixed(2));
       const mxnSobrante = parseFloat((jpySobrante * tc).toFixed(2));
       await sb("saldo_zenmarket?id=eq.1", "PATCH", { jpy: jpySobrante, mxn_costo: mxnSobrante, updated_at: new Date().toISOString() });
 
-      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "" });
+      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "", ajuste_jpy: "", ajuste_concepto: "" });
       setShowForm(false);
-      await Promise.all([fetchPagos(), fetchPorSaldar(), fetchSaldo()]);
+      setShowAjusteSaldar(false);
+      await Promise.all([fetchPagos(), fetchPorSaldar(), fetchSaldo(), fetchGastos()]);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -1861,6 +1879,32 @@ function SeccionPagos() {
               </div>
             )}
           </div>
+
+          <button onClick={() => setShowAjusteSaldar(v => !v)}
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginBottom: 10, fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
+            {showAjusteSaldar ? "cancelar ajuste" : "+ hubo reembolso o cargo extra de ZenMarket"}
+          </button>
+          {showAjusteSaldar && (
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
+              <div>
+                <label style={lbl}>Ajuste ¥ (+ cargo, − reembolso)</label>
+                <input type="number" step="1" value={form.ajuste_jpy}
+                  onChange={e => setForm(f => ({ ...f, ajuste_jpy: e.target.value }))}
+                  placeholder="-1511 ó 1511" style={{ ...inp, width: 160 }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <label style={lbl}>Concepto</label>
+                <input type="text" value={form.ajuste_concepto}
+                  onChange={e => setForm(f => ({ ...f, ajuste_concepto: e.target.value }))}
+                  placeholder="Reembolso ZenMarket / cargos de almacén" style={inp} />
+              </div>
+              {form.ajuste_jpy.trim() !== "" && !isNaN(parseFloat(form.ajuste_jpy)) && (
+                <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", paddingBottom: 9 }}>
+                  Total real a cubrir: <span style={{ color: "#FFE000" }}>¥{(totalPorSaldarJpy + parseFloat(form.ajuste_jpy)).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+          )}
           {errBox(error)}
           <button onClick={handleAdd} disabled={saving}
             style={{ background: saving ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: saving ? "default" : "pointer" }}>
