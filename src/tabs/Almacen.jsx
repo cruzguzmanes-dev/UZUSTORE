@@ -1495,10 +1495,9 @@ function SeccionPagos() {
   const [pagos, setPagos]       = useState([]);
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [showAjusteSaldar, setShowAjusteSaldar] = useState(false);
   const [form, setForm]         = useState({
     fecha: new Date().toISOString().slice(0, 10),
-    mxn_pagados: "", jpy_obtenidos: "", notas: "", jpy_total_real: "", ajuste_concepto: "",
+    mxn_pagados: "", jpy_obtenidos: "", notas: "",
   });
   const [comprasPendientes, setComprasPendientes] = useState([]);
   const [paquetesPendientes, setPaquetesPendientes] = useState([]);
@@ -1511,10 +1510,10 @@ function SeccionPagos() {
   const [deleteError, setDeleteError] = useState("");
   const [saldo, setSaldo]             = useState({ jpy: 0, mxn_costo: 0 });
   const [gastos, setGastos]           = useState([]);
-  const [showAjuste, setShowAjuste]   = useState(false);
-  const [ajusteForm, setAjusteForm]   = useState({ fecha: new Date().toISOString().slice(0, 10), jpy_real: "", concepto: "" });
-  const [savingAjuste, setSavingAjuste] = useState(false);
-  const [ajusteError, setAjusteError] = useState("");
+  const [showAjusteDeuda, setShowAjusteDeuda] = useState(false);
+  const [ajusteDeudaForm, setAjusteDeudaForm] = useState({ fecha: new Date().toISOString().slice(0, 10), jpy_objetivo: "", concepto: "" });
+  const [savingAjusteDeuda, setSavingAjusteDeuda] = useState(false);
+  const [ajusteDeudaError, setAjusteDeudaError] = useState("");
   const loaded = useRef(false);
 
   const fetchPagos = async () => {
@@ -1541,50 +1540,31 @@ function SeccionPagos() {
     } catch (e) { console.error(e); }
   };
 
-  // Corrige el saldo a favor a partir del ¥ TOTAL que ves en tu cuenta de
-  // ZenMarket (no el sobrante -- el total, que ya incluye lo apartado para
-  // compras pendientes). La app le resta lo que sabe que debes (Por saldar)
-  // para sacar el verdadero sobrante, así no tienes que hacer esa resta a
-  // mano. Sirve para cuadrar cargos que ZenMarket descuenta directo
-  // (almacenamiento por plazo excedido, comisiones) sin pasar por una compra
-  // o un envío. No se prorratea a ningún producto: solo se descuenta del
-  // saldo, quitando el ¥ a la MISMA tasa ponderada que ya tenía (para no
-  // inventar un tipo de cambio nuevo), y queda registrado en el historial de
-  // gastos con fecha y concepto.
-  const handleAjustarSaldo = async () => {
-    const { fecha, jpy_real, concepto } = ajusteForm;
-    if (!fecha || jpy_real === "") { setAjusteError("Fecha y ¥ total son requeridos"); return; }
-    const jpyTotalZenmarket = parseFloat(jpy_real);
-    if (isNaN(jpyTotalZenmarket) || jpyTotalZenmarket < 0) { setAjusteError("El ¥ total debe ser un número válido (0 o más)"); return; }
-    const jpySobranteRealCrudo = parseFloat((jpyTotalZenmarket - totalPorSaldarJpy).toFixed(2));
-    const diferenciaJpy = parseFloat((saldo.jpy - jpySobranteRealCrudo).toFixed(2));
-    if (diferenciaJpy === 0) { setAjusteError("No hay diferencia contra el saldo actual"); return; }
-    setSavingAjuste(true); setAjusteError("");
+  // "¿Cuánto debería ser de deuda?" -- escribes el ¥ real que ZenMarket dice
+  // que debes (no la diferencia, la app la saca sola). La diferencia contra
+  // lo que el panel calcula (compras + envíos + otros gastos) se guarda como
+  // UN "otro gasto" más, positivo o negativo, que se suma a "Por saldar"
+  // hasta el próximo Saldar real (ahí se liquida junto con las compras, con
+  // el tipo de cambio de ese momento). No toca el precio de ninguna compra,
+  // ni el saldo a favor -- son cosas separadas.
+  const handleAjustarDeuda = async () => {
+    const { fecha, jpy_objetivo, concepto } = ajusteDeudaForm;
+    if (!fecha || jpy_objetivo === "") { setAjusteDeudaError("Fecha y ¥ objetivo son requeridos"); return; }
+    const jpyObjetivo = parseFloat(jpy_objetivo);
+    if (isNaN(jpyObjetivo) || jpyObjetivo < 0) { setAjusteDeudaError("El ¥ objetivo debe ser un número válido (0 o más)"); return; }
+    const gastoJpy = parseFloat((jpyObjetivo - totalPorSaldarJpy).toFixed(2));
+    if (gastoJpy === 0) { setAjusteDeudaError("No hay diferencia contra lo que ya está calculado"); return; }
+    setSavingAjusteDeuda(true); setAjusteDeudaError("");
     try {
-      // El gasto SIEMPRE se valúa a la tasa que ya tenía el saldo (consistente
-      // sin importar si hay que topar en 0) -- calcularlo a partir del
-      // saldo YA topado (como estaba antes) subvaluaba el gasto cuando el
-      // faltante era mayor al saldo completo.
-      const tcActual = saldo.jpy > 0 ? saldo.mxn_costo / saldo.jpy : 0;
-      const mxnDelAjuste = parseFloat((diferenciaJpy * tcActual).toFixed(2));
-      // El saldo a favor nunca queda negativo -- si el ¥ real no alcanza a
-      // cubrir lo pendiente, ese faltante ya se ve reflejado en "Por saldar"
-      // (necesitas una recarga vía Saldar), no hace falta duplicarlo aquí
-      // como una deuda. El gasto sí se registra completo, con el monto real.
-      const jpySobranteReal = Math.max(0, jpySobranteRealCrudo);
-      const nuevoMxnCosto = Math.max(0, parseFloat((saldo.mxn_costo - mxnDelAjuste).toFixed(2)));
-
       await sb("gastos_zenmarket", "POST", {
-        fecha, jpy: diferenciaJpy, mxn: mxnDelAjuste,
-        concepto: concepto.trim() || "Ajuste de saldo (almacenamiento/comisiones)",
+        fecha, jpy: gastoJpy, mxn: null, pendiente: true,
+        concepto: concepto.trim() || "Ajuste de deuda (reembolsos/cargos ZenMarket)",
       });
-      await sb("saldo_zenmarket?id=eq.1", "PATCH", { jpy: jpySobranteReal, mxn_costo: nuevoMxnCosto, updated_at: new Date().toISOString() });
-
-      setAjusteForm({ fecha: new Date().toISOString().slice(0, 10), jpy_real: "", concepto: "" });
-      setShowAjuste(false);
-      await Promise.all([fetchSaldo(), fetchGastos()]);
-    } catch (e) { setAjusteError(e.message); }
-    finally { setSavingAjuste(false); }
+      setAjusteDeudaForm({ fecha: new Date().toISOString().slice(0, 10), jpy_objetivo: "", concepto: "" });
+      setShowAjusteDeuda(false);
+      await fetchGastos();
+    } catch (e) { setAjusteDeudaError(e.message); }
+    finally { setSavingAjusteDeuda(false); }
   };
 
   // El crédito de ZenMarket solo cubre compras -- el envío se paga aparte,
@@ -1620,42 +1600,29 @@ function SeccionPagos() {
 
   const totalCompras = comprasPendientes.reduce((s, c) => s + parseFloat(c.precio_jpy), 0); // precio_jpy ya es el total de la compra, no por pieza
   const totalEnvios  = paquetesPendientes.reduce((s, p) => s + (parseFloat(p.costo_envio_jpy) || 0), 0);
-  const totalPorSaldarJpy = totalCompras + totalEnvios;
+  const totalGastosPendientes = gastos.filter(g => g.pendiente).reduce((s, g) => s + parseFloat(g.jpy), 0);
+  const totalPorSaldarJpy = totalCompras + totalEnvios + totalGastosPendientes;
 
   // El ¥ que ZenMarket te acredita por una recarga no siempre coincide con lo
   // que debes -- si depositas de más, la diferencia no se pierde: se guarda
   // como saldo a favor (junto con su costo en pesos, a tasa ponderada) para
   // usarse en envíos futuros sin necesitar otra recarga.
   const handleAdd = async () => {
-    const { fecha, mxn_pagados, jpy_obtenidos, jpy_total_real, ajuste_concepto } = form;
+    const { fecha, mxn_pagados, jpy_obtenidos } = form;
     if (!fecha || !mxn_pagados || !jpy_obtenidos) { setError("Fecha, MXN pagados y ¥ obtenidos son requeridos"); return; }
     const mxn = parseFloat(mxn_pagados);
     const jpyNuevo = parseFloat(jpy_obtenidos);
     if (isNaN(mxn) || mxn <= 0) { setError("El monto MXN debe ser positivo"); return; }
     if (isNaN(jpyNuevo) || jpyNuevo <= 0) { setError("Los ¥ obtenidos deben ser positivos"); return; }
-
-    const jpyDisponibleTeorico = saldo.jpy + jpyNuevo;
-    const usaTotalReal = jpy_total_real.trim() !== "";
-    let jpyTotalReal = null;
-    if (usaTotalReal) {
-      jpyTotalReal = parseFloat(jpy_total_real);
-      if (isNaN(jpyTotalReal) || jpyTotalReal < 0) { setError("El ¥ total de ZenMarket debe ser un número válido"); return; }
-    }
-    // Si das el ¥ TOTAL real de ZenMarket, ese es el que manda para saber si
-    // alcanza y cuánto sobra -- no el teórico (saldo + esta recarga), que no
-    // sabe de comisiones ni cargos de almacén que ya te descontaron ahí.
-    const jpyParaCubrir = usaTotalReal ? jpyTotalReal : jpyDisponibleTeorico;
-    if (totalPorSaldarJpy > 0 && jpyParaCubrir < totalPorSaldarJpy) {
-      setError(`Con esto no alcanza a cubrir lo pendiente -- te faltan ¥${Math.ceil(totalPorSaldarJpy - jpyParaCubrir).toLocaleString()}`);
+    const jpyDisponible = saldo.jpy + jpyNuevo;
+    if (totalPorSaldarJpy > 0 && jpyDisponible < totalPorSaldarJpy) {
+      setError(`Con esto no alcanza a cubrir lo pendiente -- te faltan ¥${Math.ceil(totalPorSaldarJpy - jpyDisponible).toLocaleString()}`);
       return;
     }
     setSaving(true); setError("");
     try {
       const mxnDisponible = saldo.mxn_costo + mxn;
-      // La tasa para valuar tus compras SIEMPRE sale del teórico (lo que
-      // realmente pagaste vs lo que realmente te acreditaron) -- así el
-      // ruido de comisiones/cargos nunca se mete al precio de una compra.
-      const tc = mxnDisponible / jpyDisponibleTeorico;
+      const tc = mxnDisponible / jpyDisponible;
 
       // 1. Crear el pago (registra la recarga real: lo que pagaste y lo que ZenMarket te acreditó)
       const [pago] = await sb("pagos_zenmarket", "POST", {
@@ -1683,27 +1650,24 @@ function SeccionPagos() {
         });
       }
 
-      // 3.5. La diferencia entre lo teórico y el ¥ total real que diste
-      // (comisiones, cargos de almacén, reembolsos) queda registrada aparte,
-      // sin tocar el precio de ninguna compra.
-      if (usaTotalReal) {
-        const diferenciaJpy = parseFloat((jpyDisponibleTeorico - jpyTotalReal).toFixed(2));
-        if (diferenciaJpy !== 0) {
-          await sb("gastos_zenmarket", "POST", {
-            fecha, jpy: diferenciaJpy, mxn: parseFloat((diferenciaJpy * tc).toFixed(2)),
-            concepto: ajuste_concepto.trim() || "Ajuste al saldar (comisiones/cargos de ZenMarket)",
-          });
-        }
+      // 3.5. Los "otros gastos" pendientes (ajustes de deuda por reembolsos o
+      // cargos de ZenMarket) se liquidan junto con las compras, a la misma
+      // tasa -- ya no cuentan en "Por saldar" de ahí en adelante.
+      const gastosPend = await sb("gastos_zenmarket?pendiente=eq.true&select=id,jpy");
+      for (const g of (gastosPend || [])) {
+        await sb(`gastos_zenmarket?id=eq.${g.id}`, "PATCH", {
+          mxn: parseFloat((parseFloat(g.jpy) * tc).toFixed(2)),
+          pendiente: false,
+        });
       }
 
-      // 4. Lo que sobra (contra el ¥ real si lo diste, si no contra el teórico) queda como saldo a favor
-      const jpySobrante = parseFloat((jpyParaCubrir - totalPorSaldarJpy).toFixed(2));
+      // 4. Lo que sobra (si depositaste de más) queda como saldo a favor
+      const jpySobrante = parseFloat((jpyDisponible - totalPorSaldarJpy).toFixed(2));
       const mxnSobrante = parseFloat((jpySobrante * tc).toFixed(2));
       await sb("saldo_zenmarket?id=eq.1", "PATCH", { jpy: jpySobrante, mxn_costo: mxnSobrante, updated_at: new Date().toISOString() });
 
-      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "", jpy_total_real: "", ajuste_concepto: "" });
+      setForm({ fecha: new Date().toISOString().slice(0, 10), mxn_pagados: "", jpy_obtenidos: "", notas: "" });
       setShowForm(false);
-      setShowAjusteSaldar(false);
       await Promise.all([fetchPagos(), fetchPorSaldar(), fetchSaldo(), fetchGastos()]);
     } catch (e) { setError(e.message); }
     finally { setSaving(false); }
@@ -1748,7 +1712,11 @@ function SeccionPagos() {
             </div>
             <button onClick={() => setShowDesglose(!showDesglose)}
               style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 4, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
-              ¥{totalCompras.toLocaleString()} de compras + ¥{totalEnvios.toLocaleString()} de envíos agregados · {showDesglose ? "ocultar desglose ▾" : "ver desglose ▸"}
+              ¥{totalCompras.toLocaleString()} de compras + ¥{totalEnvios.toLocaleString()} de envíos + ¥{totalGastosPendientes.toLocaleString()} de otros gastos · {showDesglose ? "ocultar desglose ▾" : "ver desglose ▸"}
+            </button>
+            <button onClick={() => { setShowAjusteDeuda(v => !v); setAjusteDeudaError(""); setAjusteDeudaForm(f => ({ ...f, jpy_objetivo: String(totalPorSaldarJpy) })); }}
+              style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 4, marginLeft: 12, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
+              {showAjusteDeuda ? "cancelar" : "¿cuánto debería ser de deuda? ▸"}
             </button>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -1761,10 +1729,6 @@ function SeccionPagos() {
                 ≈ {fmt(saldo.mxn_costo)} · tc ${(saldo.mxn_costo / saldo.jpy).toFixed(4)}/¥
               </div>
             )}
-            <button onClick={() => { setShowAjuste(!showAjuste); setAjusteError(""); setAjusteForm(f => ({ ...f, jpy_real: String(saldo.jpy + totalPorSaldarJpy) })); }}
-              style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 4, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
-              {showAjuste ? "cancelar ajuste" : "ajustar saldo ▸"}
-            </button>
           </div>
           <button onClick={() => { setShowForm(!showForm); setError(""); }}
             style={{ background: showForm ? "transparent" : "#FFE000", border: showForm ? "1px solid #333" : "none", borderRadius: 8, padding: "8px 18px", color: showForm ? "#888" : "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: "pointer" }}>
@@ -1772,66 +1736,60 @@ function SeccionPagos() {
           </button>
         </div>
 
-        {showAjuste && (
+        {showAjusteDeuda && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,224,0,0.15)" }}>
             <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 10, lineHeight: 1.5 }}>
-              Pon el ¥ TOTAL que ves ahorita en tu cuenta de ZenMarket (no el sobrante — el total). La app le resta lo que ya sabe que debes (¥{totalPorSaldarJpy.toLocaleString()} por saldar) y calcula tu sobrante real solo. Sirve para cuadrar cargos que ZenMarket descuenta directo (almacenamiento por plazo excedido, comisiones) sin pasar por una compra o un envío.
+              Escribe el ¥ que ZenMarket dice que realmente debes (no la diferencia -- la app la calcula sola). Se guarda como "otro gasto" dentro de Por saldar, sin tocar el precio de ninguna compra ni tu saldo a favor. Se liquida junto con las compras en el próximo Saldar.
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
               <div>
                 <label style={lbl}>Fecha</label>
-                <input type="date" value={ajusteForm.fecha}
-                  onChange={e => setAjusteForm(f => ({ ...f, fecha: e.target.value }))}
+                <input type="date" value={ajusteDeudaForm.fecha}
+                  onChange={e => setAjusteDeudaForm(f => ({ ...f, fecha: e.target.value }))}
                   style={{ ...inp, width: 150 }} />
               </div>
               <div>
-                <label style={lbl}>¥ TOTAL en ZenMarket ahorita</label>
-                <input type="number" min="0" step="1" value={ajusteForm.jpy_real}
-                  onChange={e => setAjusteForm(f => ({ ...f, jpy_real: e.target.value }))}
+                <label style={lbl}>¥ que deberías deber</label>
+                <input type="number" min="0" step="1" value={ajusteDeudaForm.jpy_objetivo}
+                  onChange={e => setAjusteDeudaForm(f => ({ ...f, jpy_objetivo: e.target.value }))}
                   style={{ ...inp, width: 150 }} autoFocus />
               </div>
               <div style={{ flex: 1, minWidth: 180 }}>
                 <label style={lbl}>Concepto (opcional)</label>
-                <input type="text" value={ajusteForm.concepto}
-                  onChange={e => setAjusteForm(f => ({ ...f, concepto: e.target.value }))}
-                  placeholder="Almacenamiento plazo excedido..." style={inp} />
+                <input type="text" value={ajusteDeudaForm.concepto}
+                  onChange={e => setAjusteDeudaForm(f => ({ ...f, concepto: e.target.value }))}
+                  placeholder="Reembolsos / cargos de almacén ZenMarket..." style={inp} />
               </div>
-              <button onClick={handleAjustarSaldo} disabled={savingAjuste}
-                style={{ background: savingAjuste ? "#333" : "#FFE000", border: "none", borderRadius: 8, padding: "9px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: savingAjuste ? "default" : "pointer" }}>
-                {savingAjuste ? "Guardando..." : "Ajustar →"}
+              <button onClick={handleAjustarDeuda} disabled={savingAjusteDeuda}
+                style={{ background: savingAjusteDeuda ? "#333" : "#FFE000", border: "none", borderRadius: 8, padding: "9px 18px", color: "#000", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: savingAjusteDeuda ? "default" : "pointer" }}>
+                {savingAjusteDeuda ? "Guardando..." : "Ajustar →"}
               </button>
             </div>
-            {ajusteForm.jpy_real !== "" && !isNaN(parseFloat(ajusteForm.jpy_real)) && (() => {
-              const jpySobranteRealCrudo = parseFloat(ajusteForm.jpy_real) - totalPorSaldarJpy;
-              const jpySobranteReal = Math.max(0, jpySobranteRealCrudo);
-              const diferencia = saldo.jpy - jpySobranteRealCrudo;
+            {ajusteDeudaForm.jpy_objetivo !== "" && !isNaN(parseFloat(ajusteDeudaForm.jpy_objetivo)) && (() => {
+              const gastoJpy = parseFloat(ajusteDeudaForm.jpy_objetivo) - totalPorSaldarJpy;
               return (
                 <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 8 }}>
-                  Tu saldo a favor quedaría en <span style={{ color: "#00FF94" }}>¥{jpySobranteReal.toLocaleString()}</span>
-                  {jpySobranteRealCrudo < 0 && (
-                    <span style={{ color: "#FF8080" }}> (te faltan ¥{Math.abs(jpySobranteRealCrudo).toLocaleString()} para cubrir lo pendiente — eso se resuelve con una recarga vía Saldar, no aquí)</span>
-                  )}
-                  {" — "}
-                  {diferencia > 0
-                    ? <>se va a registrar un gasto de <span style={{ color: "#FF8080" }}>¥{diferencia.toLocaleString()}</span></>
-                    : diferencia < 0
-                      ? <>el saldo va a subir en <span style={{ color: "#00FF94" }}>¥{Math.abs(diferencia).toLocaleString()}</span></>
-                      : "sin cambios"}
+                  {gastoJpy > 0
+                    ? <>Se va a agregar un gasto de <span style={{ color: "#FF8080" }}>¥{gastoJpy.toLocaleString()}</span> a Por saldar</>
+                    : gastoJpy < 0
+                      ? <>Se va a agregar un gasto de <span style={{ color: "#00FF94" }}>-¥{Math.abs(gastoJpy).toLocaleString()}</span> (a favor) a Por saldar</>
+                      : "Sin diferencia"}
+                  {" — "}Por saldar quedaría en <span style={{ color: "#FFE000" }}>¥{parseFloat(ajusteDeudaForm.jpy_objetivo).toLocaleString()}</span>
                 </div>
               );
             })()}
-            {errBox(ajusteError)}
+            {errBox(ajusteDeudaError)}
           </div>
         )}
 
         {showDesglose && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,224,0,0.15)" }}>
-            {comprasPendientes.length === 0 && paquetesPendientes.length === 0 ? (
+            {(() => { const gastosPend = gastos.filter(g => g.pendiente); return comprasPendientes.length === 0 && paquetesPendientes.length === 0 && gastosPend.length === 0 ? (
               <div style={{ fontSize: 11, color: "#555", fontFamily: "'Space Mono', monospace" }}>Nada pendiente</div>
             ) : (
               <>
                 {comprasPendientes.length > 0 && (
-                  <div style={{ marginBottom: paquetesPendientes.length > 0 ? 10 : 0 }}>
+                  <div style={{ marginBottom: (paquetesPendientes.length > 0 || gastosPend.length > 0) ? 10 : 0 }}>
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
                       Compras sin pagar
                     </div>
@@ -1846,7 +1804,7 @@ function SeccionPagos() {
                   </div>
                 )}
                 {paquetesPendientes.length > 0 && (
-                  <div>
+                  <div style={{ marginBottom: gastosPend.length > 0 ? 10 : 0 }}>
                     <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
                       Envíos agregados a saldar
                     </div>
@@ -1858,8 +1816,24 @@ function SeccionPagos() {
                     ))}
                   </div>
                 )}
+                {gastosPend.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#555", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
+                      Otros gastos pendientes
+                    </div>
+                    {gastosPend.map(g => (
+                      <div key={g.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: "'Space Mono', monospace" }}>
+                        <div style={{ flex: 1, color: "#ddd" }}>{g.concepto || "Ajuste de deuda"}</div>
+                        <div style={{ color: "#555" }}>{g.fecha}</div>
+                        <div style={{ color: g.jpy >= 0 ? "#FFE000" : "#00FF94", minWidth: 90, textAlign: "right" }}>
+                          {g.jpy >= 0 ? "¥" : "-¥"}{Math.abs(g.jpy).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
-            )}
+            ); })()}
           </div>
         )}
       </div>
@@ -1903,41 +1877,6 @@ function SeccionPagos() {
               </div>
             )}
           </div>
-
-          <button onClick={() => setShowAjusteSaldar(v => !v)}
-            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginBottom: 10, fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
-            {showAjusteSaldar ? "cancelar ajuste" : "+ hubo reembolso o cargo extra de ZenMarket"}
-          </button>
-          {showAjusteSaldar && (
-            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 12 }}>
-              <div>
-                <label style={lbl}>¥ TOTAL en ZenMarket ahorita</label>
-                <input type="number" min="0" step="1" value={form.jpy_total_real}
-                  onChange={e => setForm(f => ({ ...f, jpy_total_real: e.target.value }))}
-                  placeholder="Lo que ves en tu cuenta" style={{ ...inp, width: 170 }} />
-              </div>
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <label style={lbl}>Concepto</label>
-                <input type="text" value={form.ajuste_concepto}
-                  onChange={e => setForm(f => ({ ...f, ajuste_concepto: e.target.value }))}
-                  placeholder="Reembolso ZenMarket / cargos de almacén" style={inp} />
-              </div>
-              {form.jpy_total_real.trim() !== "" && !isNaN(parseFloat(form.jpy_total_real)) && form.jpy_obtenidos && !isNaN(parseFloat(form.jpy_obtenidos)) && (() => {
-                const jpyTeorico = saldo.jpy + parseFloat(form.jpy_obtenidos);
-                const jpyReal = parseFloat(form.jpy_total_real);
-                const diferencia = jpyTeorico - jpyReal;
-                return (
-                  <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", paddingBottom: 9 }}>
-                    {diferencia > 0
-                      ? <>Se va a registrar un gasto de <span style={{ color: "#FF8080" }}>¥{diferencia.toLocaleString()}</span></>
-                      : diferencia < 0
-                        ? <>Vas a tener <span style={{ color: "#00FF94" }}>¥{Math.abs(diferencia).toLocaleString()}</span> extra a favor</>
-                        : "Sin diferencia"}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
           {errBox(error)}
           <button onClick={handleAdd} disabled={saving}
             style={{ background: saving ? "#333" : "#FFE000", color: "#000", border: "none", borderRadius: 8, padding: "9px 22px", fontSize: 12, fontWeight: 700, fontFamily: "'Syne', sans-serif", cursor: saving ? "default" : "pointer" }}>
@@ -1949,17 +1888,22 @@ function SeccionPagos() {
       {gastos.length > 0 && (
         <div style={{ background: "rgba(255,80,80,0.04)", border: "1px solid rgba(255,80,80,0.15)", borderRadius: 12, padding: "14px 20px", marginBottom: 16 }}>
           <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>
-            Gastos / ajustes de saldo
+            Gastos / ajustes de saldo y deuda
           </div>
           {gastos.map(g => (
             <div key={g.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 12, fontFamily: "'Space Mono', monospace" }}>
               <div style={{ color: "#555", minWidth: 90 }}>{g.fecha}</div>
-              <div style={{ flex: 1, color: "#ddd" }}>{g.concepto || "Ajuste de saldo"}</div>
+              <div style={{ flex: 1, color: "#ddd" }}>{g.concepto || "Ajuste"}</div>
+              {g.pendiente && (
+                <span style={{ fontSize: 9, fontFamily: "'Space Mono', monospace", padding: "2px 7px", borderRadius: 20, background: "rgba(255,224,0,0.1)", color: "#FFE000", letterSpacing: 1 }}>
+                  PENDIENTE
+                </span>
+              )}
               <div style={{ color: g.jpy >= 0 ? "#FF8080" : "#00FF94", minWidth: 90, textAlign: "right" }}>
                 {g.jpy >= 0 ? "-" : "+"}¥{Math.abs(g.jpy).toLocaleString()}
               </div>
               <div style={{ color: "#555", minWidth: 90, textAlign: "right" }}>
-                {g.jpy >= 0 ? "-" : "+"}{fmt(Math.abs(g.mxn))}
+                {g.mxn == null ? "—" : `${g.jpy >= 0 ? "-" : "+"}${fmt(Math.abs(g.mxn))}`}
               </div>
             </div>
           ))}
