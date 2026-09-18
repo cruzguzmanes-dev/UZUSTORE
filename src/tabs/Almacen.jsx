@@ -1552,7 +1552,12 @@ function SeccionPagos() {
     if (!fecha || jpy_objetivo === "") { setAjusteDeudaError("Fecha y ¥ objetivo son requeridos"); return; }
     const jpyObjetivo = parseFloat(jpy_objetivo);
     if (isNaN(jpyObjetivo) || jpyObjetivo < 0) { setAjusteDeudaError("El ¥ objetivo debe ser un número válido (0 o más)"); return; }
-    const gastoJpy = parseFloat((jpyObjetivo - totalPorSaldarJpy).toFixed(2));
+    // El objetivo es lo que de verdad hace falta traer (neto, ya usando tu
+    // saldo a favor) -- se compara contra Por saldar YA restándole el saldo,
+    // no contra Por saldar solo. Así el saldo sí se toma en cuenta sin
+    // necesidad de tocarlo directamente.
+    const netoActual = totalPorSaldarJpy - saldo.jpy;
+    const gastoJpy = parseFloat((jpyObjetivo - netoActual).toFixed(2));
     if (gastoJpy === 0) { setAjusteDeudaError("No hay diferencia contra lo que ya está calculado"); return; }
     setSavingAjusteDeuda(true); setAjusteDeudaError("");
     try {
@@ -1714,7 +1719,7 @@ function SeccionPagos() {
               style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 4, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
               ¥{totalCompras.toLocaleString()} de compras + ¥{totalEnvios.toLocaleString()} de envíos + ¥{totalGastosPendientes.toLocaleString()} de otros gastos · {showDesglose ? "ocultar desglose ▾" : "ver desglose ▸"}
             </button>
-            <button onClick={() => { setShowAjusteDeuda(v => !v); setAjusteDeudaError(""); setAjusteDeudaForm(f => ({ ...f, jpy_objetivo: String(totalPorSaldarJpy) })); }}
+            <button onClick={() => { setShowAjusteDeuda(v => !v); setAjusteDeudaError(""); setAjusteDeudaForm(f => ({ ...f, jpy_objetivo: String(totalPorSaldarJpy - saldo.jpy) })); }}
               style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 4, marginLeft: 12, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
               {showAjusteDeuda ? "cancelar" : "¿cuánto debería ser de deuda? ▸"}
             </button>
@@ -1739,7 +1744,7 @@ function SeccionPagos() {
         {showAjusteDeuda && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,224,0,0.15)" }}>
             <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 10, lineHeight: 1.5 }}>
-              Escribe el ¥ que ZenMarket dice que realmente debes (no la diferencia -- la app la calcula sola). Se guarda como "otro gasto" dentro de Por saldar, sin tocar el precio de ninguna compra ni tu saldo a favor. Se liquida junto con las compras en el próximo Saldar.
+              Escribe cuánto ¥ realmente hace falta traer para saldar todo, ya tomando en cuenta tu saldo a favor (¥{saldo.jpy.toLocaleString()}) -- la app calcula sola la diferencia contra lo que el panel dice (Por saldar menos tu saldo) y la guarda como "otro gasto", sin tocar el precio de ninguna compra ni tu saldo a favor directamente. Se liquida junto con las compras en el próximo Saldar.
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
               <div>
@@ -1749,7 +1754,7 @@ function SeccionPagos() {
                   style={{ ...inp, width: 150 }} />
               </div>
               <div>
-                <label style={lbl}>¥ que deberías deber</label>
+                <label style={lbl}>¥ que hace falta traer (neto)</label>
                 <input type="number" min="0" step="1" value={ajusteDeudaForm.jpy_objetivo}
                   onChange={e => setAjusteDeudaForm(f => ({ ...f, jpy_objetivo: e.target.value }))}
                   style={{ ...inp, width: 150 }} autoFocus />
@@ -1766,7 +1771,10 @@ function SeccionPagos() {
               </button>
             </div>
             {ajusteDeudaForm.jpy_objetivo !== "" && !isNaN(parseFloat(ajusteDeudaForm.jpy_objetivo)) && (() => {
-              const gastoJpy = parseFloat(ajusteDeudaForm.jpy_objetivo) - totalPorSaldarJpy;
+              const jpyObjetivo = parseFloat(ajusteDeudaForm.jpy_objetivo);
+              const netoActual = totalPorSaldarJpy - saldo.jpy;
+              const gastoJpy = jpyObjetivo - netoActual;
+              const nuevoPorSaldar = totalPorSaldarJpy + gastoJpy;
               return (
                 <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 8 }}>
                   {gastoJpy > 0
@@ -1774,7 +1782,7 @@ function SeccionPagos() {
                     : gastoJpy < 0
                       ? <>Se va a agregar un gasto de <span style={{ color: "#00FF94" }}>-¥{Math.abs(gastoJpy).toLocaleString()}</span> (a favor) a Por saldar</>
                       : "Sin diferencia"}
-                  {" — "}Por saldar quedaría en <span style={{ color: "#FFE000" }}>¥{parseFloat(ajusteDeudaForm.jpy_objetivo).toLocaleString()}</span>
+                  {" — "}Por saldar quedaría en <span style={{ color: "#FFE000" }}>¥{nuevoPorSaldar.toLocaleString()}</span>, que menos tu saldo a favor (¥{saldo.jpy.toLocaleString()}) da justo los <span style={{ color: "#00C9FF" }}>¥{jpyObjetivo.toLocaleString()}</span> que escribiste.
                 </div>
               );
             })()}
