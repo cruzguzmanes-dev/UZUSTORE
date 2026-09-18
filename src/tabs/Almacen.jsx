@@ -1514,6 +1514,8 @@ function SeccionPagos() {
   const [ajusteDeudaForm, setAjusteDeudaForm] = useState({ fecha: new Date().toISOString().slice(0, 10), jpy_objetivo: "", concepto: "" });
   const [savingAjusteDeuda, setSavingAjusteDeuda] = useState(false);
   const [ajusteDeudaError, setAjusteDeudaError] = useState("");
+  const [deletingGastoId, setDeletingGastoId] = useState(null);
+  const [deleteGastoError, setDeleteGastoError] = useState("");
   const loaded = useRef(false);
 
   const fetchPagos = async () => {
@@ -1570,6 +1572,20 @@ function SeccionPagos() {
       await fetchGastos();
     } catch (e) { setAjusteDeudaError(e.message); }
     finally { setSavingAjusteDeuda(false); }
+  };
+
+  // Solo se puede borrar un gasto mientras sigue PENDIENTE (no afectó nada
+  // más todavía -- ni compras, ni saldo, ni un pago). Uno ya liquidado en un
+  // Saldar real ya se mezcló con esos números y no se puede deshacer solo.
+  const handleDeleteGasto = async (id) => {
+    setDeleteGastoError("");
+    try {
+      await sb(`gastos_zenmarket?id=eq.${id}`, "DELETE");
+      setDeletingGastoId(null);
+      await fetchGastos();
+    } catch (e) {
+      setDeleteGastoError("No se pudo eliminar el gasto.");
+    }
   };
 
   // El crédito de ZenMarket solo cubre compras -- el envío se paga aparte,
@@ -1898,6 +1914,7 @@ function SeccionPagos() {
           <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>
             Gastos / ajustes de saldo y deuda
           </div>
+          {errBox(deleteGastoError)}
           {gastos.map(g => (
             <div key={g.id} style={{ display: "flex", gap: 12, alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)", fontSize: 12, fontFamily: "'Space Mono', monospace" }}>
               <div style={{ color: "#555", minWidth: 90 }}>{g.fecha}</div>
@@ -1913,6 +1930,26 @@ function SeccionPagos() {
               <div style={{ color: "#555", minWidth: 90, textAlign: "right" }}>
                 {g.mxn == null ? "—" : `${g.jpy >= 0 ? "-" : "+"}${fmt(Math.abs(g.mxn))}`}
               </div>
+              {g.pendiente && (
+                deletingGastoId === g.id ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button onClick={() => handleDeleteGasto(g.id)}
+                      style={{ background: "#FF5050", border: "none", borderRadius: 6, padding: "4px 9px", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>
+                      Confirmar
+                    </button>
+                    <button onClick={() => setDeletingGastoId(null)}
+                      style={{ background: "transparent", border: "1px solid #333", borderRadius: 6, padding: "4px 9px", color: "#555", fontSize: 10, cursor: "pointer" }}>
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => { setDeletingGastoId(g.id); setDeleteGastoError(""); }}
+                    title="Eliminar este ajuste pendiente"
+                    style={{ background: "transparent", border: "none", cursor: "pointer", color: "#555", fontSize: 13 }}>
+                    🗑
+                  </button>
+                )
+              )}
             </div>
           ))}
         </div>
