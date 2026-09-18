@@ -1540,22 +1540,27 @@ function SeccionPagos() {
     } catch (e) { console.error(e); }
   };
 
-  // Corrige el saldo a favor al ¥ real que ves en ZenMarket -- para cargos
-  // como almacenamiento por plazo excedido o comisiones, que le bajan tu
-  // saldo real sin pasar por una compra o un envío. No se prorratea a ningún
-  // producto: solo se descuenta del saldo, quitando el ¥ a la MISMA tasa
-  // ponderada que ya tenía (para no inventar un tipo de cambio nuevo), y
-  // queda registrado en el historial de gastos con fecha y concepto.
+  // Corrige el saldo a favor a partir del ¥ TOTAL que ves en tu cuenta de
+  // ZenMarket (no el sobrante -- el total, que ya incluye lo apartado para
+  // compras pendientes). La app le resta lo que sabe que debes (Por saldar)
+  // para sacar el verdadero sobrante, así no tienes que hacer esa resta a
+  // mano. Sirve para cuadrar cargos que ZenMarket descuenta directo
+  // (almacenamiento por plazo excedido, comisiones) sin pasar por una compra
+  // o un envío. No se prorratea a ningún producto: solo se descuenta del
+  // saldo, quitando el ¥ a la MISMA tasa ponderada que ya tenía (para no
+  // inventar un tipo de cambio nuevo), y queda registrado en el historial de
+  // gastos con fecha y concepto.
   const handleAjustarSaldo = async () => {
     const { fecha, jpy_real, concepto } = ajusteForm;
-    if (!fecha || jpy_real === "") { setAjusteError("Fecha y ¥ real son requeridos"); return; }
-    const jpyReal = parseFloat(jpy_real);
-    if (isNaN(jpyReal) || jpyReal < 0) { setAjusteError("El ¥ real debe ser un número válido (0 o más)"); return; }
-    const diferenciaJpy = parseFloat((saldo.jpy - jpyReal).toFixed(2));
+    if (!fecha || jpy_real === "") { setAjusteError("Fecha y ¥ total son requeridos"); return; }
+    const jpyTotalZenmarket = parseFloat(jpy_real);
+    if (isNaN(jpyTotalZenmarket) || jpyTotalZenmarket < 0) { setAjusteError("El ¥ total debe ser un número válido (0 o más)"); return; }
+    const jpySobranteReal = parseFloat((jpyTotalZenmarket - totalPorSaldarJpy).toFixed(2));
+    const diferenciaJpy = parseFloat((saldo.jpy - jpySobranteReal).toFixed(2));
     if (diferenciaJpy === 0) { setAjusteError("No hay diferencia contra el saldo actual"); return; }
     setSavingAjuste(true); setAjusteError("");
     try {
-      const proporcion = saldo.jpy > 0 ? jpyReal / saldo.jpy : 0;
+      const proporcion = saldo.jpy > 0 ? jpySobranteReal / saldo.jpy : 0;
       const nuevoMxnCosto = parseFloat((saldo.mxn_costo * proporcion).toFixed(2));
       const mxnDelAjuste = parseFloat((saldo.mxn_costo - nuevoMxnCosto).toFixed(2));
 
@@ -1563,7 +1568,7 @@ function SeccionPagos() {
         fecha, jpy: diferenciaJpy, mxn: mxnDelAjuste,
         concepto: concepto.trim() || "Ajuste de saldo (almacenamiento/comisiones)",
       });
-      await sb("saldo_zenmarket?id=eq.1", "PATCH", { jpy: jpyReal, mxn_costo: nuevoMxnCosto, updated_at: new Date().toISOString() });
+      await sb("saldo_zenmarket?id=eq.1", "PATCH", { jpy: jpySobranteReal, mxn_costo: nuevoMxnCosto, updated_at: new Date().toISOString() });
 
       setAjusteForm({ fecha: new Date().toISOString().slice(0, 10), jpy_real: "", concepto: "" });
       setShowAjuste(false);
@@ -1710,7 +1715,7 @@ function SeccionPagos() {
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>Saldo a favor</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: saldo.jpy > 0 ? "#00FF94" : "#555", fontFamily: "'Syne', sans-serif" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: saldo.jpy < 0 ? "#FF8080" : saldo.jpy > 0 ? "#00FF94" : "#555", fontFamily: "'Syne', sans-serif" }}>
               ¥{saldo.jpy.toLocaleString()}
             </div>
             {saldo.jpy > 0 && (
@@ -1718,7 +1723,7 @@ function SeccionPagos() {
                 ≈ {fmt(saldo.mxn_costo)} · tc ${(saldo.mxn_costo / saldo.jpy).toFixed(4)}/¥
               </div>
             )}
-            <button onClick={() => { setShowAjuste(!showAjuste); setAjusteError(""); setAjusteForm(f => ({ ...f, jpy_real: String(saldo.jpy) })); }}
+            <button onClick={() => { setShowAjuste(!showAjuste); setAjusteError(""); setAjusteForm(f => ({ ...f, jpy_real: String(saldo.jpy + totalPorSaldarJpy) })); }}
               style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginTop: 4, fontSize: 10, fontFamily: "'Space Mono', monospace", color: "#888", textDecoration: "underline" }}>
               {showAjuste ? "cancelar ajuste" : "ajustar saldo ▸"}
             </button>
@@ -1732,7 +1737,7 @@ function SeccionPagos() {
         {showAjuste && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,224,0,0.15)" }}>
             <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginBottom: 10, lineHeight: 1.5 }}>
-              Para cuadrar cargos que ZenMarket te descuenta directo (almacenamiento por plazo excedido, comisiones) sin pasar por una compra o un envío. Pon el ¥ real que ves ahorita en tu cuenta de ZenMarket.
+              Pon el ¥ TOTAL que ves ahorita en tu cuenta de ZenMarket (no el sobrante — el total). La app le resta lo que ya sabe que debes (¥{totalPorSaldarJpy.toLocaleString()} por saldar) y calcula tu sobrante real solo. Sirve para cuadrar cargos que ZenMarket descuenta directo (almacenamiento por plazo excedido, comisiones) sin pasar por una compra o un envío.
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
               <div>
@@ -1742,10 +1747,10 @@ function SeccionPagos() {
                   style={{ ...inp, width: 150 }} />
               </div>
               <div>
-                <label style={lbl}>¥ real en ZenMarket</label>
+                <label style={lbl}>¥ TOTAL en ZenMarket ahorita</label>
                 <input type="number" min="0" step="1" value={ajusteForm.jpy_real}
                   onChange={e => setAjusteForm(f => ({ ...f, jpy_real: e.target.value }))}
-                  style={{ ...inp, width: 130 }} autoFocus />
+                  style={{ ...inp, width: 150 }} autoFocus />
               </div>
               <div style={{ flex: 1, minWidth: 180 }}>
                 <label style={lbl}>Concepto (opcional)</label>
@@ -1758,15 +1763,21 @@ function SeccionPagos() {
                 {savingAjuste ? "Guardando..." : "Ajustar →"}
               </button>
             </div>
-            {ajusteForm.jpy_real !== "" && !isNaN(parseFloat(ajusteForm.jpy_real)) && (
-              <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 8 }}>
-                {saldo.jpy - parseFloat(ajusteForm.jpy_real) > 0
-                  ? <>Se va a registrar un gasto de <span style={{ color: "#FF8080" }}>¥{(saldo.jpy - parseFloat(ajusteForm.jpy_real)).toLocaleString()}</span></>
-                  : saldo.jpy - parseFloat(ajusteForm.jpy_real) < 0
-                    ? <>El saldo va a subir en <span style={{ color: "#00FF94" }}>¥{(parseFloat(ajusteForm.jpy_real) - saldo.jpy).toLocaleString()}</span></>
-                    : "Sin cambios"}
-              </div>
-            )}
+            {ajusteForm.jpy_real !== "" && !isNaN(parseFloat(ajusteForm.jpy_real)) && (() => {
+              const jpySobranteReal = parseFloat(ajusteForm.jpy_real) - totalPorSaldarJpy;
+              const diferencia = saldo.jpy - jpySobranteReal;
+              return (
+                <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 8 }}>
+                  Tu sobrante real sería <span style={{ color: jpySobranteReal < 0 ? "#FF8080" : "#00FF94" }}>¥{jpySobranteReal.toLocaleString()}</span>
+                  {" — "}
+                  {diferencia > 0
+                    ? <>se va a registrar un gasto de <span style={{ color: "#FF8080" }}>¥{diferencia.toLocaleString()}</span></>
+                    : diferencia < 0
+                      ? <>el saldo va a subir en <span style={{ color: "#00FF94" }}>¥{Math.abs(diferencia).toLocaleString()}</span></>
+                      : "sin cambios"}
+                </div>
+              );
+            })()}
             {errBox(ajusteError)}
           </div>
         )}
