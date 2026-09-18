@@ -1556,11 +1556,16 @@ function SeccionPagos() {
     if (!fecha || jpy_real === "") { setAjusteError("Fecha y ¥ total son requeridos"); return; }
     const jpyTotalZenmarket = parseFloat(jpy_real);
     if (isNaN(jpyTotalZenmarket) || jpyTotalZenmarket < 0) { setAjusteError("El ¥ total debe ser un número válido (0 o más)"); return; }
-    const jpySobranteReal = parseFloat((jpyTotalZenmarket - totalPorSaldarJpy).toFixed(2));
-    const diferenciaJpy = parseFloat((saldo.jpy - jpySobranteReal).toFixed(2));
+    const jpySobranteRealCrudo = parseFloat((jpyTotalZenmarket - totalPorSaldarJpy).toFixed(2));
+    const diferenciaJpy = parseFloat((saldo.jpy - jpySobranteRealCrudo).toFixed(2));
     if (diferenciaJpy === 0) { setAjusteError("No hay diferencia contra el saldo actual"); return; }
     setSavingAjuste(true); setAjusteError("");
     try {
+      // El saldo a favor nunca queda negativo -- si el ¥ real no alcanza a
+      // cubrir lo pendiente, ese faltante ya se ve reflejado en "Por saldar"
+      // (necesitas una recarga vía Saldar), no hace falta duplicarlo aquí
+      // como una deuda. El gasto sí se registra completo, con el monto real.
+      const jpySobranteReal = Math.max(0, jpySobranteRealCrudo);
       const proporcion = saldo.jpy > 0 ? jpySobranteReal / saldo.jpy : 0;
       const nuevoMxnCosto = parseFloat((saldo.mxn_costo * proporcion).toFixed(2));
       const mxnDelAjuste = parseFloat((saldo.mxn_costo - nuevoMxnCosto).toFixed(2));
@@ -1793,11 +1798,15 @@ function SeccionPagos() {
               </button>
             </div>
             {ajusteForm.jpy_real !== "" && !isNaN(parseFloat(ajusteForm.jpy_real)) && (() => {
-              const jpySobranteReal = parseFloat(ajusteForm.jpy_real) - totalPorSaldarJpy;
-              const diferencia = saldo.jpy - jpySobranteReal;
+              const jpySobranteRealCrudo = parseFloat(ajusteForm.jpy_real) - totalPorSaldarJpy;
+              const jpySobranteReal = Math.max(0, jpySobranteRealCrudo);
+              const diferencia = saldo.jpy - jpySobranteRealCrudo;
               return (
                 <div style={{ fontSize: 11, fontFamily: "'Space Mono', monospace", color: "#555", marginTop: 8 }}>
-                  Tu sobrante real sería <span style={{ color: jpySobranteReal < 0 ? "#FF8080" : "#00FF94" }}>¥{jpySobranteReal.toLocaleString()}</span>
+                  Tu saldo a favor quedaría en <span style={{ color: "#00FF94" }}>¥{jpySobranteReal.toLocaleString()}</span>
+                  {jpySobranteRealCrudo < 0 && (
+                    <span style={{ color: "#FF8080" }}> (te faltan ¥{Math.abs(jpySobranteRealCrudo).toLocaleString()} para cubrir lo pendiente — eso se resuelve con una recarga vía Saldar, no aquí)</span>
+                  )}
                   {" — "}
                   {diferencia > 0
                     ? <>se va a registrar un gasto de <span style={{ color: "#FF8080" }}>¥{diferencia.toLocaleString()}</span></>
