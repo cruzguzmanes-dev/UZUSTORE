@@ -1074,7 +1074,9 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
               style={{ ...inp, flex: 1, minWidth: 220, padding: "7px 10px", fontSize: 12, cursor: "pointer" }}>
               <option value="">Seleccionar compra...</option>
               {comprasDisp.filter(c => !itemsNuevoPaquete.some(it => it.lote_compra_id === c.id)).map(c => (
-                <option key={c.id} value={c.id}>{c.figuras?.nombre} — {c.cantidad}u · {c.fecha_compra}</option>
+                <option key={c.id} value={c.id}>
+                  {c.figuras?.nombre} — {c.cantidad}u · {c.fecha_compra} · {c.precio_jpy != null ? `¥${Number(c.precio_jpy).toLocaleString()}` : c.precio_mxn != null ? fmt(c.precio_mxn) : "sin precio"}
+                </option>
               ))}
             </select>
             <input type="number" min="1" placeholder="Cant."
@@ -1367,7 +1369,7 @@ function SeccionPaquetes({ figuras, onFigurasChange, onLoteEdited }) {
                             <option value="">Seleccionar compra...</option>
                             {disponibles.map(c => (
                               <option key={c.id} value={c.id}>
-                                {c.figuras?.nombre} — {c.cantidad}u · {c.fecha_compra}
+                                {c.figuras?.nombre} — {c.cantidad}u · {c.fecha_compra} · {c.precio_jpy != null ? `¥${Number(c.precio_jpy).toLocaleString()}` : c.precio_mxn != null ? fmt(c.precio_mxn) : "sin precio"}
                               </option>
                             ))}
                           </select>
